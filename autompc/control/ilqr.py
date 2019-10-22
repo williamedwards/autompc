@@ -400,7 +400,7 @@ class IterativeLQR(Controller):
                 cur_mu *= mu_scale
         return True, states, ctrls, Ks, ks
 
-    def compute_ilqr_default(self, state, uguess, u_threshold=1e-3, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3):
+    def compute_ilqr_default(self, state, uguess, u_threshold=1e-3, max_iter=100, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         Here I do not have Hessian correction since I'm certain all my matrices are SPD
@@ -416,18 +416,19 @@ class IterativeLQR(Controller):
         # cost = cost.eval_term_obs_cost(obs)
         # cost, cost_jac = cost.eval_term_obs_cost_diff(obs)
         # cost, cost_jac, cost_hess = cost.eval_term_obs_cost_hess(obs)
-        Q, R, F = cost.get_cost_matrices()
-        x0 = cost.get_x0()
-        Q = Q * self.system.dt
-        R = R * self.system.dt
+        # Q, R, F = cost.get_cost_matrices()
+        # x0 = cost.get_x0()
+        # Q = Q * self.system.dt
+        # R = R * self.system.dt
         H = self.horizon
+        dt = self.system.dt
 
         def eval_obj(xs, us):
             obj = 0
             for i in range(H):
-                obj += xs[i] @ Q @ xs[i] + us[i] @ R @ us[i]
-            obj += xs[-1] @ F @ xs[-1]
-            return obj * 0.5
+                obj += dt * (cost.eval_obs_cost(xs[i]) + cost.eval_ctrl_cost(us[i]))
+            obj += cost.eval_term_obs_cost(xs[-1])
+            return obj
 
         dimx, dimu = self.system.obs_dim, self.system.ctrl_dim
         # handy variables...
@@ -448,7 +449,6 @@ class IterativeLQR(Controller):
         obj = eval_obj(states, ctrls)
         initcost = obj
         # start iteration from here
-        max_iter = 100
         Ct = np.zeros((dimx + dimu, dimx + dimu))
         ct = np.zeros(dimx + dimu)
         converged = False
@@ -457,15 +457,18 @@ class IterativeLQR(Controller):
             if self.verbose:
                 print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
-            Vn = F
-            vn = F @ states[H]
+            _, cost_jac, cost_hess = cost.eval_term_obs_cost_hess(states[H])
+            Vn = cost_hess
+            vn = cost_jac
             lin_cost_reduce = quad_cost_reduce = 0
             for t in range(H, 0, -1):  # so run for H steps...
                 # first assemble Ct and ct, they are linearized at current state
-                Ct[:dimx, :dimx] = Q
-                Ct[dimx:, dimx:] = R
-                ct[:dimx] = Q @ states[t - 1]
-                ct[dimx:] = R @ ctrls[t - 1]
+                _, Qx, Q = cost.eval_obs_cost_hess(states[t - 1])
+                _, Ru, R = cost.eval_ctrl_cost_hess(ctrls[t - 1])
+                Ct[:dimx, :dimx] = Q * dt
+                Ct[dimx:, dimx:] = R * dt
+                ct[:dimx] = Qx * dt
+                ct[dimx:] = Ru * dt
                 Qt = Ct + Jacs[t - 1].T @ Vn @ Jacs[t - 1]
                 qt = ct + Jacs[t - 1].T @ (vn)  # here Vn @ states[t] may be necessary
                 # ready to compute feedback
