@@ -82,7 +82,7 @@ class Model:
         """
         Parameters
         ----------
-            trajs : List of Numpy arrays
+            trajs : List of pairs (xs, us)
                 Training set of trajectories
         Only implemented for trainable models.
         """
