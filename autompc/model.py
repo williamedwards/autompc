@@ -1,6 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 from enum import Enum
+from abc import ABC, abstractmethod
 
 class Hyper(Enum):
     """
@@ -11,8 +12,9 @@ class Hyper(Enum):
     boolean = 3
     choice = 4
 
-class Model:
-    def __call__(self, xs, us, latent=None, ret_grad=False):
+class Model(ABC):
+    @abstractmethod
+    def pred(self, xs, us, latent=None):
         """
         Parameters
         ----------
@@ -24,10 +26,27 @@ class Model:
                 Latent model data. Can be arbitrary
                 python object. None should be passed for first time
                 step. Used only to avoid redundant computation.
-            ret_grad : bool
-                If true, function returns gradient info.
-                A true value will result in a NotImplementedError if the
-                model is not differentiable.
+        Returns
+        -------
+            x : Numpy array
+                state at time (t+1)
+            latent : Arbitrary python object
+                Data used for latent computation. May be none.
+        """
+        raise NotImplementedError
+
+    def pred_diff(self, xs, us, latent=None):
+        """
+        Parameters
+        ----------
+            xs : (Numpy array)
+                States up to time t.
+            us : (Numpy array)
+                Controls up to time t.
+            latent : Arbitrary python object
+                Latent model data. Can be arbitrary
+                python object. None should be passed for first time
+                step. Used only to avoid redundant computation.
         Returns
         -------
             x : Numpy array
@@ -39,10 +58,15 @@ class Model:
         """
         raise NotImplementedError
 
-    def get_linear_system(self):
+    def to_linear(self):
         """
-        Returns: (A, B)
+        Returns: (A, B, state_func, cost_func)
             A, B -- Linear system matrices as Numpy arrays.
+            state_func -- Maps states from the original to the
+                state space used for the linear model.
+            cost_func -- Maps from cost matrices Q and R on the
+                original state space to the equivalent matrices
+                Q' R' on the transformed state space.
         Only implemented for linear models.
         """
         raise NotImplementedError
@@ -96,10 +120,36 @@ class Model:
         """
         raise NotImplementedError
 
-    def get_parameters(self, params):
+    def set_parameters(self, params):
         """
         Sets trainable model parameters from dict.
 
         Only implemented for trainable parameters.
         """
         raise NotImplementedError
+
+    @property
+    def is_linear(self):
+        """
+        Returns true for linear models
+        """
+        return not self.to_linear.__func__ is Model.to_linear
+
+    @property
+    def is_diff(self):
+        """
+        Returns true for differentiable models.
+        """
+        return not self.pred_diff.__func__ is Model.pred_diff
+
+    @property
+    def is_trainable(self):
+        """
+        Returns true for trainable models.
+        """
+        return not (self.train.__func__ is Model.train
+                or self.get_hyper_options.__func__ is Model.get_hyper_options
+                or self.get_hypers.__func__ is Model.get_hypers
+                or self.set_hypers.__func__ is Model.set_hypers
+                or self.get_parameters.__func__ is Model.get_parameters
+                or self.set_parameters.__func__ is Model.set_parameters)

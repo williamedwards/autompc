@@ -18,7 +18,7 @@ class ARX(Model):
         # TODO
         pass
 
-    def trains(self, trajs):
+    def train(self, trajs):
         matrix, targets = self._get_training_matrix_and_targets(self, trajs)
 
         self.coeffs = []
@@ -26,22 +26,31 @@ class ARX(Model):
             coeffs, _, _,  _ = la.lstsq(matrix, target)
             self.coeffs.append(coeffs)
 
-    def __call__(self, xs, us, latent=None, ret_grad=False):
+    def pred(self, xs, us, latent=None):
         fvec = self._get_feature_vector(xs, us, len(xs)-1)
         xnew = np.zeros(xs.shape[1])
 
         for i in range(xs.shape[1]):
             xnew[i] = self.coeffs[i] @ fvec
 
-        if ret_grad:
-            xgrad = np.zeros(xs.shape)
-            ugrad = np.zeros(us.shape)
-            for i in range(self.k):
-                xgrad[-i] = fvec[off1:off2]
-                ugrad[-i] = fvec[off3:off4]
-            return xnew, None, (xgrad, ugrad)
-        else:
-            return xnew, None
+        return xnew, None
+
+    def pred_diff(self, xs, us, latent=None):
+        fvec = self._get_feature_vector(xs, us, len(xs)-1)
+        xnew = np.zeros(xs.shape[1])
+
+        for i in range(xs.shape[1]):
+            xnew[i] = self.coeffs[i] @ fvec
+
+        xgrad = np.zeros(xs.shape)
+        ugrad = np.zeros(us.shape)
+        for i in range(self.k):
+            xgrad[-i] = fvec[off1:off2]
+            ugrad[-i] = fvec[off3:off4]
+        return xnew, None, (xgrad, ugrad)
+
+    def to_linear(self):
+        pass
 
 
     def get_hyper_options(self):
