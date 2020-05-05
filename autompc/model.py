@@ -5,6 +5,9 @@ from abc import ABC, abstractmethod
 from .hyper import Hyperparam
 
 class Model(ABC):
+    def __init__(self, system):
+        self.system = system
+
     @abstractmethod
     def pred(self, traj, latent=None):
         """

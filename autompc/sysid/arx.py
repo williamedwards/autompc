@@ -7,8 +7,8 @@ from ..model import Model
 from ..hyper import IntRangeHyperparam
 
 class ARX(Model):
-    def __init__(self):
-        # Initialize hyperparameters and parameters to default values
+    def __init__(self, system):
+        super().__init__(system)
         self.k = IntRangeHyperparam((1, 10))
 
     def _get_feature_vector(self, xs, us, t):
