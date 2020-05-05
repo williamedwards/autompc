@@ -1,27 +1,17 @@
 # Created by William Edwards (wre2@illinois.edu)
 
-from enum import Enum
 from abc import ABC, abstractmethod
 
-class Hyper(Enum):
-    """
-    Enumeration for hyperparameter types.
-    """
-    float_range = 1
-    int_range = 2
-    boolean = 3
-    choice = 4
+from .hyper import Hyperparam
 
 class Model(ABC):
     @abstractmethod
-    def pred(self, xs, us, latent=None):
+    def pred(self, traj, latent=None):
         """
         Parameters
         ----------
-            xs : (Numpy array)
-                States up to time t.
-            us : (Numpy array)
-                Controls up to time t.
+            traj : Trajectory
+                State and control history up to present time.
             latent : Arbitrary python object
                 Latent model data. Can be arbitrary
                 python object. None should be passed for first time
@@ -35,14 +25,12 @@ class Model(ABC):
         """
         raise NotImplementedError
 
-    def pred_diff(self, xs, us, latent=None):
+    def pred_diff(self, traj, latent=None):
         """
         Parameters
         ----------
-            xs : (Numpy array)
-                States up to time t.
-            us : (Numpy array)
-                Controls up to time t.
+            traj : Trajectory
+                State and control history up to present time.
             latent : Arbitrary python object
                 Latent model data. Can be arbitrary
                 python object. None should be passed for first time
@@ -80,7 +68,11 @@ class Model(ABC):
         [lower_bound, upper_bound]. If hyper is Hyper.choice, option is a set
         of available choices.  If hyper is Hyper.boolean, option is None.
         """
-        raise NotImplementedError
+        hyperopts = dict()
+        for k, v in self.__dict__.items():
+            if isinstance(v, Hyperparam):
+                hyperopts[k] = (v.type, v.options)
+        return hyperopts
 
     def get_hypers(self):
         """
@@ -88,9 +80,13 @@ class Model(ABC):
         for trainable models. The keys is the hyperparameter name and the
         value is the value.
         """
-        raise NotImplementedError
+        hypers = dict()
+        for k, v in self.__dict__.items():
+            if isinstance(v, Hyperparam):
+                hypers[k] = v.value
+        return hypers
 
-    def set_hypers(self, hypers):
+    def set_hypers(self, **hypers):
         """
         Parameters
         ----------
@@ -100,7 +96,10 @@ class Model(ABC):
                 left unchanged.
         Only implemented for trainable models.
         """
-        raise NotImplementedError
+        for k, v in hypers.items():
+            if k in self.__dict__ and isinstance(self.k, Hyperparam):
+                self.__dict__[k].value = v
+
 
     def train(self, trajs):
         """
@@ -148,8 +147,5 @@ class Model(ABC):
         Returns true for trainable models.
         """
         return not (self.train.__func__ is Model.train
-                or self.get_hyper_options.__func__ is Model.get_hyper_options
-                or self.get_hypers.__func__ is Model.get_hypers
-                or self.set_hypers.__func__ is Model.set_hypers
                 or self.get_parameters.__func__ is Model.get_parameters
                 or self.set_parameters.__func__ is Model.set_parameters)

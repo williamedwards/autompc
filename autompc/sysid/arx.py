@@ -3,12 +3,13 @@
 import numpy as np
 import numpy.linalg as la
 
-from ..model import Model, Hyper
+from ..model import Model
+from ..hyper import IntRangeHyperparam
 
 class ARX(Model):
     def __init__(self):
         # Initialize hyperparameters and parameters to default values
-        pass
+        self.k = IntRangeHyperparam((1, 10))
 
     def _get_feature_vector(self, xs, us, t):
         # TODO
@@ -51,16 +52,6 @@ class ARX(Model):
 
     def to_linear(self):
         pass
-
-
-    def get_hyper_options(self):
-        return {"k" : (Hyper.int_range, (1, float("inf")))}
-
-    def get_hypers(self):
-        return {"k" : self.k} 
-
-    def set_hypers(self, hypers):
-        self.k = hypers["k"]
 
     def get_parameters(self):
         return {"coeffs" : np.copy(self.coeffs)}

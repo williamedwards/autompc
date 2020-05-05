@@ -20,8 +20,10 @@ print(traj.ctrls)
 print(traj[3, "torque"])
 print(traj[5].obs)
 
-#model = ampc.Model()
-#arx = ARX()
-#
-#print(isinstance(arx, ampc.Model))
-#print(arx.is_trainable)
+arx = ARX()
+
+print(arx.get_hyper_options())
+print(arx.get_hypers())
+arx.set_hypers(k=5)
+print(arx.get_hypers())
+
