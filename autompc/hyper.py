@@ -11,6 +11,7 @@ class HyperType(Enum):
     int_range = 2
     float_range = 3
     choice = 4
+    multi_choice = 5
 
 class Hyperparam(ABC):
     @abstractproperty
@@ -107,7 +108,7 @@ class ChoiceHyperparam(Hyperparam):
     def __init__(self, choices, default_value=None):
         self.choices = choices
         if default_value is None:
-            self._value = lower
+            self._value = choices[0]
         else:
             self._value = default_value
 
@@ -129,3 +130,30 @@ class ChoiceHyperparam(Hyperparam):
             self._value = val
         else:
             return ValueError("Hyperparameter value not in choices")
+
+class MultiChoiceHyperparam(Hyperparam):
+    def __init__(self, choices, default_value=None):
+        self.choices = choices
+        if default_value is None:
+            self._value = set()
+        else:
+            self._value = default_value
+
+    @property
+    def type(self):
+        return HyperType.multi_choice
+
+    @property
+    def options(self):
+        return self.choices[:]
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, val):
+        if val <= set(self.choices):
+            self._value = val
+        else:
+            return ValueError("Hyperparameter values not in choices")

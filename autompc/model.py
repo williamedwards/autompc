@@ -1,6 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 from abc import ABC, abstractmethod
+from pdb import set_trace
 
 from .hyper import Hyperparam
 
@@ -100,7 +101,7 @@ class Model(ABC):
         Only implemented for trainable models.
         """
         for k, v in hypers.items():
-            if k in self.__dict__ and isinstance(self.k, Hyperparam):
+            if k in self.__dict__ and isinstance(self.__dict__[k], Hyperparam):
                 self.__dict__[k].value = v
 
 

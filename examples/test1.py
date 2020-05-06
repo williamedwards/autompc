@@ -39,9 +39,9 @@ print(traj.ctrls)
 ##  [0.]]
 
 
-from autompc.sysid import ARX
+from autompc.sysid import ARX, Koopman
 
-arx = ARX(pendulum)
+arx = Koopman(pendulum)
 
 print(arx.is_linear)
 # Ouputs:
@@ -55,7 +55,7 @@ print(arx.get_hypers())
 # Outputs:
 ## {'k': 1}
 
-arx.set_hypers(k=5)
+arx.set_hypers(method="lasso")
 print(arx.get_hypers())
 # Outputs:
 ## {'k': 5}

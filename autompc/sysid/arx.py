@@ -11,7 +11,7 @@ class ARX(Model):
         super().__init__(system)
         self.k = IntRangeHyperparam((1, 10))
 
-    def _get_feature_vector(self, xs, us, t):
+    def _get_feature_vector(self, xs, us):
         # TODO
         pass
 
@@ -27,28 +27,25 @@ class ARX(Model):
             coeffs, _, _,  _ = la.lstsq(matrix, target)
             self.coeffs.append(coeffs)
 
-    def pred(self, xs, us, latent=None):
-        fvec = self._get_feature_vector(xs, us, len(xs)-1)
-        xnew = np.zeros(xs.shape[1])
+    def pred(self, traj, latent=None):
+        fvec = self._get_feature_vector(traj)
+        xnew = np.zeros(traj.system.obs_dim)
 
-        for i in range(xs.shape[1]):
+        for i in range(traj.system.obs_dim):
             xnew[i] = self.coeffs[i] @ fvec
 
         return xnew, None
 
-    def pred_diff(self, xs, us, latent=None):
-        fvec = self._get_feature_vector(xs, us, len(xs)-1)
-        xnew = np.zeros(xs.shape[1])
+    def pred_diff(self, traj, latent=None):
+        fvec = self._get_feature_vector(traj)
+        xnew = np.zeros(traj.system.obs_dim)
 
-        for i in range(xs.shape[1]):
+        for i in range(traj.system.obs_dim):
             xnew[i] = self.coeffs[i] @ fvec
 
-        xgrad = np.zeros(xs.shape)
-        ugrad = np.zeros(us.shape)
-        for i in range(self.k):
-            xgrad[-i] = fvec[off1:off2]
-            ugrad[-i] = fvec[off3:off4]
-        return xnew, None, (xgrad, ugrad)
+        # Compute grad
+        
+        return xnew, None, grad
 
     def to_linear(self):
         pass
