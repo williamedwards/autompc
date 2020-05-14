@@ -29,7 +29,7 @@ class Trajectory:
 
     def __getitem__(self, idx):
         if isinstance(idx, tuple):
-            if idx[0] < 0 or idx[0] >= self.size:
+            if idx[0] < -self.size or idx[0] >= self.size:
                 raise IndexError("Time index out of range.")
             if idx[1] in self._system.observations:
                 obs_idx = self._system.observations.index(idx[1])
@@ -40,17 +40,18 @@ class Trajectory:
             else:
                 raise IndexError("Unknown label")
         elif isinstance(idx, int):
-            if idx < 0 or idx >= self.size:
+            if idx < -self.size or idx >= self.size:
                 raise IndexError("Time index out of range.")
             return namedtuple("TimeStep", "obs ctrl")(self._obs[idx,:], 
                     self._ctrls[idx,:])
+        elif isinstance(idx, slice):
+            #if idx.start < -self.size or idx.stop >= self.size:
+            #    raise IndexError("Time index out of range.")
+            obs = self._obs[idx, :]
+            ctrls = self._ctrls[idx, :]
+            return Trajectory(self._system, obs.shape[0], obs, ctrls)
         else:
             raise IndexError("Unknown index type")
-        #elif isinstance(idx, slice):
-        #    if idx.start < 0 or idx.stop >= self.size:
-        #        raise IndexError("Time index out of range.")
-        #    return namedtuple("obs", "ctrl")(self._obs[idx,:], 
-        #            self._ctrls[idx,:])
 
     def __setitem__(self, idx, val):
         if isinstance(idx, tuple):
@@ -68,6 +69,9 @@ class Trajectory:
             raise IndexError("Cannot assign to time steps.")
         else:
             raise IndexError("Unknown index type")
+
+    def __len__(self):
+        return self._size
             
 
     @property

@@ -1,3 +1,4 @@
+from pdb import set_trace
 import sys, os
 sys.path.append(os.getcwd() + "/..")
 
@@ -36,49 +37,39 @@ traj = trajs[-1]
 
 
 print(traj.obs)
-# Outputs:
-## [[0.  0. ]
-##  [0.  0. ]
-##  [0.  0. ]
-##  [0.  0. ]
-##  [0.  0. ]
-##  [0.5 0. ]
-##  [3.  4. ]
-##  [0.  0. ]
-##  [0.  0. ]
-##  [0.  0. ]]
 
 print(traj.ctrls)
-# Outputs:
-## [[0.]
-##  [0.]
-##  [0.]
-##  [1.]
-##  [0.]
-##  [0.]
-##  [0.]
-##  [0.]
-##  [0.]
-##  [0.]]
 
 
-#from autompc.sysid import ARX, Koopman
-#
-#arx = ARX(pendulum)
-#
-#print(arx.is_linear)
-## Ouputs:
-### True
-#
-#print(arx.get_hyper_options())
-## Ouputs:
-### {'k': (<HyperType.int_range: 2>, (1, 10))}
-#
-#print(arx.get_hypers())
-## Outputs:
-### {'k': 1}
-#
-#arx.set_hypers(method="lasso")
-#print(arx.get_hypers())
-## Outputs:
-### {'k': 5}
+from autompc.sysid import ARX, Koopman
+
+arx = ARX(simplesys)
+
+print(arx.is_linear)
+
+print(arx.get_hyper_options())
+
+print(arx.get_hypers())
+
+arx.set_hypers(k=2)
+print(arx.get_hypers())
+
+arx.train(trajs)
+
+# Test prediction
+
+predobs, _ = arx.pred(traj[:10])
+assert(np.allclose(predobs, traj[10].obs))
+
+A, B, state_func, cost_func = arx.to_linear()
+
+state = state_func(traj[:10])
+
+state = A @ state + B @ traj[10].ctrl
+state = A @ state + B @ traj[11].ctrl
+
+assert(np.allclose(state[-3:-1], traj[11].obs))
+
+Q, R = np.eye(2), np.eye(1)
+Qt, Rt, = cost_func(Q, R)
+print(Qt, Rt)

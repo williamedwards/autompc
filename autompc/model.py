@@ -55,7 +55,8 @@ class Model(ABC):
         Returns: (A, B, state_func, cost_func)
             A, B -- Linear system matrices as Numpy arrays.
             state_func -- Maps states from the original to the
-                state space used for the linear model.
+                state space used for the linear model. Signature
+                is (traj, t) -> x.
             cost_func -- Maps from cost matrices Q and R on the
                 original state space to the equivalent matrices
                 Q' R' on the transformed state space.
