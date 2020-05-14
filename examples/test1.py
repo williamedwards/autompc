@@ -41,7 +41,7 @@ print(traj.ctrls)
 
 from autompc.sysid import ARX, Koopman
 
-arx = Koopman(pendulum)
+arx = ARX(pendulum)
 
 print(arx.is_linear)
 # Ouputs:
