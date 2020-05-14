@@ -40,6 +40,16 @@ print(traj.obs)
 
 print(traj.ctrls)
 
+from autompc.control import ExampleController
+
+con = ExampleController(simplesys)
+
+print(con.is_diff)
+print(con.get_hyper_options())
+print(con.get_hypers())
+
+con.set_hypers(horizon=20)
+print(con.get_hypers())
 
 from autompc.sysid import ARX, Koopman
 
@@ -61,15 +71,17 @@ arx.train(trajs)
 predobs, _ = arx.pred(traj[:10])
 assert(np.allclose(predobs, traj[10].obs))
 
-A, B, state_func, cost_func = arx.to_linear()
+arx_A, arx_B, state_func, cost_func = arx.to_linear()
 
 state = state_func(traj[:10])
 
-state = A @ state + B @ traj[10].ctrl
-state = A @ state + B @ traj[11].ctrl
+state = arx_A @ state + arx_B @ traj[10].ctrl
+state = arx_A @ state + arx_B @ traj[11].ctrl
 
 assert(np.allclose(state[-3:-1], traj[11].obs))
 
 Q, R = np.eye(2), np.eye(1)
 Qt, Rt, = cost_func(Q, R)
 print(Qt, Rt)
+
+
