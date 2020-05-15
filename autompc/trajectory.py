@@ -13,6 +13,13 @@ def empty(system, size):
     ctrls = np.empty((size, system.ctrl_dim))
     return Trajectory(system, size, obs, ctrls)
 
+def extend(traj, obs, ctrls):
+    newobs = np.concatenate([traj.obs, obs])
+    newctrls = np.concatenate([traj.ctrls, ctrls])
+    newtraj = Trajectory(traj.system, newobs.shape[0],
+            newobs, newctrls)
+    return newtraj
+
 class Trajectory:
     def __init__(self, system, size, obs, ctrls):
         self._system = system
@@ -55,7 +62,7 @@ class Trajectory:
 
     def __setitem__(self, idx, val):
         if isinstance(idx, tuple):
-            if idx[0] < 0 or idx[0] >= self.size:
+            if idx[0] < -self.size or idx[0] >= self.size:
                 raise IndexError("Time index out of range.")
             if idx[1] in self._system.observations:
                 obs_idx = self._system.observations.index(idx[1])
@@ -72,7 +79,6 @@ class Trajectory:
 
     def __len__(self):
         return self._size
-            
 
     @property
     def system(self):

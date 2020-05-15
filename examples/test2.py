@@ -73,14 +73,19 @@ Q, R = np.eye(2), np.eye(1)
 Qt, Rt, = cost_func(Q, R)
 print(Qt, Rt)
 
-from autompc.control import ExampleController
+from autompc.control import InfiniteHorizonLQR
 
-con = ExampleController(simplesys, arx)
+Q = np.eye(2)
+R = np.eye(1)
+con = InfiniteHorizonLQR(simplesys, arx, Q, R)
 
-print(con.is_diff)
-print(con.get_hyper_options())
-print(con.get_hypers())
+sim_traj = trajs[0][:1]
+x = sim_traj[0].obs
 
-con.set_hypers(horizon=20)
-print(con.get_hypers())
-
+for _ in range(30):
+    u, _ = con.run(sim_traj)
+    x = A @ x + B @ u
+    sim_traj[-1, "u"] = u
+    sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
+    xtrans = con.state_func(sim_traj)
+set_trace()
