@@ -6,8 +6,9 @@ from pdb import set_trace
 from .hyper import Hyperparam
 
 class Controller(ABC):
-    def __init__(self, system):
+    def __init__(self, system, model):
         self.system = system
+        self.model = model
 
     @abstractmethod
     def run(self, traj, latent=None):

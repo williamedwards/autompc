@@ -7,8 +7,8 @@ from ..controller import Controller
 from ..hyper import IntRangeHyperparam
 
 class ExampleController(Controller):
-    def __init__(self, system):
-        super().__init__(system)
+    def __init__(self, system, model):
+        super().__init__(system, model)
         self.horizon = IntRangeHyperparam((1, 100), default_value=10)
 
     def run(self, traj, latent=None):

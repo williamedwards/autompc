@@ -40,17 +40,6 @@ print(traj.obs)
 
 print(traj.ctrls)
 
-from autompc.control import ExampleController
-
-con = ExampleController(simplesys)
-
-print(con.is_diff)
-print(con.get_hyper_options())
-print(con.get_hypers())
-
-con.set_hypers(horizon=20)
-print(con.get_hypers())
-
 from autompc.sysid import ARX, Koopman
 
 arx = ARX(simplesys)
@@ -84,4 +73,14 @@ Q, R = np.eye(2), np.eye(1)
 Qt, Rt, = cost_func(Q, R)
 print(Qt, Rt)
 
+from autompc.control import ExampleController
+
+con = ExampleController(simplesys, arx)
+
+print(con.is_diff)
+print(con.get_hyper_options())
+print(con.get_hypers())
+
+con.set_hypers(horizon=20)
+print(con.get_hypers())
 
