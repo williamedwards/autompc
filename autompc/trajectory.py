@@ -36,7 +36,8 @@ class Trajectory:
 
     def __getitem__(self, idx):
         if isinstance(idx, tuple):
-            if idx[0] < -self.size or idx[0] >= self.size:
+            if (not isinstance(idx[0], slice) and (idx[0] < -self.size 
+                    or idx[0] >= self.size)):
                 raise IndexError("Time index out of range.")
             if idx[1] in self._system.observations:
                 obs_idx = self._system.observations.index(idx[1])

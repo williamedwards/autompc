@@ -2,6 +2,8 @@
 
 import numpy as np
 import numpy.linalg as la
+import scipy.linalg as sla
+from pdb import set_trace
 
 from ..model import Model
 from ..hyper import ChoiceHyperparam, MultiChoiceHyperparam
@@ -9,26 +11,24 @@ from ..hyper import ChoiceHyperparam, MultiChoiceHyperparam
 class Koopman(Model):
     def __init__(self, system):
         super().__init__(system)
-        self.method = ChoiceHyperparam(["ridge", "lasso", "stableAB"])
+        self.method = ChoiceHyperparam(["lstsq", "lasso", "stableAB"])
 
-        #TODO Consider in more detail
-        self.basis_functions = MultiChoiceHyperparam(["sin", "cos", "tan",
-            "sinh", "cosh", "sq", "cube", "sqrt"])
+        self.basis_functions = MultiChoiceHyperparam(["poly3", "trig"])
 
     def train(self, trajs):
-        Measurements = np.concatenate([traj.obs for traj in trajs])
-        X = Measurements[:, 0:-1]
-        Y = Measurements[:, 1:]
-        U = np.concatenate([traj.ctrls for traj in trajs])
+        X = np.concatenate([traj.obs[:-1,:] for traj in trajs]).T
+        Y = np.concatenate([traj.obs[1:,:] for traj in trajs]).T
+        U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs]).T
         
         n = X.shape[0] # state dimension
         m = U.shape[0] # control dimension    
         
         # Evaluate basis functions based on states
+        basis_functions = []
         
-        if self.method.value == 1: # Least Squares Solution
+        if self.method.value == "lstsq": # Least Squares Solution
             XU = np.concatenate((X, U), axis = 0) # stack X and U together
-            AB = dot(Y, linalg.pinv2(XU))
+            AB = np.dot(Y, sla.pinv2(XU))
             A = AB[:n, :n]
             B = AB[:n, n:]
         elif self.method.value == 2:  # Call lasso regression on coefficients
@@ -43,10 +43,12 @@ class Koopman(Model):
     def pred(self, traj, latent=None):
         # Compute transformed state x
         u = traj[-1].ctrl
+        x = traj[-1].obs
 
         xnew = self.A @ x + self.B @ u
 
         # Transform to original state space xpred
+        xpred = xnew
 
         return xpred, None
 
@@ -64,6 +66,10 @@ class Koopman(Model):
     def to_linear(self):
         # Compute state transform state_func
         # Compute cost transformer cost_func
+        def state_func(traj):
+            return traj[-1].obs
+        def cost_func(Q, R):
+            return Q, R
         return np.copy(self.A), np.copy(self.B), state_func, cost_func
 
     def get_parameters(self):
