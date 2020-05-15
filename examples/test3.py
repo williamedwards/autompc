@@ -44,6 +44,7 @@ print(traj.ctrls)
 from autompc.sysid import ARX, Koopman
 
 koop = Koopman(simplesys)
+koop.set_hypers(basis_functions=set(["poly3", "trig"]))
 koop.train(trajs)
 
 
@@ -60,7 +61,7 @@ state = state_func(traj[:10])
 state = koop_A @ state + koop_B @ traj[9].ctrl
 state = koop_A @ state + koop_B @ traj[10].ctrl
 
-assert(np.allclose(state, traj[11].obs))
+assert(np.allclose(state[:2], traj[11].obs))
 
 Q, R = np.eye(2), np.eye(1)
 Qt, Rt, = cost_func(Q, R)

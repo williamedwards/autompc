@@ -15,9 +15,27 @@ class Koopman(Model):
 
         self.basis_functions = MultiChoiceHyperparam(["poly3", "trig"])
 
+    def _transform_state(self, state):
+        basis = [lambda x: x]
+        if "poly3" in self.basis_functions.value:
+            basis += [lambda x: x**2, lambda x: x**3]
+        if "trig" in self.basis_functions.value:
+            basis += [np.sin, np.cos, np.tan]
+        return np.array([b(x) for b in basis for x in state])
+
+    def _state_size(self):
+        basis = [lambda x: x]
+        if "poly3" in self.basis_functions.value:
+            basis += [lambda x: x**2, lambda x: x**3]
+        if "trig" in self.basis_functions.value:
+            basis += [np.sin, np.cos, np.tan]
+        return len(basis) * self.system.obs_dim
+
     def train(self, trajs):
-        X = np.concatenate([traj.obs[:-1,:] for traj in trajs]).T
-        Y = np.concatenate([traj.obs[1:,:] for traj in trajs]).T
+        X = np.concatenate([np.apply_along_axis(self._transform_state, 1, 
+            traj.obs[:-1,:]) for traj in trajs]).T
+        Y = np.concatenate([np.apply_along_axis(self._transform_state, 1, 
+            traj.obs[1:,:]) for traj in trajs]).T
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs]).T
         
         n = X.shape[0] # state dimension
@@ -43,12 +61,12 @@ class Koopman(Model):
     def pred(self, traj, latent=None):
         # Compute transformed state x
         u = traj[-1].ctrl
-        x = traj[-1].obs
+        x = self._transform_state(traj[-1].obs)
 
         xnew = self.A @ x + self.B @ u
 
         # Transform to original state space xpred
-        xpred = xnew
+        xpred = xnew[:self.system.obs_dim]
 
         return xpred, None
 
@@ -67,9 +85,12 @@ class Koopman(Model):
         # Compute state transform state_func
         # Compute cost transformer cost_func
         def state_func(traj):
-            return traj[-1].obs
+            return self._transform_state(traj[-1].obs)
         def cost_func(Q, R):
-            return Q, R
+            n = self.system.obs_dim
+            Qt = np.zeros((self._state_size(), self._state_size()))
+            Qt[:n, :n] = Q
+            return Qt, R
         return np.copy(self.A), np.copy(self.B), state_func, cost_func
 
     def get_parameters(self):
