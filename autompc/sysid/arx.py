@@ -99,7 +99,9 @@ class ARX(Model):
 
         def cost_func(Q, R, F=None):
             Qnew = np.zeros(A.shape)
-            Qnew[-self.system.obs_dim:, -self.system.obs_dim:] = Q
+            n = self.system.obs_dim
+            m = self.system.ctrl_dim
+            Qnew[-n-m:-m, -n-m:-m] = Q
             Rnew = R.copy()
             if F is None:
                 return Qnew, Rnew

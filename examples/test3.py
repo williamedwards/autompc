@@ -43,32 +43,25 @@ print(traj.ctrls)
 
 from autompc.sysid import ARX, Koopman
 
-arx = ARX(simplesys)
+koop = Koopman(simplesys)
+koop.set_hypers(basis_functions=set(["poly3", "trig"]))
+koop.train(trajs)
 
-print(arx.is_linear)
-
-print(arx.get_hyper_options())
-
-print(arx.get_hypers())
-
-arx.set_hypers(k=2)
-print(arx.get_hypers())
-
-arx.train(trajs)
 
 # Test prediction
 
-predobs, _ = arx.pred(traj[:10])
+predobs, _ = koop.pred(traj[:10])
 assert(np.allclose(predobs, traj[10].obs))
+print("completed assert")
 
-arx_A, arx_B, state_func, cost_func = arx.to_linear()
+koop_A, koop_B, state_func, cost_func = koop.to_linear()
 
 state = state_func(traj[:10])
 
-state = arx_A @ state + arx_B @ traj[10].ctrl
-state = arx_A @ state + arx_B @ traj[11].ctrl
+state = koop_A @ state + koop_B @ traj[9].ctrl
+state = koop_A @ state + koop_B @ traj[10].ctrl
 
-assert(np.allclose(state[-3:-1], traj[11].obs))
+assert(np.allclose(state[:2], traj[11].obs))
 
 Q, R = np.eye(2), np.eye(1)
 Qt, Rt, = cost_func(Q, R)
@@ -78,7 +71,7 @@ from autompc.control import InfiniteHorizonLQR
 
 Q = np.eye(2)
 R = np.eye(1)
-con = InfiniteHorizonLQR(simplesys, arx, Q, R)
+con = InfiniteHorizonLQR(simplesys, koop, Q, R)
 
 sim_traj = ampc.zeros(simplesys, 1)
 x = np.array([1,1])
