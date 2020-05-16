@@ -6,6 +6,7 @@ import sys, os
 sys.path.append(os.getcwd() + "/..")
 
 import numpy as np
+import matplotlib.pyplot as plt
 import autompc as ampc
 
 from scipy.integrate import solve_ivp
@@ -46,7 +47,7 @@ print(traj.ctrls)
 from autompc.control import LinearMPC
 from autompc.control.mpc import MPCConstraints, LQRCost
 
-from autompc.sysid import ARX
+from autompc.sysid import ARX, Koopman
 
 arx = ARX(simplesys)
 
@@ -77,18 +78,48 @@ assert(np.allclose(state[-3:-1], traj[11].obs))
 
 Q, R = np.eye(2), np.eye(1)
 cost = LQRCost(Q, R)
-con = LinearMPC(arx, cost, None)
+con = LinearMPC(simplesys, arx, cost, None)
 print(con.is_diff)
 print(con.get_hyper_options())
 print(con.get_hypers())
 
-con.set_hypers(horizon=8)
+con.set_hypers(horizon=6)
 print(con.get_hypers())
 
+# sim_traj = ampc.zeros(simplesys, 1)
+# x = np.array([1, 1])
+# sim_traj[0].obs[:] = x
+# for _ in range(30):
+#     u, _ = con.run(sim_traj)
+#     x = A @ x + B @ u
+#     sim_traj[-1, "u"] = u
+#     sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
+#     xtrans = con.state_func(sim_traj)
+# 
+# plt.figure()
+# plt.plot(sim_traj[:,"x1"], sim_traj[:,"x2"], "b-o")
+# plt.show()
 
-u, latent = con.run(traj[:1])
-print(u)
-u, latent = con.run(traj[:5])
-print(u)
-u, latent = con.run(traj[:10])
-print(u)
+# do a koopman
+koop = Koopman(simplesys)
+koop.set_hypers()
+koop.train(trajs)
+
+Q, R = np.eye(2), np.eye(1)
+cost = LQRCost(Q, R)
+con = LinearMPC(simplesys, koop, cost, None)
+con.set_hypers(horizon=5)
+
+sim_traj = ampc.zeros(simplesys, 1)
+x = np.array([1, 1])
+sim_traj[0].obs[:] = x
+
+for _ in range(30):
+    u, _ = con.run(sim_traj)
+    x = A @ x + B @ u
+    sim_traj[-1, "u"] = u
+    sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
+    xtrans = con.state_func(sim_traj)
+
+plt.plot(sim_traj[:,"x1"], sim_traj[:,"x2"], "b-o")
+plt.show()

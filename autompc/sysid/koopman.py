@@ -86,11 +86,16 @@ class Koopman(Model):
         # Compute cost transformer cost_func
         def state_func(traj):
             return self._transform_state(traj[-1].obs)
-        def cost_func(Q, R):
+        def cost_func(Q, R, F=None):
             n = self.system.obs_dim
             Qt = np.zeros((self._state_size(), self._state_size()))
             Qt[:n, :n] = Q
-            return Qt, R
+            if F is None:
+                return Qt, R
+            else:
+                Ft = np.zeros_like(Qt)
+                Ft[:n, :n] = F
+                return Qt, R, Ft
         return np.copy(self.A), np.copy(self.B), state_func, cost_func
 
     def get_parameters(self):
@@ -100,5 +105,3 @@ class Koopman(Model):
     def set_parameters(self, params):
         self.A = np.copy(params["A"])
         self.B = np.copy(params["B"])
-
-

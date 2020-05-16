@@ -95,10 +95,10 @@ class LinearMPC(Controller):
     """
     Implementation of the linear controller. For this very basic version, it accepts some linear models and compute output.
     """
-    def __init__(self, model, cost, constraints=None):
+    def __init__(self, system, model, cost, constraints=None):
         # I prefer type checking, but clearly current API does not allow me so
-        Controller.__init__(self, model)
-        self.A, self.B, self.sfun, self.cfun = model.to_linear()
+        Controller.__init__(self, system, model)
+        self.A, self.B, self.state_func, self.cfun = model.to_linear()
         self.qrnf = cost.get_quadratic()
         self.constr = constraints
         self.horizon = IntRangeHyperparam((1, 10))
@@ -142,6 +142,7 @@ class LinearMPC(Controller):
         obj = 0
         Q, R, N, F = self.qrnf
         Q, R, F = self.cfun(Q, R, F)  # TODO: clarify if we should just ignore N, we probably should
+        Q += 1e-4 * np.eye(Q.shape[0])
         obj += cp.quad_form(xs[-1], F)
         for i in range(horizon):
             obj += cp.quad_form(xs[i], Q) + cp.quad_form(us[i], R)
@@ -156,6 +157,7 @@ class LinearMPC(Controller):
         return {'x': self._xs.value, 'u': self._us.value, 'solved': self._problem.status == 'optimal'}
 
     def run(self, traj, latent=None):
-        x = self.sfun(traj)
+        x = self.state_func(traj)
         rst = self._update_problem_and_solve(x)
+        print(rst)
         return rst['u'][0], None  # return the first control... and no hidden variable
