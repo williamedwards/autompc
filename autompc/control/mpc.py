@@ -1,6 +1,9 @@
 from collections import Iterable
 from ..controller import Controller
 from ..constraint import Constraint
+from ..hyper import IntRangeHyperparam
+from ..cost import Cost
+
 import cvxpy as cp
 import numpy as np
 
@@ -56,6 +59,19 @@ class LinearConstraint(Constraint):
         return np.concatenate((val - self.l), (self.u - val))
 
 
+class LQRCost(Cost):
+    def __init__(self, Q, R, F=None):
+        self.Q = Q
+        self.R = R
+        if F is None:
+            self.F = np.zeros_like(Q)
+        else:
+            self.F = F
+
+    def get_quadratic(self):
+        return self.Q, self.R, None, self.F
+
+
 class MPCConstraints(object):
     """This class maintains both path and terminal constraints for an MPC problem.
     
@@ -79,61 +95,67 @@ class LinearMPC(Controller):
     """
     Implementation of the linear controller. For this very basic version, it accepts some linear models and compute output.
     """
-    def __init__(self, model, cost, constraints, horizon):
+    def __init__(self, model, cost, constraints=None):
         # I prefer type checking, but clearly current API does not allow me so
-        assert isinstance(constraints, MPCConstraints), "constraints has to be in type autompc.control.MPCConstraints"
-        self.A, self.B = model.get_linear_system()
+        Controller.__init__(self, model)
+        self.A, self.B, self.sfun, self.cfun = model.to_linear()
         self.qrnf = cost.get_quadratic()
         self.constr = constraints
-        self.horizon = horizon
+        self.horizon = IntRangeHyperparam((1, 10))
+        self._built = False
 
     def _build_problem(self):
         """Use cvxpy to construct the problem"""
+        self._built = True
         nx, nu = self.B.shape
         self._x0 = cp.Parameter(nx)
-        xs = cp.Variable((self.horizon, nx + 1))  # x0 is row 1
-        us = cp.Variable((self.horizon, nu))
+        horizon = self.horizon.value
+        xs = cp.Variable((horizon + 1, nx))  # x0 is row 1
+        us = cp.Variable((horizon, nu))
         self._xs = xs
         self._us = us
         # construct constraints
         # initial state
         cons = [xs[0] == self._x0]
         # dynamics
-        for i in range(self.horizon):
-            cons.append(xs[i + 1] == self.A.dot(xs[i])) + self.B.dot(us[i])
+        for i in range(horizon):
+            cons.append(xs[i + 1] == self.A * (xs[i]) + self.B * (us[i]))
         # constraints
-        if self.constr.terminal is not None:
-            if self.constr.terminal.is_equality:
-                cons.append(self.constr.terminal.A.dot(xs[-1]) == self.constr.terminal.l)
-            else:
-                tmp = self.constr.terminal.A.dot(xs[-1])
-                cons.extend([tmp >= self.constr.terminal.l, tmp <= self.constr.terminal.u])
-        for path in self.constr.path:
-            if path.is_equality:
-                for i in range(self.horizon):
-                    cons.append(path.A.dot(xs[i]) + path.B.dot(us[i]) == path.l)
-            else:
-                for i in range(self.horizon):
-                    tmp = path.A.dot(xs[i]) + path.B.dot(us[i])
-                    cons.append(tmp <= path.u)
-                    cons.append(tmp >= tmp.l)
+        if self.constr is not None:
+            assert isinstance(self.constr, MPCConstraints), "constraints has to be in type autompc.control.MPCConstraints"
+            if self.constr.terminal is not None:
+                if self.constr.terminal.is_equality:
+                    cons.append(self.constr.terminal.A.dot(xs[-1]) == self.constr.terminal.l)
+                else:
+                    tmp = self.constr.terminal.A.dot(xs[-1])
+                    cons.extend([tmp >= self.constr.terminal.l, tmp <= self.constr.terminal.u])
+            for path in self.constr.path:
+                if path.is_equality:
+                    for i in range(horizon):
+                        cons.append(path.A.dot(xs[i]) + path.B.dot(us[i]) == path.l)
+                else:
+                    for i in range(horizon):
+                        tmp = path.A.dot(xs[i]) + path.B.dot(us[i])
+                        cons.append(tmp <= path.u)
+                        cons.append(tmp >= tmp.l)
         # construct the cost function from lqr cost
         obj = 0
         Q, R, N, F = self.qrnf
+        Q, R, F = self.cfun(Q, R, F)  # TODO: clarify if we should just ignore N, we probably should
         obj += cp.quad_form(xs[-1], F)
-        is_n_zero = np.all(N == 0)
-        for i in range(self.horizon):
+        for i in range(horizon):
             obj += cp.quad_form(xs[i], Q) + cp.quad_form(us[i], R)
-            if not is_n_zero:
-                obj += 2 * xs[i].dot(N.dot(us[i]))
-        self._problem = cp.Problem(cp.Minimize(obj))
+        self._problem = cp.Problem(cp.Minimize(obj), cons)
 
     def _update_problem_and_solve(self, x0):
         """Solve the problem"""
+        if not self._built:
+            self._build_problem()
         self._x0.value = x0
         self._problem.solve()
         return {'x': self._xs.value, 'u': self._us.value, 'solved': self._problem.status == 'optimal'}
 
-    def __call__(self, x):
+    def run(self, traj, latent=None):
+        x = self.sfun(traj)
         rst = self._update_problem_and_solve(x)
-        return rst['u'][0]  # return the first control...
+        return rst['u'][0], None  # return the first control... and no hidden variable
