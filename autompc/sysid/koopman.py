@@ -1,5 +1,3 @@
-# Created by William Edwards (wre2@illinois.edu)
-
 import numpy as np
 import numpy.linalg as la
 import scipy.linalg as sla
