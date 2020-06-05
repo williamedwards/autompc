@@ -84,10 +84,11 @@ def train_arx():
     arx.train(trajs)
     return arx
 
-@memory.cache
+#@memory.cache
 def train_koop():
     koop = Koopman(pendulum)
-    koop.set_hypers(basis_functions=set(["trig"]))
+    koop.set_hypers(basis_functions=set(["trig"]),
+            method="lasso", lass_alpha=0.01)
     koop.train(trajs)
     return koop
 
@@ -138,4 +139,5 @@ ax.set_aspect("equal")
 ax.set_xlim([-1.1, 1.1])
 ax.set_ylim([-1.1, 1.1])
 ani = animate_pendulum(fig, ax, dt, sim_traj)
-ani.save("out/test4/koop.mp4")
+#ani.save("out/test4/koop.mp4")
+plt.show()

@@ -2,9 +2,10 @@ import numpy as np
 import numpy.linalg as la
 import scipy.linalg as sla
 from pdb import set_trace
+from sklearn.linear_model import  Lasso
 
 from ..model import Model
-from ..hyper import ChoiceHyperparam, MultiChoiceHyperparam
+from ..hyper import ChoiceHyperparam, MultiChoiceHyperparam, FloatRangeHyperparam
 
 class Koopman(Model):
     def __init__(self, system):
@@ -12,6 +13,7 @@ class Koopman(Model):
         self.method = ChoiceHyperparam(["lstsq", "lasso", "stableAB"])
 
         self.basis_functions = MultiChoiceHyperparam(["poly3", "trig"])
+        self.lasso_alpha = FloatRangeHyperparam([0.0, 1.0])
 
     def _transform_state(self, state):
         basis = [lambda x: x]
@@ -39,17 +41,18 @@ class Koopman(Model):
         n = X.shape[0] # state dimension
         m = U.shape[0] # control dimension    
         
-        # Evaluate basis functions based on states
-        basis_functions = []
-        
+        XU = np.concatenate((X, U), axis = 0) # stack X and U together
         if self.method.value == "lstsq": # Least Squares Solution
-            XU = np.concatenate((X, U), axis = 0) # stack X and U together
             AB = np.dot(Y, sla.pinv2(XU))
             A = AB[:n, :n]
             B = AB[:n, n:]
-        elif self.method.value == 2:  # Call lasso regression on coefficients
+        elif self.method.value == "lasso":  # Call lasso regression on coefficients
             print("Call Lasso")
-            # body text
+            clf = Lasso(alpha=self.lasso_alpha.value)
+            clf.fit(XU.T, Y.T)
+            AB = clf.coef_
+            A = AB[:n, :n]
+            B = AB[:n, n:]
         elif self.method.value == 3: # Compute stable A, and B
             print("Compute Stable Koopman")
             # call function
