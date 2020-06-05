@@ -108,7 +108,7 @@ koop = train_koop()
 
 #assert(np.allclose(state[-3:-1], traj[11].obs))
 
-model = arx
+model = koop
 _, _, _, cost_func = model.to_linear()
 
 from autompc.control import FiniteHorizonLQR
@@ -138,4 +138,4 @@ ax.set_aspect("equal")
 ax.set_xlim([-1.1, 1.1])
 ax.set_ylim([-1.1, 1.1])
 ani = animate_pendulum(fig, ax, dt, sim_traj)
-plt.show()
+ani.save("out/test4/koop.mp4")

@@ -1,5 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+from ..constraint
+
 class Constraint:
     def check(self, xs, us):
         """
