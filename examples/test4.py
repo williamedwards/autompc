@@ -75,7 +75,7 @@ def gen_trajs():
     return trajs
 trajs = gen_trajs()
 
-from autompc.sysid import ARX, Koopman
+from autompc.sysid import ARX, Koopman, SINDy
 
 @memory.cache
 def train_arx():
@@ -92,8 +92,15 @@ def train_koop():
     koop.train(trajs)
     return koop
 
+def train_sindy():
+    sindy = SINDy(pendulum)
+    sindy.train(trajs)
+    return sindy
+
 arx = train_arx()
 koop = train_koop()
+sindy = train_sindy()
+set_trace()
 
 # Test prediction
 
