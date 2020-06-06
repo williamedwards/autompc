@@ -13,7 +13,7 @@ class Koopman(Model):
         self.method = ChoiceHyperparam(["lstsq", "lasso", "stableAB"])
 
         self.basis_functions = MultiChoiceHyperparam(["poly3", "trig"])
-        self.lasso_alpha = FloatRangeHyperparam([0.0, 1.0])
+        self.lasso_alpha = FloatRangeHyperparam([0.0, 100.0])
 
     def _transform_state(self, state):
         basis = [lambda x: x]

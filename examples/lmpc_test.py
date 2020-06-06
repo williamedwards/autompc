@@ -77,14 +77,6 @@ trajs = gen_trajs()
 
 from autompc.sysid import ARX, Koopman#, SINDy
 
-@memory.cache
-def train_arx():
-    arx = ARX(pendulum)
-    arx.set_hypers(k=1)
-    arx.train(trajs)
-    return arx
-
-#@memory.cache
 def train_koop():
     koop = Koopman(pendulum)
     #koop.set_hypers(basis_functions=set(["trig"]),
@@ -93,40 +85,14 @@ def train_koop():
     koop.train(trajs)
     return koop
 
-def train_sindy():
-    sindy = SINDy(pendulum)
-    sindy.train(trajs)
-    return sindy
 
-arx = train_arx()
 koop = train_koop()
-#sindy = train_sindy()
-#set_trace()
-
-# Test prediction
-
-#traj = trajs[0]
-#predobs, _ = koop.pred(traj[:10])
-
-#koop_A, koop_B, state_func, cost_func = koop.to_linear()
-
-#state = state_func(traj[:10])
-#
-#state = koop_A @ state + koop_B @ traj[10].ctrl
-#state = koop_A @ state + koop_B @ traj[11].ctrl
-
-#assert(np.allclose(state[-3:-1], traj[11].obs))
 
 model = koop
-_, _, _, cost_func = model.to_linear()
-
-from autompc.control import FiniteHorizonLQR
 from autompc.control.mpc import LQRCost, LinearMPC
 
 Q = np.diag([100.0, 1.0])
 R = np.diag([0.1])
-#print(cost_func(Q, R))
-#con = FiniteHorizonLQR(pendulum, model, Q, R)
 cost = LQRCost(Q, R)
 con = LinearMPC(pendulum, model, cost)
 
@@ -150,5 +116,5 @@ ax.set_aspect("equal")
 ax.set_xlim([-1.1, 1.1])
 ax.set_ylim([-1.1, 1.1])
 ani = animate_pendulum(fig, ax, dt, sim_traj)
-ani.save("out/test4/koop_lmpc.mp4")
-#plt.show()
+#ani.save("out/test4/koop_lmpc.mp4")
+plt.show()
