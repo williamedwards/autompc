@@ -3,6 +3,7 @@ sys.path.append(os.getcwd() + "/..")
 
 import numpy as np
 import autompc as ampc
+from pdb import set_trace
 
 pendulum = ampc.System(["ang", "angvel"], ["torque"])
 
@@ -37,6 +38,10 @@ print(traj.ctrls)
 ##  [0.]
 ##  [0.]
 ##  [0.]]
+
+grad = ampc.gradzeros(pendulum, 10, 4)
+
+set_trace()
 
 
 from autompc.sysid import ARX, Koopman
