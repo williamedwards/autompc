@@ -58,15 +58,17 @@ X = [traj.obs for traj in trajs]
 U = [traj.ctrls for traj in trajs]
 
 # Continuous Time SINDy
-ct_model = ps.SINDy(feature_library=ps.FourierLibrary(n_frequencies=1))
+identity_library = ps.IdentityLibrary()
+fourier_library = ps.FourierLibrary(n_frequencies=1)
+combined_library = identity_library + fourier_library
+ct_model = ps.SINDy(feature_library=combined_library)
 ct_model.fit(X, u=U, multiple_trajectories=True, t=dt)
 print("Continuous Time SINDy Results")
 print("=============================")
 print(ct_model.print())
 
 # Discrete Time SINDy
-dt_model = ps.SINDy(feature_library=ps.FourierLibrary(n_frequencies=1), 
-        discrete_time=True)
+dt_model = ps.SINDy(feature_library=combined_library, discrete_time=True)
 dt_model.fit(X, u=U, multiple_trajectories=True)
 print("Discrete Time SINDy Results")
 print("=============================")
