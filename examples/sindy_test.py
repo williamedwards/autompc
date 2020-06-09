@@ -52,7 +52,7 @@ def gen_trajs(dt):
         trajs.append(traj)
     return trajs
 
-trajs = gen_trajs()
+trajs = gen_trajs(dt)
 
 X = [traj.obs for traj in trajs]
 U = [traj.ctrls for traj in trajs]

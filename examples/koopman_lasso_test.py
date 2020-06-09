@@ -13,7 +13,7 @@ from scipy.integrate import solve_ivp
 
 # Change this parameter
 
-lasso_param = 1e-5
+lasso_param = 1e-3
 
 memory = Memory("cache")
 
@@ -56,13 +56,13 @@ def animate_pendulum(fig, ax, dt, traj):
 
     return ani
 
-dt = 0.025
+dt = 0.1
 
 umin = -2.0
 umax = 2.0
 
 # Generate trajectories for training
-num_trajs = 100
+num_trajs = 500
 
 @memory.cache
 def gen_trajs():
@@ -97,7 +97,7 @@ model = koop
 from autompc.control import FiniteHorizonLQR
 
 Q = np.diag([100.0, 1.0])
-R = np.diag([0.1])
+R = np.diag([0.0001])
 con = FiniteHorizonLQR(pendulum, model, Q, R)
 
 sim_traj = ampc.zeros(pendulum, 1)
@@ -110,6 +110,15 @@ for _ in range(400):
     sim_traj[-1, "torque"] = u
     sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
     xtrans = con.state_func(sim_traj)
+
+A, B, _, _ = koop.to_linear()
+print("A:")
+print(A)
+print("B:")
+print(B)
+K = con.K
+print("K:")
+print(K)
 
 fig = plt.figure()
 ax = fig.gca()

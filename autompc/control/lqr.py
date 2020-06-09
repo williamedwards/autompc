@@ -74,6 +74,8 @@ class FiniteHorizonLQR(Controller):
         # Implement control logic here
         state = self.state_func(traj)
         u = self.K @ state
+        print("state={}".format(state))
+        print("u={}".format(u))
         print("state_cost={}".format(state.T @ self.Qp @ state))
 
         return u, None
