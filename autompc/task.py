@@ -1,11 +1,12 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+import numpy as np
+
 class Task:
     def __init__(self, system):
         self.system = system
 
         # Initialize task properties
-        self._valid = False
         self._qp = False
         self._conv = False
 
@@ -101,13 +102,60 @@ class Task:
 
     # Evaluating Costs
     def get_quad_cost(self):
-        pass
+        if self.cost_type != 1:
+            raise ValueError("Cost is not quadratic")
+        else:
+            return self._quad_cost
 
-    def eval_cost(self, traj):
-        pass
+    def get_costs(self):
+        """
+        Returns tuple of the following functions:
+            add_state_cost
+            add_ctrl_cost
+            terminal_state_cost
+        all with the signature
+            state/ctrl -> cost
+        """
+        if self.cost_type == 1:
+            Q, R, F = self._quad_cost
+            add_state_cost = lambda state: state.T @ Q @ state
+            add_ctrl_cost = lambda ctrl: ctrl.T @ R @ ctrl
+            terminal_state_cost = lambda ctrl: ctrl.T @ F @ ctrl
+        elif self.cost_type == 2 or self.cost_type == 3:
+            add_state_cost = lambda state: self._add_state_cost(state)[0]
+            add_ctrl_cost = lambda ctrl: self._add_ctrl_cost(ctrl)[0]
+            terminal_state_cost = lambda state: self._terminal_state_cost(state)[0]
+        elif self.cost_type == 4:
+            add_state_cost = self._add_state_cost
+            add_ctrl_cost = self._add_ctrl_cost
+            terminal_state_cost = self._terminal_state_cost
+        elif self.cost_type == 0:
+            raise ValueError("Task cost not set")
+        return add_state_cost, add_ctrl_cost, terminal_state_cost
 
-    def eval_cost_diff(self):
-        pass
+    def get_costs_diff(self):
+        """
+        Returns tuple of the following functions:
+            add_state_cost
+            add_ctrl_cost
+            terminal_state_cost
+        all with the signature
+            state/ctrl -> cost, grad
+        """
+        if self.cost_type == 1:
+            Q, R, F = self._quad_cost
+            add_state_cost = lambda state: (state.T @ Q @ state, (Q + Q.T) @ state)
+            add_ctrl_cost = lambda ctrl: (ctrl.T @ R @ ctrl, (R + R.T) @ ctrl)
+            terminal_state_cost = lambda state: (state.T @ F @ state, (F + F.T) @ state)
+        elif self.cost_type == 2 or self.cost_type == 3:
+            add_state_cost = self._add_state_cost
+            add_ctrl_cost = self._add_ctrl_cost
+            terminal_state_cost = self._terminal_state_cost
+        elif self.cost_type == 4:
+            raise ValueError("Cost function is not differentiable")
+        elif self.cost_type == 0:
+            raise ValueError("Task cost not set")
+        return add_state_cost, add_ctrl_cost, terminal_state_cost
 
     # Evaluating Constraints
     def get_state_bounds(self):
