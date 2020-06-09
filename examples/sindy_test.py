@@ -29,7 +29,7 @@ def dt_pendulum_dynamics(y,u,dt,g=9.8,m=1,L=1,b=0.1):
     y[0] -= np.pi
     return sol.y.reshape((2,))
 
-dt = 0.025
+dt = 0.01
 
 umin = -2.0
 umax = 2.0
@@ -38,7 +38,7 @@ umax = 2.0
 num_trajs = 100
 
 @memory.cache
-def gen_trajs():
+def gen_trajs(dt):
     rng = np.random.default_rng(42)
     trajs = []
     for _ in range(num_trajs):
@@ -68,7 +68,8 @@ print("=============================")
 print(ct_model.print())
 
 # Discrete Time SINDy
-dt_model = ps.SINDy(feature_library=combined_library, discrete_time=True)
+dt_model = ps.SINDy(feature_library=combined_library, discrete_time=True,
+        optimizer=ps.STLSQ(threshold=0.0))
 dt_model.fit(X, u=U, multiple_trajectories=True)
 print("Discrete Time SINDy Results")
 print("=============================")
