@@ -10,43 +10,80 @@ class Model(ABC):
         self.system = system
 
     @abstractmethod
-    def pred(self, traj, latent=None):
+    def traj_to_state(self, traj):
         """
         Parameters
         ----------
             traj : Trajectory
-                State and control history up to present time.
-            latent : Arbitrary python object
-                Latent model data. Can be arbitrary
-                python object. None should be passed for first time
-                step. Used only to avoid redundant computation.
+                State and control history up to present time
         Returns
         -------
-            x : Numpy array
-                state at time (t+1)
-            latent : Arbitrary python object
-                Data used for latent computation. May be none.
+            state : numpy array of size self.state_dim
+               Corresponding model state
         """
         raise NotImplementedError
 
-    def pred_diff(self, traj, latent=None):
+    #@abstractmethod
+    #def state_to_obs(self, obs):
+    #    """
+    #    Parameters
+    #    ----------
+    #        state : numpy array of size self.state_dim
+    #    Returns
+    #    -------
+    #        obs : numpy array of size self.system.obs_dim
+    #    """
+    #    raise NotImplementedError
+
+    @abstractmethod
+    def update_state(self, state, new_obs, new_ctrl):
         """
         Parameters
         ----------
-            traj : Trajectory
-                State and control history up to present time.
-            latent : Arbitrary python object
-                Latent model data. Can be arbitrary
-                python object. None should be passed for first time
-                step. Used only to avoid redundant computation.
+            state : numpy array of size self.state_dim
+                Current model state
+            new_obs : numpy array of size self.system.obs_dim
+                New observation
+            new_ctrl : numpy array of size self.system.ctrl_dim
+                New control input
         Returns
         -------
-            x : Numpy array
-                state at time (t+1)
-            latent : Arbitrary python object
-                Data used for latent computation. May be none.
-            grad : Numpy array
-                Gradient of prediction wrt state and control history.
+            state : numpy array of size self.state_dim
+                Model state after observation and control
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def pred(self, state, ctrl):
+        """
+        Parameters
+        ----------
+            state : Numpy array of size self.state_dim
+                Model state
+            ctrl : Numpy array of size self.system.ctrl_dim
+                Control to be applied
+        Returns
+        -------
+            state : Numpy array of size self.state_dim
+                New predicted model state
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def pred_diff(self, state, ctrl):
+        """
+        Parameters
+        ----------
+            state : Numpy array of size self.state_dim
+                Model state
+            ctrl : Numpy array of size self.system.ctrl_dim
+                Control to be applied
+        Returns
+        -------
+            state : Numpy array of size self.state_dim
+                New predicted model state
+            grad : Numpy  array of shape (self.state_dim, self.state_dim)
+                Gradient of predicted model state
         """
         raise NotImplementedError
 
@@ -54,12 +91,6 @@ class Model(ABC):
         """
         Returns: (A, B, state_func, cost_func)
             A, B -- Linear system matrices as Numpy arrays.
-            state_func -- Maps states from the original to the
-                state space used for the linear model. Signature
-                is (traj, t) -> x.
-            cost_func -- Maps from cost matrices Q and R on the
-                original state space to the equivalent matrices
-                Q' R' on the transformed state space.
         Only implemented for linear models.
         """
         raise NotImplementedError
@@ -131,6 +162,15 @@ class Model(ABC):
         Only implemented for trainable parameters.
         """
         raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def state_dim(self):
+        """
+        Returns the size of the model state
+        """
+        raise NotImplementedError
+
 
     @property
     def is_linear(self):
