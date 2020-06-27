@@ -23,18 +23,6 @@ class Model(ABC):
         """
         raise NotImplementedError
 
-    #@abstractmethod
-    #def state_to_obs(self, obs):
-    #    """
-    #    Parameters
-    #    ----------
-    #        state : numpy array of size self.state_dim
-    #    Returns
-    #    -------
-    #        obs : numpy array of size self.system.obs_dim
-    #    """
-    #    raise NotImplementedError
-
     @abstractmethod
     def update_state(self, state, new_obs, new_ctrl):
         """
@@ -82,7 +70,8 @@ class Model(ABC):
         -------
             state : Numpy array of size self.state_dim
                 New predicted model state
-            grad : Numpy  array of shape (self.state_dim, self.state_dim)
+            grad : Numpy  array of shape (self.state_dim, 
+                self.state_dim+self.system.ctrl_dim).
                 Gradient of predicted model state
         """
         raise NotImplementedError

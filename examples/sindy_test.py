@@ -61,7 +61,8 @@ U = [traj.ctrls for traj in trajs]
 identity_library = ps.IdentityLibrary()
 fourier_library = ps.FourierLibrary(n_frequencies=1)
 combined_library = identity_library + fourier_library
-ct_model = ps.SINDy(feature_library=combined_library)
+ct_model = ps.SINDy(feature_library=combined_library,
+        optimizer=ps.STLSQ(threshold=0.5))
 ct_model.fit(X, u=U, multiple_trajectories=True, t=dt)
 print("Continuous Time SINDy Results")
 print("=============================")

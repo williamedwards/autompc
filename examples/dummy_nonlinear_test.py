@@ -16,8 +16,9 @@ traj[0].obs[:] = x0
 traj[0].ctrl[:] = u0
 
 model = DummyNonlinear(dummy)
-xnew, latent, grad = model.pred_diff(traj)
+state = model.traj_to_state(traj)
+xnew, grad = model.pred_diff(state, u0)
 
 print("xnew={}".format(xnew))
 
-print("d x1[k+1] / d x2[k] = {}".format(grad[-1, "x2", 0]))
+print("d x1[k+1] / d x2[k] = {}".format(grad[0,1]))
