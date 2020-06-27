@@ -118,7 +118,6 @@ koop = train_koop()
 #assert(np.allclose(state[-3:-1], traj[11].obs))
 
 model = koop
-_, _, _, cost_func = model.to_linear()
 
 from autompc.control import FiniteHorizonLQR
 from autompc.control.mpc import LQRCost, LinearMPC
@@ -126,9 +125,9 @@ from autompc.control.mpc import LQRCost, LinearMPC
 Q = np.diag([100.0, 1.0])
 R = np.diag([0.1])
 #print(cost_func(Q, R))
-#con = FiniteHorizonLQR(pendulum, model, Q, R)
+con = FiniteHorizonLQR(pendulum, model, Q, R)
 cost = LQRCost(Q, R)
-con = LinearMPC(pendulum, model, cost)
+#con = LinearMPC(pendulum, model, cost)
 
 sim_traj = ampc.zeros(pendulum, 1)
 x = np.array([-np.pi,0.0])
@@ -139,7 +138,6 @@ for _ in range(400):
     x = dt_pendulum_dynamics(x, u, dt)
     sim_traj[-1, "torque"] = u
     sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-    xtrans = con.state_func(sim_traj)
 
 #plt.plot(sim_traj[:,"x1"], sim_traj[:,"x2"], "b-o")
 #plt.show()
@@ -150,5 +148,5 @@ ax.set_aspect("equal")
 ax.set_xlim([-1.1, 1.1])
 ax.set_ylim([-1.1, 1.1])
 ani = animate_pendulum(fig, ax, dt, sim_traj)
-ani.save("out/test4/koop_lmpc.mp4")
-#plt.show()
+#ani.save("out/test4/koop_lmpc.mp4")
+plt.show()

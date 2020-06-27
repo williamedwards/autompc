@@ -23,7 +23,14 @@ class Koopman(Model):
             basis += [np.sin, np.cos, np.tan]
         return np.array([b(x) for b in basis for x in state])
 
-    def _state_size(self):
+    def traj_to_state(self, traj):
+        return self._transform_state(traj[-1].obs[:])
+    
+    def update_state(self, state, new_obs, new_ctrl):
+        return self._transform_state(new_obs)
+
+    @property
+    def state_dim(self):
         basis = [lambda x: x]
         if "poly3" in self.basis_functions.value:
             basis += [lambda x: x**2, lambda x: x**3]
@@ -59,45 +66,17 @@ class Koopman(Model):
 
         self.A, self.B = A, B
 
-    def pred(self, traj, latent=None):
-        # Compute transformed state x
-        u = traj[-1].ctrl
-        x = self._transform_state(traj[-1].obs)
+    def pred(self, state, ctrl):
+        xpred = self.A @ state + self.B @ ctrl
+        return xpred
 
-        xnew = self.A @ x + self.B @ u
+    def pred_diff(self, state, ctrl):
+        xpred = self.A @ state + self.B @ ctrl
 
-        # Transform to original state space xpred
-        xpred = xnew[:self.system.obs_dim]
-
-        return xpred, None
-
-    def pred_diff(self, traj, us, latent=None):
-        # Compute transformed state x
-        u = traj[-1].ctrl
-
-        xnew = self.A @ x + self.B @ u
-
-        # Transform to original state space xpred
-        # Compute grad
-
-        return xnew, None, grad
+        return xpred, np.copy(self.A)
 
     def to_linear(self):
-        # Compute state transform state_func
-        # Compute cost transformer cost_func
-        def state_func(traj):
-            return self._transform_state(traj[-1].obs)
-        def cost_func(Q, R, F=None):
-            n = self.system.obs_dim
-            Qt = np.zeros((self._state_size(), self._state_size()))
-            Qt[:n, :n] = Q
-            if F is None:
-                return Qt, R
-            else:
-                Ft = np.zeros_like(Qt)
-                Ft[:n, :n] = F
-                return Qt, R, Ft
-        return np.copy(self.A), np.copy(self.B), state_func, cost_func
+        return np.copy(self.A), np.copy(self.B)
 
     def get_parameters(self):
         return {"A" : np.copy(self.A),
