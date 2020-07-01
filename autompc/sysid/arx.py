@@ -1,18 +1,29 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+from pdb import set_trace
+
 import numpy as np
 import numpy.linalg as la
 
-from pdb import set_trace
+from ConfigSpace import ConfigurationSpace
+from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
 from ..model import Model
-from ..hyper import IntRangeHyperparam
+#from ..hyper import IntRangeHyperparam
 
 class ARX(Model):
-    def __init__(self, system):
+    def __init__(self, system, horizon):
         super().__init__(system)
-        self.k = IntRangeHyperparam((1, 10))
-        #TODO add regularizaition
+        self.k = horizon
+
+    @staticmethod
+    def get_configuration_space(system):
+        cs = ConfigurationSpace()
+        horizon = UniformIntegerHyperparameter(name='horizon', 
+                lower=1, upper=10, default_value=4)
+        cs.add_hyperparameter(horizon)
+        return cs
+        
 
     def _get_feature_vector(self, traj, t=None):
         k = self.k.value

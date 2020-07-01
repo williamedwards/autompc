@@ -39,28 +39,28 @@ print(traj.ctrls)
 ##  [0.]
 ##  [0.]]
 
-grad = ampc.gradzeros(pendulum, 10, 4)
-
-set_trace()
-
-
 from autompc.sysid import ARX, Koopman
 
-arx = ARX(pendulum)
+
+
+cs = ARX.get_configuration_space(pendulum)
+print(cs)
+# Ouputs:
+## {'k': (<HyperType.int_range: 2>, (1, 10))}
+c = cs.get_default_configuration()
+print(c)
+
+arx = ARX(pendulum, **c.get_dictionary())
 
 print(arx.is_linear)
 # Ouputs:
 ## True
 
-print(arx.get_hyper_options())
-# Ouputs:
-## {'k': (<HyperType.int_range: 2>, (1, 10))}
-
-print(arx.get_hypers())
-# Outputs:
-## {'k': 1}
-
-arx.set_hypers(method="lasso")
-print(arx.get_hypers())
+#print(arx.get_hypers())
+## Outputs:
+### {'k': 1}
+#
+#arx.set_hypers(method="lasso")
+#print(arx.get_hypers())
 # Outputs:
 ## {'k': 5}

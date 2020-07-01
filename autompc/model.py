@@ -84,47 +84,13 @@ class Model(ABC):
         """
         raise NotImplementedError
 
-    def get_hyper_options(self):
+    @staticmethod
+    @abstractmethod
+    def get_configuration_space(system):
         """
-        Returns a dict containing available hyperparameter options. Only
-        implemented for trainable models. The key is the hyperparameter name
-        and the value is a tuple of the form (hyper, option). If hyper in
-        [Hyper.float_range, Hyper.int_range], option is a tuple of the form
-        [lower_bound, upper_bound]. If hyper is Hyper.choice, option is a set
-        of available choices.  If hyper is Hyper.boolean, option is None.
+        Returns the model configuration space.
         """
-        hyperopts = dict()
-        for k, v in self.__dict__.items():
-            if isinstance(v, Hyperparam):
-                hyperopts[k] = (v.type, v.options)
-        return hyperopts
-
-    def get_hypers(self):
-        """
-        Returns a dict containing hyperaparameter values. Only implemented
-        for trainable models. The keys is the hyperparameter name and the
-        value is the value.
-        """
-        hypers = dict()
-        for k, v in self.__dict__.items():
-            if isinstance(v, Hyperparam):
-                hypers[k] = v.value
-        return hypers
-
-    def set_hypers(self, **hypers):
-        """
-        Parameters
-        ----------
-            hypers : dict
-                A dict containing hyperparameter names and values to
-                be updated. Any hyperparameter not contained in the dict is
-                left unchanged.
-        Only implemented for trainable models.
-        """
-        for k, v in hypers.items():
-            if k in self.__dict__ and isinstance(self.__dict__[k], Hyperparam):
-                self.__dict__[k].value = v
-
+        raise NotImplementedError
 
     def train(self, trajs):
         """
