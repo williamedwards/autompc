@@ -24,16 +24,16 @@ class Model(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update_state(self, state, new_obs, new_ctrl):
+    def update_state(self, state, new_ctrl, new_obs):
         """
         Parameters
         ----------
             state : numpy array of size self.state_dim
                 Current model state
-            new_obs : numpy array of size self.system.obs_dim
-                New observation
             new_ctrl : numpy array of size self.system.ctrl_dim
                 New control input
+            new_obs : numpy array of size self.system.obs_dim
+                New observation
         Returns
         -------
             state : numpy array of size self.state_dim

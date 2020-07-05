@@ -26,21 +26,21 @@ class ARX(Model):
         
 
     def _get_feature_vector(self, traj, t=None):
-        k = self.k.value
+        k = self.k
         if t is None:
             t = len(traj)
 
-        feature_elements = []
-        for i in range(t-1, t-k-1, -1):
+        feature_elements = [traj[t-1].obs]
+        for i in range(t-2, t-k-1, -1):
             if i >= 0:
                 feature_elements += [traj[i].obs, traj[i].ctrl]
             else:
                 feature_elements += [traj[0].obs, traj[0].ctrl]
-        feature_elements += [np.ones(1)]
+        feature_elements += [np.ones(1), traj[t-1].ctrl]
         return np.concatenate(feature_elements)
 
     def _get_fvec_size(self):
-        k = self.k.value
+        k = self.k
         return 1 + k*self.system.obs_dim + k*self.system.ctrl_dim
         
     def _get_training_matrix_and_targets(self, trajs):
@@ -57,21 +57,15 @@ class ARX(Model):
 
         return matrix, targets
 
-    def update_state(self, state, new_obs, new_ctrl):
+    def update_state(self, state, new_ctrl, new_obs):
         # Shift the targets
-        m = self.system.obs_dim + self.system.ctrl_dim
-        k = self.k.value
-        newstate = np.zeros(self._get_fvec_size())
-        for i in range(k-1):
-            newstate[(i+1)*m : (i+2)*m] = state[i*m : (i+1)*m]
+        newstate = self.A @ state + self.B @ new_ctrl
         newstate[:self.system.obs_dim] = new_obs
-        newstate[self.system.obs_dim : 
-                self.system.obs_dim + self.system.ctrl_dim] = new_ctrl
 
         return newstate
 
     def traj_to_state(self, traj):
-        return self._get_feature_vector(traj)
+        return self._get_feature_vector(traj)[:-self.system.ctrl_dim]
 
     def state_to_obs(self, state):
         return state[0:self.system.obs_dim]
@@ -85,24 +79,28 @@ class ARX(Model):
             coeffs[i,:] = res
 
         # First we construct the system matrices
-        A = np.zeros((self._get_fvec_size(), self._get_fvec_size()))
-        B = np.zeros((self._get_fvec_size(), self.system.ctrl_dim))
+        A = np.zeros((self.state_dim, self.state_dim))
+        B = np.zeros((self.state_dim, self.system.ctrl_dim))
 
         # Constant term
         A[-1,-1] = 1.0
 
         # Shift history
+        n = self.system.obs_dim
+        l = self.system.ctrl_dim
         m = self.system.obs_dim + self.system.ctrl_dim
-        k = self.k.value
-        for i in range(k-1):
-            A[(i+1)*m : (i+2)*m, i*m : (i+1)*m] = np.eye(m)
+        k = self.k
+
+        A[n : 2*n, 0 : n] = np.eye(n)
+        for i in range(k-2):
+            A[(i+1)*m+n : (i+2)*m+n, i*m+n : (i+1)*m+n] = np.eye(m)
 
         # Predict new observation
-        A[0 : self.system.obs_dim, :] = coeffs
+        A[0 : n, :] = coeffs[:, :-l]
 
         # Add new control
-        B[self.system.obs_dim :  self.system.obs_dim + self.system.ctrl_dim, 
-                :] = np.eye(self.system.ctrl_dim)
+        B[0 : n, :] = coeffs[:, -l:]
+        B[2*n : 2*n + l, :] = np.eye(l)
 
         self.A, self.B = A, B
 
@@ -115,14 +113,14 @@ class ARX(Model):
     def pred_diff(self, state, ctrl):
         statenew = self.A @ state + self.B @ ctrl
 
-        return statenew, ctrl
+        return statenew, self.A, self.B
 
     def to_linear(self):
         return self.A, self.B
 
     @property
     def state_dim(self):
-        return self._get_fvec_size()
+        return self._get_fvec_size() - self.system.ctrl_dim
 
 
     def get_parameters(self):
