@@ -56,3 +56,8 @@ metric = RmseKstepMetric(simplesys, k=5)
 predictor = CachingPredictor(trajs[-1], model)
 score = metric(predictor, trajs[-1])
 print("score = {}".format(score))
+
+rng = np.random.default_rng(42)
+evaluator = HoldoutEvaluator(simplesys, trajs, metric, rng, holdout_prop=0.25) 
+eval_score = evaluator(ARX, s)
+print("eval_score = {}".format(eval_score))

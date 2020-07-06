@@ -19,7 +19,7 @@ class CachingPredictor:
             curr_state = self.model.traj_to_state(self.traj[:start+1])
         else:
             curr_state = self._get_state(start, horizon-1)
-        print("start={}, horizon={}, curr_state={}".format(start, horizon, curr_state))
+        #print("start={}, horizon={}, curr_state={}".format(start, horizon, curr_state))
         return self.model.pred(curr_state, self.traj[start+horizon-1].ctrl)
 
 class Evaluator(ABC):

@@ -1,6 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 import numpy.linalg as la
+import numpy as np
 from pdb import set_trace
 
 from ..metric import Metric
@@ -17,3 +18,6 @@ class RmseKstepMetric(Metric):
             actual_obs = traj[i+self.k].obs
             sumsqe += la.norm(pred_obs - actual_obs)**2
         return sumsqe
+
+    def accumulate(self, values):
+        return np.sqrt(np.mean(values))
