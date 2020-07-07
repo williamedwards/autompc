@@ -17,7 +17,7 @@ class RmseKstepMetric(Metric):
             pred_obs = predictor(i, self.k)
             actual_obs = traj[i+self.k].obs
             sumsqe += la.norm(pred_obs - actual_obs)**2
-        return sumsqe
+        return sumsqe / len(traj)
 
     def accumulate(self, values):
         return np.sqrt(np.mean(values))
