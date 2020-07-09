@@ -1,37 +1,48 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+from pdb import set_trace
+
 import numpy as np
 import numpy.linalg as la
 
-from pdb import set_trace
+from ConfigSpace import ConfigurationSpace
+from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
 from ..model import Model
-from ..hyper import IntRangeHyperparam
+#from ..hyper import IntRangeHyperparam
 
 class ARX(Model):
-    def __init__(self, system):
+    def __init__(self, system, horizon):
         super().__init__(system)
-        self.k = IntRangeHyperparam((1, 10))
-        #TODO add regularizaition
+        self.k = horizon
+
+    @staticmethod
+    def get_configuration_space(system):
+        cs = ConfigurationSpace()
+        horizon = UniformIntegerHyperparameter(name='horizon', 
+                lower=1, upper=10, default_value=4)
+        cs.add_hyperparameter(horizon)
+        return cs
+        
 
     def _get_feature_vector(self, traj, t=None):
-        k = self.k.value
+        k = self.k
         if t is None:
             t = len(traj)
 
-        feature_elements = [np.ones(1)]
-        for i in range(t-k, t):
+        feature_elements = [traj[t-1].obs]
+        for i in range(t-2, t-k-1, -1):
             if i >= 0:
                 feature_elements += [traj[i].obs, traj[i].ctrl]
             else:
                 feature_elements += [traj[0].obs, traj[0].ctrl]
+        feature_elements += [np.ones(1), traj[t-1].ctrl]
         return np.concatenate(feature_elements)
 
     def _get_fvec_size(self):
-        k = self.k.value
+        k = self.k
         return 1 + k*self.system.obs_dim + k*self.system.ctrl_dim
         
-
     def _get_training_matrix_and_targets(self, trajs):
         nsamples = sum([len(traj) for traj in trajs])
         matrix = np.zeros((nsamples, self._get_fvec_size()))
@@ -46,72 +57,70 @@ class ARX(Model):
 
         return matrix, targets
 
+    def update_state(self, state, new_ctrl, new_obs):
+        # Shift the targets
+        newstate = self.A @ state + self.B @ new_ctrl
+        newstate[:self.system.obs_dim] = new_obs
+
+        return newstate
+
+    def traj_to_state(self, traj):
+        return self._get_feature_vector(traj)[:-self.system.ctrl_dim]
+
+    def state_to_obs(self, state):
+        return state[0:self.system.obs_dim]
+
     def train(self, trajs):
         matrix, targets = self._get_training_matrix_and_targets(trajs)
 
-        self.coeffs = np.zeros((self.system.obs_dim, self._get_fvec_size()))
+        coeffs = np.zeros((self.system.obs_dim, self._get_fvec_size()))
         for i in range(targets.shape[1]):
-            coeffs, _, _,  _ = la.lstsq(matrix, targets[:,i], rcond=None)
-            self.coeffs[i,:] = coeffs
+            res, _, _,  _ = la.lstsq(matrix, targets[:,i], rcond=None)
+            coeffs[i,:] = res
 
-    def pred(self, traj, latent=None):
-        fvec = self._get_feature_vector(traj)
-        xnew = self.coeffs @ fvec
-
-        return xnew, None
-
-    def pred_diff(self, traj, latent=None):
-        #TODO Implement this
-        raise NotImplementedError
-
-        fvec = self._get_feature_vector(traj)
-        xnew = np.zeros(traj.system.obs_dim)
-
-        for i in range(traj.system.obs_dim):
-            xnew[i] = self.coeffs[i] @ fvec
-
-        # Compute grad
-        
-        return xnew, None, grad
-
-    def to_linear(self):
         # First we construct the system matrices
-        A = np.zeros((self._get_fvec_size(), self._get_fvec_size()))
-        B = np.zeros((self._get_fvec_size(), self.system.ctrl_dim))
+        A = np.zeros((self.state_dim, self.state_dim))
+        B = np.zeros((self.state_dim, self.system.ctrl_dim))
 
         # Constant term
-        A[0,0]
+        A[-1,-1] = 1.0
 
         # Shift history
+        n = self.system.obs_dim
+        l = self.system.ctrl_dim
         m = self.system.obs_dim + self.system.ctrl_dim
-        k = self.k.value
-        for i in range(k-1):
-            A[1 + i*m : 1 + (i+1)*m, 1 + (i+1)*m : 1 + (i+2)*m] = np.eye(m)
+        k = self.k
+
+        A[n : 2*n, 0 : n] = np.eye(n)
+        for i in range(k-2):
+            A[(i+1)*m+n : (i+2)*m+n, i*m+n : (i+1)*m+n] = np.eye(m)
 
         # Predict new observation
-        A[1 + (k-1)*m : 1 + (k-1)*m + self.system.obs_dim, :] = self.coeffs
+        A[0 : n, :] = coeffs[:, :-l]
 
         # Add new control
-        B[1 + k*m - self.system.ctrl_dim : 1 + k*m, :] = np.eye(self.system.ctrl_dim)
+        B[0 : n, :] = coeffs[:, -l:]
+        B[2*n : 2*n + l, :] = np.eye(l)
 
-        def state_func(traj, t=None):
-            return self._get_feature_vector(traj, t)
+        self.A, self.B = A, B
 
-        def cost_func(Q, R, F=None):
-            Qnew = np.zeros(A.shape)
-            n = self.system.obs_dim
-            m = self.system.ctrl_dim
-            Qnew[-n-m:-m, -n-m:-m] = Q
-            Rnew = R.copy()
-            if F is None:
-                return Qnew, Rnew
-            else:
-                Fnew = np.zeros(A.shape)
-                Fnew[-self.system.obs_dim:, -self.system.obs_dim:] = F
-                return Qnew, Rnew, Fnew
 
-        return A, B, state_func, cost_func
+    def pred(self, state, ctrl):
+        statenew = self.A @ state + self.B @ ctrl
 
+        return statenew
+
+    def pred_diff(self, state, ctrl):
+        statenew = self.A @ state + self.B @ ctrl
+
+        return statenew, self.A, self.B
+
+    def to_linear(self):
+        return self.A, self.B
+
+    @property
+    def state_dim(self):
+        return self._get_fvec_size() - self.system.ctrl_dim
 
 
     def get_parameters(self):

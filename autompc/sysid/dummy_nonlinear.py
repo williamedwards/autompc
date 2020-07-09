@@ -16,50 +16,31 @@ class DummyNonlinear(Model):
     def __init__(self, system):
         super().__init__(system)
 
+    def state_dim(self):
+        return 2
+
     def train(self, trajs):
         pass
 
-    def pred(self, traj):
-        u = traj[-1].ctrl[0]
-        x1, x2 = traj[-1].obs
+    def traj_to_state(self, traj):
+        state = np.zeros((2,))
+        state[:] = traj[-1].obs[:]
+        return state[:]
+
+    def update_state(state, new_obs, new_ctrl):
+        return state[:]
+
+    def pred(self, state, ctrl):
+        u = ctrl[0]
+        x1, x2 = state[0], state[1]
         xpred = [x1 + x2**3, x2 + u]
 
-        return xpred, None
+        return xpred
 
-    def pred_diff(self, traj, latent=None):
-        u = traj[-1].ctrl[0]
-        x1, x2 = traj[-1].obs
+    def pred_diff(self, state, ctrl):
+        u = ctrl[0]
+        x1, x2 = state[0], state[1]
         xpred = [x1 + x2**3, x2 + u]
+        grad = np.array([[1.0, 3 * x2**2, 0.0], [0.0, 1.0, 1.0]])
 
-        grad = gradzeros(self.system, traj.size, 2)
-        grad[-1, "x1", 0] = 1.0
-        grad[-1, "x2", 0] = 3 * x2**2
-        grad[-1, "x2", 1] = 1.0
-        grad[-1, "u", 1] = 1.0
-
-        return xpred, None, grad
-
-    def to_linear(self):
-        # Compute state transform state_func
-        # Compute cost transformer cost_func
-        def state_func(traj):
-            return self._transform_state(traj[-1].obs)
-        def cost_func(Q, R, F=None):
-            n = self.system.obs_dim
-            Qt = np.zeros((self._state_size(), self._state_size()))
-            Qt[:n, :n] = Q
-            if F is None:
-                return Qt, R
-            else:
-                Ft = np.zeros_like(Qt)
-                Ft[:n, :n] = F
-                return Qt, R, Ft
-        return np.copy(self.A), np.copy(self.B), state_func, cost_func
-
-    def get_parameters(self):
-        return {"A" : np.copy(self.A),
-                "B" : np.copy(self.B)}
-
-    def set_parameters(self, params):
-        self.A = np.copy(params["A"])
-        self.B = np.copy(params["B"])
+        return xpred, grad

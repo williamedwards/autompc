@@ -37,22 +37,26 @@ for _ in range(samples):
 traj = trajs[-1]
 
 
-print(traj.obs)
+#print(traj.obs)
+#
+#print(traj.ctrls)
 
-print(traj.ctrls)
+from autompc.sysid import ARX
 
-from autompc.sysid import ARX, Koopman
-
-koop = Koopman(simplesys)
-koop.set_hypers(basis_functions=set(["poly3", "trig"]))
-koop.train(trajs)
+model = ARX(simplesys)
+#koop.set_hypers(basis_functions=set(["poly3", "trig"]))
+model.set_hypers(k=5)
+model.train(trajs)
 
 
 # Test prediction
 
-predobs, _ = koop.pred(traj[:10])
+state = model.traj_to_state(traj[:10])
+predstate = model.pred(state, traj[10].ctrl)
+predobs = predstate[:simplesys.obs_dim]
 assert(np.allclose(predobs, traj[10].obs))
 print("completed assert")
+sys.exit()
 
 koop_A, koop_B, state_func, cost_func = koop.to_linear()
 
@@ -67,22 +71,22 @@ Q, R = np.eye(2), np.eye(1)
 Qt, Rt, = cost_func(Q, R)
 print(Qt, Rt)
 
-from autompc.control import InfiniteHorizonLQR
-
-Q = np.eye(2)
-R = np.eye(1)
-con = InfiniteHorizonLQR(simplesys, koop, Q, R)
-
-sim_traj = ampc.zeros(simplesys, 1)
-x = np.array([1,1])
-sim_traj[0].obs[:] = x
-
-for _ in range(30):
-    u, _ = con.run(sim_traj)
-    x = A @ x + B @ u
-    sim_traj[-1, "u"] = u
-    sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-    xtrans = con.state_func(sim_traj)
-
-plt.plot(sim_traj[:,"x1"], sim_traj[:,"x2"], "b-o")
-plt.show()
+#from autompc.control import InfiniteHorizonLQR
+#
+#Q = np.eye(2)
+#R = np.eye(1)
+#con = InfiniteHorizonLQR(simplesys, koop, Q, R)
+#
+#sim_traj = ampc.zeros(simplesys, 1)
+#x = np.array([1,1])
+#sim_traj[0].obs[:] = x
+#
+#for _ in range(30):
+#    u, _ = con.run(sim_traj)
+#    x = A @ x + B @ u
+#    sim_traj[-1, "u"] = u
+#    sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
+#    xtrans = con.state_func(sim_traj)
+#
+#plt.plot(sim_traj[:,"x1"], sim_traj[:,"x2"], "b-o")
+#plt.show()

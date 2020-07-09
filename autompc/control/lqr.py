@@ -62,17 +62,19 @@ class FiniteHorizonLQR(Controller):
         if not model.is_linear:
             raise ValueError("Linear model required.")
         super().__init__(system, model)
-        A, B, state_func, cost_func = model.to_linear()
-        Qp, Rp = cost_func(Q, R)
+        A, B = model.to_linear()
         N = np.zeros((A.shape[0], B.shape[1]))
         self.horizon = IntRangeHyperparam((1, 100), default_value=10)
-        self.K = _finite_horz_dt_lqr(A, B, Qp, Rp, N, 10)
-        self.state_func = state_func
-        self.Qp, self.Rp = Qp, Rp
+        state_dim = model.state_dim
+        Qp = np.zeros((state_dim, state_dim))
+        Qp[:Q.shape[0], :Q.shape[1]] = Q
+        self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, 10)
+        self.Qp, self.Rp = Qp, R
+        self.model = model
 
     def run(self, traj, latent=None):
         # Implement control logic here
-        state = self.state_func(traj)
+        state = self.model.traj_to_state(traj)
         u = self.K @ state
         print("state={}".format(state))
         print("u={}".format(u))

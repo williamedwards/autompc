@@ -53,100 +53,66 @@ def animate_pendulum(fig, ax, dt, traj):
 
 dt = 0.025
 
-umin = -2.0
-umax = 2.0
+umin = -15.0
+umax = 15.0
+udmax = 0.25
 
 # Generate trajectories for training
-num_trajs = 100
+num_trajs = 10
 
 @memory.cache
-def gen_trajs():
+def gen_trajs(dt, umin, umax, udmax, num_trajs):
     rng = np.random.default_rng(42)
     trajs = []
     for _ in range(num_trajs):
         y = [-np.pi, 0.0]
         traj = ampc.zeros(pendulum, 400)
+        u = rng.uniform(umin, umax, 1)
         for i in range(400):
             traj[i].obs[:] = y
-            u = rng.uniform(umin, umax, 1)
+            u += rng.uniform(-udmax, udmax, 1)
+            if u[0] > umax:
+                u[0] = umax
+            if u[0] < umin:
+                u[0] = umin
             y = dt_pendulum_dynamics(y, u, dt)
             traj[i].ctrl[:] = u
         trajs.append(traj)
     return trajs
-trajs = gen_trajs()
+trajs = gen_trajs(dt, umin, umax, udmax, num_trajs)
 
-from autompc.sysid import ARX, Koopman#, SINDy
+from autompc.sysid import ARX
 
-@memory.cache
-def train_arx():
-    arx = ARX(pendulum)
-    arx.set_hypers(k=1)
-    arx.train(trajs)
-    return arx
+cs = ARX.get_configuration_space(pendulum)
+s = cs.get_default_configuration()
+model = ampc.make_model(pendulum, ARX, s)
+model.train(trajs)
 
-#@memory.cache
-def train_koop():
-    koop = Koopman(pendulum)
-    #koop.set_hypers(basis_functions=set(["trig"]),
-    #        method="lasso", lasso_alpha=0.00001)
-    koop.set_hypers(basis_functions=set(["trig"]))
-    koop.train(trajs)
-    return koop
+from autompc.evaluators import HoldoutEvaluator
+from autompc.metrics import RmseKstepMetric
 
-def train_sindy():
-    sindy = SINDy(pendulum)
-    sindy.train(trajs)
-    return sindy
+metric = RmseKstepMetric(pendulum, k=50)
 
-arx = train_arx()
-koop = train_koop()
-#sindy = train_sindy()
-#set_trace()
+rng = np.random.default_rng(42)
+evaluator = HoldoutEvaluator(pendulum, trajs, metric, rng, holdout_prop=0.25) 
+eval_score = evaluator(ARX, s)
+print("eval_score = {}".format(eval_score))
 
-# Test prediction
+from smac.scenario.scenario import Scenario
+from smac.facade.smac_hpo_facade import SMAC4HPO
 
-#traj = trajs[0]
-#predobs, _ = koop.pred(traj[:10])
+scenario = Scenario({"run_obj": "quality",  
+                     "runcount-limit": 10,  
+                     "cs": cs,  
+                     "deterministic": "true",
+                     "n_jobs" : 10
+                     })
 
-#koop_A, koop_B, state_func, cost_func = koop.to_linear()
+smac = SMAC4HPO(scenario=scenario, rng=np.random.RandomState(42),
+        tae_runner=lambda cfg: evaluator(ARX, cfg)[0])
 
-#state = state_func(traj[:10])
-#
-#state = koop_A @ state + koop_B @ traj[10].ctrl
-#state = koop_A @ state + koop_B @ traj[11].ctrl
+incumbent = smac.optimize()
 
-#assert(np.allclose(state[-3:-1], traj[11].obs))
+print("Done!")
 
-model = koop
-
-from autompc.control import FiniteHorizonLQR
-from autompc.control.mpc import LQRCost, LinearMPC
-
-Q = np.diag([100.0, 1.0])
-R = np.diag([0.1])
-#print(cost_func(Q, R))
-con = FiniteHorizonLQR(pendulum, model, Q, R)
-cost = LQRCost(Q, R)
-#con = LinearMPC(pendulum, model, cost)
-
-sim_traj = ampc.zeros(pendulum, 1)
-x = np.array([-np.pi,0.0])
-sim_traj[0].obs[:] = x
-
-for _ in range(400):
-    u, _ = con.run(sim_traj)
-    x = dt_pendulum_dynamics(x, u, dt)
-    sim_traj[-1, "torque"] = u
-    sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-
-#plt.plot(sim_traj[:,"x1"], sim_traj[:,"x2"], "b-o")
-#plt.show()
-
-fig = plt.figure()
-ax = fig.gca()
-ax.set_aspect("equal")
-ax.set_xlim([-1.1, 1.1])
-ax.set_ylim([-1.1, 1.1])
-ani = animate_pendulum(fig, ax, dt, sim_traj)
-#ani.save("out/test4/koop_lmpc.mp4")
-plt.show()
+print(incumbent)
