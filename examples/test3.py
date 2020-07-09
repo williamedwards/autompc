@@ -43,16 +43,18 @@ traj = trajs[-1]
 
 from autompc.sysid import ARX
 
-model = ARX(simplesys)
+cs = ARX.get_configuration_space(simplesys)
+cfg = cs.get_default_configuration()
+cfg["horizon"] = 1
+model = ampc.make_model(simplesys, ARX, cfg)
 #koop.set_hypers(basis_functions=set(["poly3", "trig"]))
-model.set_hypers(k=5)
 model.train(trajs)
 
 
 # Test prediction
 
 state = model.traj_to_state(traj[:10])
-predstate = model.pred(state, traj[10].ctrl)
+predstate = model.pred(state, traj[9].ctrl)
 predobs = predstate[:simplesys.obs_dim]
 assert(np.allclose(predobs, traj[10].obs))
 print("completed assert")

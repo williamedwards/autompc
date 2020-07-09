@@ -78,9 +78,11 @@ trajs = gen_trajs()
 from autompc.sysid import ARX, Koopman#, SINDy
 
 @memory.cache
-def train_arx():
-    arx = ARX(pendulum)
-    arx.set_hypers(k=1)
+def train_arx(k=2):
+    cs = ARX.get_configuration_space(pendulum)
+    cfg = cs.get_default_configuration()
+    cfg["horizon"] = k
+    arx = ampc.make_model(pendulum, ARX, cfg)
     arx.train(trajs)
     return arx
 
@@ -98,8 +100,8 @@ def train_sindy():
     sindy.train(trajs)
     return sindy
 
-arx = train_arx()
-koop = train_koop()
+arx = train_arx(k=1)
+#koop = train_koop()
 #sindy = train_sindy()
 #set_trace()
 
@@ -117,7 +119,7 @@ koop = train_koop()
 
 #assert(np.allclose(state[-3:-1], traj[11].obs))
 
-model = koop
+model = arx
 
 from autompc.control import FiniteHorizonLQR
 from autompc.control.mpc import LQRCost, LinearMPC
