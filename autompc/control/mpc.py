@@ -101,7 +101,7 @@ class LinearMPC(Controller):
         self.A, self.B, self.state_func, self.cfun = model.to_linear()
         self.qrnf = cost.get_quadratic()
         self.constr = constraints
-        self.horizon = IntRangeHyperparam((1, 10))
+        self.horizon = IntRangeHyperparam((5, 20), default_value=8)
         self._built = False
 
     def _build_problem(self):

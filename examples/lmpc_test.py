@@ -91,16 +91,17 @@ koop = train_koop()
 model = koop
 from autompc.control.mpc import LQRCost, LinearMPC
 
-Q = np.diag([100.0, 1.0])
-R = np.diag([0.1])
-cost = LQRCost(Q, R)
+Q = np.diag([10.0, 0.5])
+R = np.diag([0.01])
+cost = LQRCost(Q, R, F=Q)
 con = LinearMPC(pendulum, model, cost)
+con.horizon.value = 8
 
 sim_traj = ampc.zeros(pendulum, 1)
 x = np.array([-np.pi,0.0])
 sim_traj[0].obs[:] = x
 
-for _ in range(400):
+for _ in range(100):
     u, _ = con.run(sim_traj)
     x = dt_pendulum_dynamics(x, u, dt)
     sim_traj[-1, "torque"] = u
