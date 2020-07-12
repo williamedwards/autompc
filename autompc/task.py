@@ -1,14 +1,11 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 import numpy as np
+from pdb import set_trace
 
 class Task:
     def __init__(self, system):
         self.system = system
-
-        # Initialize task properties
-        self._qp = False
-        self._conv = False
 
         # Cost types:
         # 0 : None
@@ -36,6 +33,8 @@ class Task:
         self._conv_ineq_cons = []
         self._diff_eq_cons = []
         self._diff_ineq_cons = []
+        self._eq_cons_dim = 0
+        self._ineq_cons_dim = 0
 
     # Adding Costs
     def set_quad_cost(self, Q, R, F=None):
@@ -83,17 +82,15 @@ class Task:
         self._add_obs_cost = add_obs_cost
         self._add_ctrl_cost = add_ctrl_cost
         self._terminal_obs_cost = terminal_obs_cost
-        self._eq_cons_dim = 0
-        self._ineq_cons_dim = 0
 
     # Cost properties
-    def is_cost_quad:
+    def is_cost_quad(self):
         return self.cost_type == 1
 
-    def is_cost_convex:
+    def is_cost_convex(self):
         return self.cost_type <= 2
 
-    def is_cost_diff:
+    def is_cost_diff(self):
         return self.cost_type <= 3
 
     # Evaluating Costs
@@ -155,14 +152,14 @@ class Task:
 
     # Adding Constraints
     def set_obs_bound(self, obs_label, lower, upper):
-        idx = self.system.controls.index(obs_label)
+        idx = self.system.observations.index(obs_label)
         self._obs_bounds[idx,:] = [lower, upper]
 
     def set_obs_bounds(self, lowers, uppers):
         self._obs_bounds[:,0] = lowers
         self._obs_bounds[:,1] = uppers
 
-    def set_ctrl_bound(self, obs_label, lower, upper):
+    def set_ctrl_bound(self, ctrl_label, lower, upper):
         idx = self.system.controls.index(ctrl_label)
         self._ctrl_bounds[idx,:] = [lower, upper]
 
@@ -205,7 +202,7 @@ class Task:
                         np.array of shape(dim, self.system.obs_dim)
         Constraint requires func(obs) <= 0
         """
-        self._conv_eq_cons.append((func, dim))
+        self._conv_ineq_cons.append((func, dim))
         self._ineq_cons_dim += dim
 
     def add_diff_eq_cons(self, func, dim=1):
@@ -223,7 +220,7 @@ class Task:
                         np.array of shape(dim, self.system.obs_dim)
         Constraint requires func(obs) <= 0
         """
-        self._diff_eq_cons.append((func, dim))
+        self._diff_ineq_cons.append((func, dim))
         self._ineq_cons_dim += dim
 
     #def add_numeric_eq_cons(self):
@@ -241,14 +238,14 @@ class Task:
                 or self._diff_eq_cons)
 
     def are_eq_cons_affine(self):
-        return (not self._conv_eq_cons and not self._diff_eq_ocons)
+        return (not self._conv_eq_cons and not self._diff_eq_cons)
 
     def ineq_cons_present(self):
         return (self._affine_ineq_cons or self._conv_eq_cons
                 or self._diff_ineq_cons)
 
     def are_ineq_cons_affine(self):
-        return (not self._conv_ineq_cons and not self._diff_eq_ocons)
+        return (not self._conv_ineq_cons and not self._diff_eq_cons)
 
     def are_eq_cons_convex(self):
         return not self._diff_eq_cons
@@ -269,34 +266,37 @@ class Task:
     def get_obs_bounds(self):
         return self._obs_bounds.copy()
 
+    def get_ctrl_bounds(self):
+        return self._ctrl_bounds.copy()
+
     def get_affine_eq_cons(self):
         if not self.are_eq_cons_affine:
             raise ValueError("Equality constraints are not affine.")
         A = np.vstack([A for A, _ in self._affine_eq_cons])
-        b = np.vstack([b for _, b in self._affine_eq_cons])
+        b = np.concatenate([b for _, b in self._affine_eq_cons])
         return A, b
 
     def get_affine_ineq_cons(self):
         if not self.are_ineq_cons_affine():
             raise ValueError("Inequality constraints are not affine.")
         A = np.vstack([A for A, _ in self._affine_ineq_cons])
-        b = np.vstack([b for _, b in self._affine_ineq_cons])
+        b = np.concatenate([b for _, b in self._affine_ineq_cons])
         return A, b
 
     def eval_convex_eq_cons(self, obs):
         if not self.are_eq_cons_convex:
             raise ValueError("Equality constraints are not convex.")
         value = np.zeros((self.eq_cons_dim,))
-        grad = np.veros((self.eq_cons_dim, self.eq_cons_dim))
+        grad = np.zeros((self.eq_cons_dim, self.system.obs_dim))
         i = 0
         for A, b in self._affine_eq_cons:
-            value[i:A.shape[0]] = A @ obs - b
-            grad[i:A.shape[0], :] = A
+            value[i:i+A.shape[0]] = A @ obs - b
+            grad[i:i+A.shape[0], :] = A
             i += A.shape[0]
         for func, dim in self._conv_eq_cons:
             val, gr = func(obs)
-            value[i:dim] = val
-            grad[i:dim, :] = gr
+            value[i:i+dim] = val
+            grad[i:i+dim, :] = gr
             i += dim
         return value, grad
 
@@ -314,6 +314,43 @@ class Task:
             grad[i:dim, :] = gr
             i += dim
         for func, dim in self._diff_eq_cons:
+            val, gr = func(obs)
+            value[i:dim] = val
+            grad[i:dim, :] = gr
+            i += dim
+        return value, grad
+
+    def eval_convex_ineq_cons(self, obs):
+        if not self.are_ineq_cons_convex:
+            raise ValueError("Equality constraints are not convex.")
+        value = np.zeros((self.ineq_cons_dim,))
+        grad = np.zeros((self.ineq_cons_dim, self.system.obs_dim))
+        i = 0
+        for A, b in self._affine_ineq_cons:
+            value[i:i+A.shape[0]] = A @ obs - b
+            grad[i:i+A.shape[0], :] = A
+            i += A.shape[0]
+        for func, dim in self._conv_ineq_cons:
+            val, gr = func(obs)
+            value[i:i+dim] = val
+            grad[i:i+dim, :] = gr
+            i += dim
+        return value, grad
+
+    def eval_diff_ineq_cons(self, obs):
+        value = np.zeros((self.ineq_cons_dim,))
+        grad = np.veros((self.ineq_cons_dim, self.ineq_cons_dim))
+        i = 0
+        for A, b in self._affine_ineq_cons:
+            value[i:A.shape[0]] = A @ obs - b
+            grad[i:A.shape[0], :] = A
+            i += A.shape[0]
+        for func, dim in self._conv_ineq_cons:
+            val, gr = func(obs)
+            value[i:dim] = val
+            grad[i:dim, :] = gr
+            i += dim
+        for func, dim in self._diff_ineq_cons:
             val, gr = func(obs)
             value[i:dim] = val
             grad[i:dim, :] = gr
