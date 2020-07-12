@@ -25,32 +25,34 @@ class Controller(ABC):
         """
         raise NotImplementedError
 
+    #@abstractmethod
+    #def update_state(self, state, new_ctrl, new_obs):
+    #    """
+    #    Parameters
+    #    ----------
+    #        state : numpy array of size self.state_dim
+    #            Current controller state
+    #        new_ctrl : numpy array of size self.system.ctrl_dim
+    #            New control input
+    #        new_obs : numpy array of size self.system.obs_dim
+    #            New observation
+    #    Returns
+    #    -------
+    #        state : numpy array of size self.state_dim
+    #            Model state after observation and control
+    #    """
+    #    raise NotImplementedError
+
+
     @abstractmethod
-    def update_state(self, state, new_ctrl, new_obs):
+    def run(self, state, new_obs):
         """
         Parameters
         ----------
             state : numpy array of size self.state_dim
                 Current controller state
-            new_ctrl : numpy array of size self.system.ctrl_dim
-                New control input
             new_obs : numpy array of size self.system.obs_dim
-                New observation
-        Returns
-        -------
-            state : numpy array of size self.state_dim
-                Model state after observation and control
-        """
-        raise NotImplementedError
-
-
-    @abstractmethod
-    def run(self, state):
-        """
-        Parameters
-        ----------
-            state : numpy array of size self.state_dim
-                Current controller state
+                Current observation state.
         Returns
         -------
             ctrl : Next control input
@@ -61,7 +63,7 @@ class Controller(ABC):
 
     @staticmethod
     @abstractmethod
-    def get_configuration_space(self, system, model, task):
+    def get_configuration_space(system, model, task):
         """
         Returns the controller configuration space for the given
         system, model, and task.
@@ -70,7 +72,7 @@ class Controller(ABC):
 
     @staticmethod
     @abstractmethod
-    def is_compatible(self, system, model, task):
+    def is_compatible(system, model, task):
         """
         Returns true if the controller is compatible with
         the given system, model, and task. Returns false

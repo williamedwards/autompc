@@ -1,11 +1,14 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+from pdb import set_trace
+
 import numpy as np
 import numpy.linalg as la
 
+from ConfigSpace import ConfigurationSpace
+from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
+
 from ..controller import Controller
-from ..hyper import IntRangeHyperparam
-from pdb import set_trace
 
 def _dynamic_ricatti_equation(A, B, Q, R, N, Pk):
     return (A.T @ Pk @ A 
@@ -27,8 +30,8 @@ def _inf_horz_dt_lqr(A, B, Q, R, N, threshold=1e-3):
 
     return K
 
-def _finite_horz_dt_lqr(A, B, Q, R, N, horizon):
-    P1 = Q
+def _finite_horz_dt_lqr(A, B, Q, R, N, F, horizon):
+    P1 = F
     P2 = _dynamic_ricatti_equation(A, B, Q, R, N, P1)
     for _ in range(horizon):
         P1 = P2
@@ -58,26 +61,53 @@ class InfiniteHorizonLQR(Controller):
         return u, None
 
 class FiniteHorizonLQR(Controller):
-    def __init__(self, system, model, Q, R):
-        if not model.is_linear:
-            raise ValueError("Linear model required.")
-        super().__init__(system, model)
+    def __init__(self, system, task, model, horizon):
+        super().__init__(system, model, task)
         A, B = model.to_linear()
         N = np.zeros((A.shape[0], B.shape[1]))
-        self.horizon = IntRangeHyperparam((1, 100), default_value=10)
+        self.horizon = horizon
         state_dim = model.state_dim
+        Q, R, F = task.get_quad_cost()
         Qp = np.zeros((state_dim, state_dim))
         Qp[:Q.shape[0], :Q.shape[1]] = Q
-        self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, 10)
+        Fp = np.zeros((state_dim, state_dim))
+        Fp[:F.shape[0], :F.shape[1]] = F
+        self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, Fp, 10)
         self.Qp, self.Rp = Qp, R
         self.model = model
 
-    def run(self, traj, latent=None):
+    @property
+    def state_dim(self):
+        return self.model.state_dim + self.system.ctrl_dim
+
+    @staticmethod
+    def get_configuration_space(system, task, model):
+        cs = ConfigurationSpace()
+        horizon = UniformIntegerHyperparameter(name="horizon",
+                lower=1, upper=100, default_value=10)
+        cs.add_hyperparameter(horizon)
+        return cs
+
+    @staticmethod
+    def is_compatible(system, task, model):
+        return (model.is_linear 
+                and not task.are_obs_bounded()
+                and not task.are_ctrl_bounded()
+                and not task.eq_cons_present()
+                and not task.ineq_cons_present())
+ 
+    def traj_to_state(self, traj):
+        return np.concatenate([self.model.traj_to_state(traj),
+                traj[-1].ctrl])
+
+    def run(self, state, new_obs):
         # Implement control logic here
-        state = self.model.traj_to_state(traj)
-        u = self.K @ state
+        modelstate = self.model.update_state(state[:-self.system.ctrl_dim],
+                state[-self.system.ctrl_dim:], new_obs)
+        u = self.K @ modelstate
         print("state={}".format(state))
         print("u={}".format(u))
-        print("state_cost={}".format(state.T @ self.Qp @ state))
+        print("state_cost={}".format(modelstate.T @ self.Qp @ modelstate))
+        statenew = np.concatenate([modelstate, u])
 
-        return u, None
+        return u, statenew

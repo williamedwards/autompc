@@ -12,16 +12,16 @@ from ..model import Model
 #from ..hyper import IntRangeHyperparam
 
 class ARX(Model):
-    def __init__(self, system, horizon):
+    def __init__(self, system, history):
         super().__init__(system)
-        self.k = horizon
+        self.k = history
 
     @staticmethod
     def get_configuration_space(system):
         cs = ConfigurationSpace()
-        horizon = UniformIntegerHyperparameter(name='horizon', 
+        history = UniformIntegerHyperparameter(name='history', 
                 lower=1, upper=10, default_value=4)
-        cs.add_hyperparameter(horizon)
+        cs.add_hyperparameter(history)
         return cs
         
 

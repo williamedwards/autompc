@@ -122,21 +122,25 @@ arx = train_arx(k=1)
 model = arx
 
 from autompc.control import FiniteHorizonLQR
-from autompc.control.mpc import LQRCost, LinearMPC
+#from autompc.control.mpc import LQRCost, LinearMPC
 
+task = ampc.Task(pendulum)
 Q = np.diag([100.0, 1.0])
 R = np.diag([0.1])
-#print(cost_func(Q, R))
-con = FiniteHorizonLQR(pendulum, model, Q, R)
-cost = LQRCost(Q, R)
-#con = LinearMPC(pendulum, model, cost)
+task.set_quad_cost(Q, R)
+
+
+cs = FiniteHorizonLQR.get_configuration_space(pendulum, task, model)
+cfg = cs.get_default_configuration()
+con = ampc.make_controller(pendulum, task, model, FiniteHorizonLQR, cfg)
 
 sim_traj = ampc.zeros(pendulum, 1)
 x = np.array([-np.pi,0.0])
 sim_traj[0].obs[:] = x
 
+constate = con.traj_to_state(sim_traj[:1])
 for _ in range(400):
-    u, _ = con.run(sim_traj)
+    u, constate = con.run(constate, sim_traj[-1].obs)
     x = dt_pendulum_dynamics(x, u, dt)
     sim_traj[-1, "torque"] = u
     sim_traj = ampc.extend(sim_traj, [x], [[0.0]])

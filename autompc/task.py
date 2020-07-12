@@ -233,6 +233,20 @@ class Task:
     #    pass
 
     # Constraint properties
+    def are_obs_bounded(self):
+        for i in range(self.model.obs_dim):
+            if (self._obs_bounds[i, 0] != -np.inf 
+                    or self._obs_bounds[i, 1] != np.inf):
+                return True
+        return False
+
+    def are_ctrl_bounded(self):
+        for i in range(self.model.ctrl_dim):
+            if (self._ctrl_bounds[i, 0] != -np.inf 
+                    or self._ctrl_bounds[i, 1] != np.inf):
+                return True
+        return False
+
     def eq_cons_present(self):
         return (self._affine_eq_cons or self._convx_eq_cons
                 or self._diff_eq_cons)
