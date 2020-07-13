@@ -44,3 +44,10 @@ class DummyNonlinear(Model):
         grad = np.array([[1.0, 3 * x2**2, 0.0], [0.0, 1.0, 1.0]])
 
         return xpred, grad
+
+    @staticmethod
+    def get_configuration_space(system):
+        """
+        Returns the model configuration space.
+        """
+        return None

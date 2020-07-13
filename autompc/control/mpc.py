@@ -70,6 +70,24 @@ class LQRCost(Cost):
 
     def get_quadratic(self):
         return self.Q, self.R, None, self.F
+    
+    def get_terminal(self, x, ret_grad=False):
+        cost = x.dot(self.F.dot(x))
+        if ret_grad:
+            grad = 2 * self.F.dot(x)
+            return cost, grad
+        else:
+            return cost
+
+    def get_additive(self, x, u, ret_grad=False):
+        costx = x.dot(self.Q.dot(x))
+        costu = u.dot(self.R.dot(u))
+        if ret_grad:
+            g1 = 2 * self.Q.dot(x)
+            g2 = 2 * self.R.dot(u)
+            return costx + costu, g1, g2
+        else:
+            return costx
 
 
 class MPCConstraints(object):
