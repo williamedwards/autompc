@@ -10,12 +10,15 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 class Koopman(Model):
-    def __init__(self, system, method, lasso_alpha=None, poly_basis=False,
+    def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
             poly_degree=1, trig_basis=False, trig_freq=1):
         super().__init__(system)
 
         self.method = method
-        self.lasso_alpha = lasso_alpha
+        if not lasso_alpha_log10 is None:
+            self.lasso_alpha = 10**lasso_alpha_log10
+        else:
+            self.lasso_alpha = None
         if type(poly_basis) == str:
             poly_basis = True if poly_basis == "true" else False
         self.poly_basis = poly_basis
@@ -36,9 +39,9 @@ class Koopman(Model):
     def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
         method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
-        lasso_alpha = CSH.UniformFloatHyperparameter("lasso_alpha", lower=0.0, 
-                upper=100.0, default_value=1.0)
-        use_lasso_alpha = CSC.InCondition(child=lasso_alpha, parent=method, 
+        lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
+                lower=-5.0, upper=2.0, default_value=0.0)
+        use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
                 values=["lasso"])
 
         poly_basis = CSH.CategoricalHyperparameter("poly_basis", 
@@ -55,7 +58,7 @@ class Koopman(Model):
         use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
                 values=["true"])
 
-        cs.add_hyperparameters([method, lasso_alpha, poly_basis, poly_degree,
+        cs.add_hyperparameters([method, lasso_alpha_log10, poly_basis, poly_degree,
             trig_basis, trig_freq])
         cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
 

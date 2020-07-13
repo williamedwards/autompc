@@ -81,11 +81,13 @@ def gen_trajs(dt, umin, umax, udmax, num_trajs):
     return trajs
 trajs = gen_trajs(dt, umin, umax, udmax, num_trajs)
 
-from autompc.sysid import ARX
+from autompc.sysid import ARX, Koopman
 
-cs = ARX.get_configuration_space(pendulum)
+Model = Koopman
+
+cs = Model.get_configuration_space(pendulum)
 s = cs.get_default_configuration()
-model = ampc.make_model(pendulum, ARX, s)
+model = ampc.make_model(pendulum, Model, s)
 model.train(trajs)
 
 from autompc.evaluators import HoldoutEvaluator
@@ -95,21 +97,21 @@ metric = RmseKstepMetric(pendulum, k=50)
 
 rng = np.random.default_rng(42)
 evaluator = HoldoutEvaluator(pendulum, trajs, metric, rng, holdout_prop=0.25) 
-eval_score = evaluator(ARX, s)
+eval_score = evaluator(Model, s)
 print("eval_score = {}".format(eval_score))
 
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
 
 scenario = Scenario({"run_obj": "quality",  
-                     "runcount-limit": 10,  
+                     "runcount-limit": 50,  
                      "cs": cs,  
                      "deterministic": "true",
                      "n_jobs" : 10
                      })
 
 smac = SMAC4HPO(scenario=scenario, rng=np.random.RandomState(42),
-        tae_runner=lambda cfg: evaluator(ARX, cfg)[0])
+        tae_runner=lambda cfg: evaluator(Model, cfg)[0])
 
 incumbent = smac.optimize()
 
