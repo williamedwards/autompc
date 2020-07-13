@@ -88,10 +88,10 @@ def train_arx(k=2):
 
 #@memory.cache
 def train_koop():
-    koop = Koopman(pendulum)
-    #koop.set_hypers(basis_functions=set(["trig"]),
-    #        method="lasso", lasso_alpha=0.00001)
-    koop.set_hypers(basis_functions=set(["trig"]))
+    cs = Koopman.get_configuration_space(pendulum)
+    cfg = cs.get_default_configuration()
+    cfg["trig_basis"] = "true"
+    koop = ampc.make_model(pendulum, Koopman, cfg)
     koop.train(trajs)
     return koop
 
@@ -100,8 +100,8 @@ def train_sindy():
     sindy.train(trajs)
     return sindy
 
-arx = train_arx(k=1)
-#koop = train_koop()
+#arx = train_arx(k=1)
+koop = train_koop()
 #sindy = train_sindy()
 #set_trace()
 
@@ -119,7 +119,7 @@ arx = train_arx(k=1)
 
 #assert(np.allclose(state[-3:-1], traj[11].obs))
 
-model = arx
+model = koop
 
 from autompc.control import FiniteHorizonLQR
 #from autompc.control.mpc import LQRCost, LinearMPC
