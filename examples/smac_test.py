@@ -100,21 +100,29 @@ evaluator = HoldoutEvaluator(pendulum, trajs, metric, rng, holdout_prop=0.25)
 eval_score = evaluator(Model, s)
 print("eval_score = {}".format(eval_score))
 
-from smac.scenario.scenario import Scenario
-from smac.facade.smac_hpo_facade import SMAC4HPO
-
-scenario = Scenario({"run_obj": "quality",  
-                     "runcount-limit": 50,  
-                     "cs": cs,  
-                     "deterministic": "true",
-                     "n_jobs" : 10
-                     })
-
-smac = SMAC4HPO(scenario=scenario, rng=np.random.RandomState(42),
-        tae_runner=lambda cfg: evaluator(Model, cfg)[0])
-
-incumbent = smac.optimize()
-
-print("Done!")
+tuner = ampc.ModelTuner(pendulum, evaluator)
+tuner.add_model(ARX)
+tuner.add_model(Koopman)
+incumbent = tuner.run(rng=np.random.RandomState(42), runcount_limit=50,
+        n_jobs=10)
 
 print(incumbent)
+
+#from smac.scenario.scenario import Scenario
+#from smac.facade.smac_hpo_facade import SMAC4HPO
+#
+#scenario = Scenario({"run_obj": "quality",  
+#                     "runcount-limit": 50,  
+#                     "cs": cs,  
+#                     "deterministic": "true",
+#                     "n_jobs" : 10
+#                     })
+#
+#smac = SMAC4HPO(scenario=scenario, rng=np.random.RandomState(42),
+#        tae_runner=lambda cfg: evaluator(Model, cfg)[0])
+#
+#incumbent = smac.optimize()
+#
+#print("Done!")
+#
+#print(incumbent)
