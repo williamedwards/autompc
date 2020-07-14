@@ -91,6 +91,7 @@ class FiniteHorizonLQR(Controller):
     @staticmethod
     def is_compatible(system, task, model):
         return (model.is_linear 
+                and task.is_cost_quad()
                 and not task.are_obs_bounded()
                 and not task.are_ctrl_bounded()
                 and not task.eq_cons_present()

@@ -179,6 +179,22 @@ class ModelTuner:
         
         incumbent = smac.optimize()
 
-        return incumbent
+        ret_value = dict()
+        ret_value["incumbent"] = incumbent
+        inc_cost = float("inf")
+        inc_costs = []
+        costs_and_config_ids = []
+        for key, val in smac.runhistory.data.items():
+            if val.cost < inc_cost:
+                inc_cost = val.cost
+            inc_costs.append(inc_cost)
+            costs_and_config_ids.append((val.cost, key.config_id))
+        ret_value["inc_costs"] = inc_costs
+        costs_and_config_ids.sort()
+        top_five = [(smac.runhistory.ids_config[cfg_id], cost) for cost, cfg_id 
+            in costs_and_config_ids[:5]]
+        ret_value["top_five"] = top_five
+
+        return ret_value
 
 

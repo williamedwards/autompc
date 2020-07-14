@@ -103,10 +103,19 @@ print("eval_score = {}".format(eval_score))
 tuner = ampc.ModelTuner(pendulum, evaluator)
 tuner.add_model(ARX)
 tuner.add_model(Koopman)
-incumbent = tuner.run(rng=np.random.RandomState(42), runcount_limit=50,
+ret_value = tuner.run(rng=np.random.RandomState(42), runcount_limit=50,
         n_jobs=10)
 
-print(incumbent)
+print(ret_value)
+
+fig = plt.figure()
+ax = fig.gca()
+ax.plot(range(len(ret_value["inc_costs"])), ret_value["inc_costs"])
+ax.set_title("Incumbent cost over time")
+ax.set_ylim([0.0, 5.0])
+ax.set_xlabel("Iterations.")
+ax.set_ylabel("Cost")
+plt.show()
 
 #from smac.scenario.scenario import Scenario
 #from smac.facade.smac_hpo_facade import SMAC4HPO
