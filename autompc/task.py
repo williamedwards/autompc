@@ -353,7 +353,7 @@ class Task:
 
     def eval_diff_ineq_cons(self, obs):
         value = np.zeros((self.ineq_cons_dim,))
-        grad = np.veros((self.ineq_cons_dim, self.ineq_cons_dim))
+        grad = np.zeros((self.ineq_cons_dim, self.system.obs_dim))
         i = 0
         for A, b in self._affine_ineq_cons:
             value[i:A.shape[0]] = A @ obs - b

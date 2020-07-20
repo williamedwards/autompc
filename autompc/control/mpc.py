@@ -113,12 +113,17 @@ class LinearMPC(Controller):
     """
     Implementation of the linear controller. For this very basic version, it accepts some linear models and compute output.
     """
-    def __init__(self, system, model, cost, constraints=None):
-        # I prefer type checking, but clearly current API does not allow me so
+    def __init__(self, system, task, model):
         Controller.__init__(self, system, model)
+        assert task.is_cost_quad()
+        assert task.are_ineq_cons_affine()
+        assert task.are_eq_cons_convex()
         self.A, self.B, self.state_func, self.cfun = model.to_linear()
-        self.qrnf = cost.get_quadratic()
-        self.constr = constraints
+        self.qrnf = task.get_quad_cost()
+        self.eq_cons = task.get_affine_eq_cons()  # this is path constraint
+        self.ineq_cons = task.get_affine_ineq_cons()  # this is path constraint
+        self.obs_bound = task.get_obs_bounds()  # dim by 2
+        self.ctrl_bound = task.get_ctrl_bounds()  # dim by 2
         self.horizon = IntRangeHyperparam((5, 20), default_value=8)
         self._built = False
 
@@ -138,27 +143,24 @@ class LinearMPC(Controller):
         # dynamics
         for i in range(horizon):
             cons.append(xs[i + 1] == self.A * (xs[i]) + self.B * (us[i]))
-        # constraints
-        if self.constr is not None:
-            assert isinstance(self.constr, MPCConstraints), "constraints has to be in type autompc.control.MPCConstraints"
-            if self.constr.terminal is not None:
-                if self.constr.terminal.is_equality:
-                    cons.append(self.constr.terminal.A.dot(xs[-1]) == self.constr.terminal.l)
-                else:
-                    tmp = self.constr.terminal.A.dot(xs[-1])
-                    cons.extend([tmp >= self.constr.terminal.l, tmp <= self.constr.terminal.u])
-            for path in self.constr.path:
-                if path.is_equality:
-                    for i in range(horizon):
-                        cons.append(path.A.dot(xs[i]) + path.B.dot(us[i]) == path.l)
-                else:
-                    for i in range(horizon):
-                        tmp = path.A.dot(xs[i]) + path.B.dot(us[i])
-                        cons.append(tmp <= path.u)
-                        cons.append(tmp >= tmp.l)
+        # constraints, eq first
+        A, b = self.eq_cons
+        if A.shape[0] > 0:
+            for i in range(hoziron):
+                cons.append(A.dot(xs[i + 1] == b))
+        # ineqs
+        A, b = self.ineq_cons
+        if A.shape[0] > 0:
+            for i in range(hoziron):
+                cons.append(A.dot(xs[i + 1] <= b))
+        # set bounds...  assume broadcasting...
+        cons.append(xs <= self.obs_bound[:, 1])
+        cons.append(xs >= self.obs_bound[:, 0])
+        cons.append(us <= self.ctrl_bound[:, 1])
+        cons.append(us >= self.ctrl_bound[:, 0])
         # construct the cost function from lqr cost
         obj = 0
-        Q, R, N, F = self.qrnf
+        Q, R, F = self.qrnf
         Q, R, F = self.cfun(Q, R, F)  # TODO: clarify if we should just ignore N, we probably should
         Q += 1e-4 * np.eye(Q.shape[0])
         obj += cp.quad_form(xs[-1], F)

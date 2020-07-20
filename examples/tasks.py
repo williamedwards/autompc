@@ -36,7 +36,7 @@ assert((task.eval_convex_eq_cons(np.array([6, 3]))[0] == np.array([2, 0])).all()
 assert((task.eval_convex_eq_cons(np.array([6, 3]))[1] 
     == np.array([[1, -1], [0, 0]])).all())
 
-def convex_cons(obs):
+def convex_cons(obs):  # This is ineed non-convex...
     value = np.array([obs[0]**2 - obs[1]**2])
     grad = np.array([2 * obs[0], -2 * obs[1]])
     return value, grad

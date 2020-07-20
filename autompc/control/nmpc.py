@@ -84,19 +84,20 @@ class ConstrContainer(object):
 class NonLinearMPCProblem(TrajOptProblem):
     """Just write the NonLinear MPC problem in the OptProblem style.
     """
-    def __init__(self, system, cost, constr, horizon, xbd=None, ubd=None):
-        assert isinstance(constr, ConstrContainer)
+    def __init__(self, system, task, model, horizon):
+        assert task.is_cost_diff()
+        assert task.
         self.system = system
-        dc = system.system.ctrl_dim
-        ds = system.system.obs_dim
+        self.task = task
+        self.model = model
+        self.horizon = horizon
+        dc = system.ctrl_dim
+        ds = system.obs_dim
         self.ctrl_dim = dc
         self.obs_dim = ds
-        self.cost = cost
-        self.constr = constr
         # now I can get the size of the problem
-        nx = ds * (horizon + 1) + dc * (horizon)  # x0 to xN, u0 to u_{N-1}
-        nf = constr.compute_dim(horizon) + horizon * ds  # for dynamics and other constraints
-        self.horizon = horizon
+        nx = ds * (horizon + 1) + dc * horizon  # x0 to xN, u0 to u_{N-1}
+        nf = horizon * (task.eq_cons.dim + task.ineq_cons.dim) + horizon * ds  # for dynamics and other constraints
         TrajOptProblem.__init__(self, nx, nf)
         self._create_cache()
 
@@ -121,10 +122,13 @@ class NonLinearMPCProblem(TrajOptProblem):
 
     def get_cost(self, x):
         # compute the cost function, not sure how it's gonna be written though
+        add_obs_cost, add_ctrl_cost, term_obs_cost = self.task.get_costs_diff()
         self._x[:] = x  # copy contents in
-        tc = self.cost.get_terminal(self._state[-1])
+        tc, _ = term_obs_cost(self._state[-1])
+        for i in range(self.horizon + 1):
+            tc += add_obs_cost(self._state[i])[0]
         for i in range(self.horizon):
-            tc += self.cost.get_additive(self._state[i], self._ctrl[i])
+            tc += add_ctrl_cost(self._ctrl[i])[0]
         return tc
 
     def get_gradient(self, x):
@@ -132,12 +136,15 @@ class NonLinearMPCProblem(TrajOptProblem):
         self._x[:] = x
         self._grad[:] = 0  # reset just in case
         # terminal one
-        _, gradtc = self.cost.get_terminal(self._state[-1], ret_grad=True)
+        add_obs_cost, add_ctrl_cost, term_obs_cost = self.task.get_costs_diff()
+        _, gradtc = term_obs_cost(self._state[-1])
         self._grad_state[-1] = gradtc
+        for i in range(self.horizon + 1):
+            _, gradx = add_obs_cost(self._state[i])
+            self._grad_state[i] += gradx
         for i in range(self.horizon):
-            _, gradxi, gradui = self.cost.get_additive(self._state[i], self._ctrl[i], ret_grad=True)
-            self._grad_state[i] = gradxi
-            self._grad_ctrl[i] = gradui
+            _, gradu = add_ctrl_cost(self._ctrl[i])
+            self._grad_ctrl[i] = gradu
         return self._grad
 
     def get_constraint(self, x):
@@ -146,21 +153,17 @@ class NonLinearMPCProblem(TrajOptProblem):
         self._c[:] = 0
         # first compute for dynamics
         for i in range(self.horizon):
-            self._c_dyn[i] = -self._state[i + 1] + self.system.pred(self._state[i], self._ctrl[i])
-        # then terminal constraints
+            self._c_dyn[i] = -self._state[i + 1] + self.model.pred(self._state[i], self._ctrl[i])
+        # then path constraints
         cr = 0  # means currow
-        for tc in self.constr.terminal_constrs:
-            self._c[cr: cr + tc.dim] = tc.eval(self._state[-1])
-            cr += tc.dim
-        # then other point constraints
-        for idx, pc in self.constr.point_constrs:
-            if idx is None:
-                for i in range(self.horizon):
-                    self._c[cr: cr + pc.dim] = pc.eval(self._state[i], self._ctrl[i])
-                    cr += pc.dim
-            else:
-                self._c[cr: cr + pc.dim] = pc.eval(self._state[idx], self._ctrl[idx])
-                cr += pc.dim
+        for i in range(self.horizon):
+            v, j = self.task.eval_diff_eq_cons(obs[1 + i])
+            self._c[cr: cr + v.size] = v
+            cr += v.size
+            v2, j2 = self.task.eval_diff_ineq_cons(obs[1 + i])
+            self._c[cr: cr + v2.size] = v2
+            cr += v2.size
+        # currently we do not have terminal constraint so let it be, we will come back later
         return self._c
 
     def get_constr_bounds(self):
@@ -168,48 +171,26 @@ class NonLinearMPCProblem(TrajOptProblem):
         clb, cub = np.zeros((2, self.dimc))
         # start from terminal_constrs
         cr = 0
-        for tc in self.constr.terminal_constrs:
-            crv = cr + tc.dim
-            clb[cr: crv] = tc.lb
-            cub[cr: crv] = tc.ub
-            crv = cr
-        # them point constraints
-        for idx, pc in self.constr.point_constrs:
-            if idx is None:
-                crv = cr + pc.dim * self.horizon
-                clb[cr: crv].reshape((self.horizon, pc.dim))[:] = pc.lb
-                cub[cr: crv].reshape((self.horizon, pc.dim))[:] = pc.lb
-            else:
-                crv = cr + pc.dim
-                clb[cr: crv] = pc.lb
-                cub[cr: crv] = pc.ub
-                cr = crv
+        for i in range(self.horizon):
+            # v, j = self.task.eval_diff_eq_cons(obs[1 + i])
+            # self._c[cr: cr + v.size] = v
+            cr += self.task.eq_cons_dim
+            # v2, j2 = self.task.eval_diff_ineq_cons(obs[1 + i])
+            crv = cr + self.task.ineq_cons_dim
+            clb[cr: crv] = -1e10
+            cr = crv
         return clb, cub
 
-    def get_variable_bounds(self, statebds=None, ctrlbds=None):
-        if statebds is None and ctrlbds is None:
-            return -1e20 * np.ones(self.dimx), 1e20 * np.ones(self.dimx)
+    def get_variable_bounds(self):
+        obsbd = self.task.get_obs_bounds()
+        ctrlbd = self.task.get_ctrl_bounds()
         dc = self.ctrl_dim
         ds = self.obs_dim
-        if statebds is None:
-            slb = -1e20 * np.ones(ds)
-            sub = -slb
-        else:
-            slb, sub = statebds
-        if ctrlbds is None:
-            ulb = -1e20 * np.ones(dc)
-            uub = 1e20 * np.ones(dc)
-        else:
-            ubl, uub = ctrlbds
         xlb, xub = np.zeros((2, self.dimx))
-        tmp1 = xlb[:self.horizon * (dc + ds)]
-        tmp2 = xub[:self.horizon * (dc + ds)]
-        tmp1[:, :ds] = slb
-        tmp2[:, :ds] = sub
-        slb[-ds:] = slb
-        sub[-ds:] = sub
-        tmp1[:, ds:] = ulb
-        tmp2[:, ds:] = uub
+        xlb[:(self.horizon + 1) * ds].reshape((-1, ds))[:] = obsbd[:, 0]
+        xub[:(self.horizon + 1) * ds].reshape((-1, ds))[:] = obsbd[:, 1]
+        xlb[-self.horizon * dc].reshape((-1, dc)) = ctrlbd[:, 0]
+        xub[-self.horizon * dc].reshape((-1, dc)) = ctrlbd[:, 1]
         return xlb, xub
 
     def _dense_to_rowcol(self, shape, row0, col0):
@@ -228,52 +209,29 @@ class NonLinearMPCProblem(TrajOptProblem):
         """This function computes the Jacobian at current solution x, if return_rowcol is True, it returns a tuple of the patterns of row and col"""
         self._x[:] = x
         # Here I may as well assume all the  ret_grad stuff returns a dense jacobian or None which means all zero, support for coo_matrix is under development
-        dims = self._state.shape[1]
-        dimu = self._ctrl.shape[1]
+        dims = self.obs_dim
+        dimu = self.ctrl_dim
         if return_rowcol:
             cr = 0
             row = []
             col = []
-            # for terminal constraints first
-            tc_idx = self.get_state_index(self.horizon)
-            for tc in self.constr.terminal_constrs:
-                _, jac = tc.eval(self._state[-1], ret_grad=True)
-                rowptn, colptn = self._dense_to_rowcol(jac.shape, cr, tc_idx)
-                row.append(rowptn)
-                col.append(colptn)
-                cr += tc.dim
-            # then other point constraints
-            base_x_idx = 0
-            base_u_idx = self.get_ctrl_index(0)
-            for idx, pc in self.constr.point_constrs:
-                _, jac1, jac2 = pc.eval(self._state[0], self._ctrl[0], ret_grad=True)
-                if jac1 is not None:
-                    rowjac1, coljac1 = self._dense_to_rowcol(jac1.shape, 0, 0)
-                else:
-                    rowjac1 = coljac1 = np.empty(0)
-                if jac2 is not None:
-                    rowjac2, coljac2 = self._dense_to_rowcol(jac2.shape, 0, 0)
-                else:
-                    rowjac2, coljac2 = np.empty(0)
-                if idx is None:  # for this, I just compute one and populate elsewhere
-                    for i in range(self.horizon):
-                        row.append(rowjac1 + cr)
-                        col.append(coljac1 + base_x_idx + i * dims)
-                        row.append(rowjac2 + cr)
-                        col.append(coljac2 + base_u_idx + i * dimu)
-                        cr += pc.dim
-                else:
-                    assert idx >= 0
-                    row.append(rowjac1 + cr)
-                    col.append(coljac1 + base_x_idx + idx * dims)
-                    row.append(rowjac2 + cr)
-                    col.append(coljac2 + base_u_idx + idx * dimu)
-                    cr += pc.dim
+            # just routinely evalute equality and inequality constraints
+            rowjac1, coljac1 = self._dense_to_rowcol((self.task.eq_cons_dim, dims), 0, 0)
+            rowjac2, coljac2 = self._dense_to_rowcol((self.task.ineq_cons_dim, dims), 0, 0)
+            base_x_idx = dims  # starts from the second point...
+            for i in range(self.horizon):
+                row.append(rowjac1 + cr)
+                col.append(coljac1 + base_x_idx + i * dims)
+                cr += self.task.eq_cons_dim
+                row.append(rowjac2 + cr)
+                col.append(coljac2 + base_x_idx + i * dims)
+                cr += self.task.ineq_cons_dim
             # finally for dynamics
-            _, mat1 = self.system.pred_diff(self._state[0], self._ctrl[0])
+            _, mat1 = self.model.pred_diff(self._state[0], self._ctrl[0])
             srowptn, scolptn = self._dense_to_rowcol(mat1[:, :dims].shape, 0, 0)
             urowptn, ucolptn = self._dense_to_rowcol(mat1[:, dims:].shape, 0, 0)
             # compute patterns for it
+            base_x_idx = 0
             for i in range(self.horizon):
                 row.append(cr + srowptn)
                 col.append(base_x_idx + i * dims + scolptn)
@@ -290,34 +248,18 @@ class NonLinearMPCProblem(TrajOptProblem):
             cg = 0
             self._jac[:] = 0
             # for terminal constraints first
-            tc_idx = self.get_state_index(self.horizon)
-            for tc in self.constr.terminal_constrs:
-                _, jac = tc.eval(self._state[-1], ret_grad=True)
-                self._jac[cg: cg + jac.size] = jac.flat
-                cg += jac.size
+            ###### Placeholder for terminal constraints
             # then other point constraints
-            for idx, pc in self.constr.point_constrs:
-                if idx is None:  # for this, I just compute one and populate elsewhere
-                    for i in range(self.horizon):
-                        _, jac1, jac2 = pc.eval(self._state[i], self._ctrl[i], ret_grad=True)
-                        if jac1 is not None:
-                            self._jac[cg: cg + jac1.size] = jac1.flat
-                            cg += jac1.size
-                        if jac2 is not None:
-                            self._jac[cg: cg + jac2.size] = jac2.flat
-                            cg += jac2.size
-                else:
-                    _, jac1, jac2 = pc.eval(self._state[idx], self._ctrl[idx], ret_grad=True)
-                    if jac1 is not None:
-                        self._jac[cg: cg + jac1.size] = jac1.flat
-                        cg += jac1.size
-                    if jac2 is not None:
-                        self._jac[cg: cg + jac2.size] = jac2.flat
-                        cg += jac2.size
-            # finally for dynamics
-            # compute patterns for it
             for i in range(self.horizon):
-                _, mat = self.system.pred_diff(self._state[i], self._ctrl[i])
+                v, j = self.task.eval_diff_eq_cons(obs[1 + i])
+                self._jac[cg: cg + j.size] = j.flat
+                cg += j.size
+                v2, j2 = self.task.eval_diff_ineq_cons(obs[1 + i])
+                self._jac[cg: cg + j2.size] = j2.flat
+                cg += j2.size
+            # finally for dynamics
+            for i in range(self.horizon):
+                _, mat = self.model.pred_diff(self._state[i], self._ctrl[i])
                 mats = mat[:, :dims]
                 matu = mat[:, dims:]
                 self._jac[cg: cg + mats.size] = mats.flat
@@ -366,7 +308,7 @@ class NonLinearMPC(Controller):
     constraints is a dict of constraints we have to consider, it has two keys: path and terminal. The items are list of Constraints.
     cost is a Cost instance to compute fitness of a trajectory
     """
-    def __init__(self, system, model, cost, constraints=None):
+    def __init__(self, system, task, model):
         # I prefer type checking, but clearly current API does not allow me so
         Controller.__init__(self, system, model)
         self.cost_fun = cost

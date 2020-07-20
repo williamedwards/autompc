@@ -89,16 +89,20 @@ def train_koop():
 koop = train_koop()
 
 model = koop
-from autompc.control.mpc import LQRCost, LinearMPC
+from autompc.control.mpc import LinearMPC
 
-Q = np.diag([10.0, 0.5])
-R = np.diag([0.01])
-cost = LQRCost(Q, R, F=Q)
-con = LinearMPC(pendulum, model, cost)
-con.horizon.value = 8
+task1 = ampc.Task(pendulum)
+Q = np.diag([10., 0.5])
+R = np.eye(1) * 0.01
+task1.set_quad_cost(Q, R, F=Q)
+
+add_state_cost, add_ctrl_cost, terminal_state_cost = task1.get_costs_diff()
+
+con = LinearMPC(pendulum, task1, model)
+con.horizon.value = 8  # set its parameter..
 
 sim_traj = ampc.zeros(pendulum, 1)
-x = np.array([-np.pi,0.0])
+x = np.array([-np.pi, 0.0])
 sim_traj[0].obs[:] = x
 
 for _ in range(100):
