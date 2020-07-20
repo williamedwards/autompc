@@ -1,6 +1,6 @@
 # Created by William Edwards (wre2@illinois.edu)
 
-import math
+import math, time
 from pdb import set_trace
 import numpy as np
 
@@ -21,7 +21,13 @@ class HoldoutEvaluator(Evaluator):
 
     def __call__(self, model, configuration):
         m = utils.make_model(self.system, model, configuration)
+        print("Entering training")
+        train_start = time.time()
         m.train(self.training_set)
+        print("Training completed in {} sec".format(time.time() - train_start))
+
+        print("Entering evaluation.")
+        eval_start = time.time()
         primary_metric_values = np.zeros(len(self.holdout))
         secondray_metric_values = np.zeros((len(self.holdout),
             len(self.secondary_metrics)))
@@ -36,6 +42,7 @@ class HoldoutEvaluator(Evaluator):
 
         for j, metric in enumerate(self.secondary_metrics):
             secondary_metric_value[j] = metric.accumulate(secondary_metric_values[:,j])
+        print("Evaluation completed in {} sec".format(time.time() - eval_start))
 
         #print("k = {}, score = {}".format(m.k, primary_metric_value))
         print("CFG:")
