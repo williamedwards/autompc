@@ -81,11 +81,13 @@ def gen_trajs(dt, umin, umax, udmax, num_trajs):
     return trajs
 trajs = gen_trajs(dt, umin, umax, udmax, num_trajs)
 
-from autompc.sysid import ARX
+from autompc.sysid import ARX, Koopman
 
-cs = ARX.get_configuration_space(pendulum)
+Model = Koopman
+
+cs = Model.get_configuration_space(pendulum)
 s = cs.get_default_configuration()
-model = ampc.make_model(pendulum, ARX, s)
+model = ampc.make_model(pendulum, Model, s)
 model.train(trajs)
 
 from autompc.evaluators import HoldoutEvaluator
@@ -95,24 +97,41 @@ metric = RmseKstepMetric(pendulum, k=50)
 
 rng = np.random.default_rng(42)
 evaluator = HoldoutEvaluator(pendulum, trajs, metric, rng, holdout_prop=0.25) 
-eval_score = evaluator(ARX, s)
+eval_score = evaluator(Model, s)
 print("eval_score = {}".format(eval_score))
 
-from smac.scenario.scenario import Scenario
-from smac.facade.smac_hpo_facade import SMAC4HPO
+tuner = ampc.ModelTuner(pendulum, evaluator)
+tuner.add_model(ARX)
+tuner.add_model(Koopman)
+ret_value = tuner.run(rng=np.random.RandomState(42), runcount_limit=50,
+        n_jobs=10)
 
-scenario = Scenario({"run_obj": "quality",  
-                     "runcount-limit": 10,  
-                     "cs": cs,  
-                     "deterministic": "true",
-                     "n_jobs" : 10
-                     })
+print(ret_value)
 
-smac = SMAC4HPO(scenario=scenario, rng=np.random.RandomState(42),
-        tae_runner=lambda cfg: evaluator(ARX, cfg)[0])
+fig = plt.figure()
+ax = fig.gca()
+ax.plot(range(len(ret_value["inc_costs"])), ret_value["inc_costs"])
+ax.set_title("Incumbent cost over time")
+ax.set_ylim([0.0, 5.0])
+ax.set_xlabel("Iterations.")
+ax.set_ylabel("Cost")
+plt.show()
 
-incumbent = smac.optimize()
-
-print("Done!")
-
-print(incumbent)
+#from smac.scenario.scenario import Scenario
+#from smac.facade.smac_hpo_facade import SMAC4HPO
+#
+#scenario = Scenario({"run_obj": "quality",  
+#                     "runcount-limit": 50,  
+#                     "cs": cs,  
+#                     "deterministic": "true",
+#                     "n_jobs" : 10
+#                     })
+#
+#smac = SMAC4HPO(scenario=scenario, rng=np.random.RandomState(42),
+#        tae_runner=lambda cfg: evaluator(Model, cfg)[0])
+#
+#incumbent = smac.optimize()
+#
+#print("Done!")
+#
+#print(incumbent)

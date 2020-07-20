@@ -6,95 +6,84 @@ from pdb import set_trace
 from .hyper import Hyperparam
 
 class Controller(ABC):
-    def __init__(self, system, model):
+    def __init__(self, system, model, task):
         self.system = system
         self.model = model
+        self.task = task
 
     @abstractmethod
-    def run(self, traj, latent=None):
+    def traj_to_state(self, traj):
         """
         Parameters
         ----------
             traj : Trajectory
-                State and control history up to present time.
-            latent : Arbitrary python object
-                Latent model data. Can be arbitrary
-                python object. None should be passed for first time
-                step. Used only to avoid redundant computation.
+                State and control history up to present time
         Returns
         -------
-            u : Next control input
-            latent : Arbitrary python object
-                Data used for latent computation. May be none.
+            state : numpy array of size self.state_dim
+               Corresponding controller state
         """
         raise NotImplementedError
 
-    def run_diff(self, traj, latent=None):
+    #@abstractmethod
+    #def update_state(self, state, new_ctrl, new_obs):
+    #    """
+    #    Parameters
+    #    ----------
+    #        state : numpy array of size self.state_dim
+    #            Current controller state
+    #        new_ctrl : numpy array of size self.system.ctrl_dim
+    #            New control input
+    #        new_obs : numpy array of size self.system.obs_dim
+    #            New observation
+    #    Returns
+    #    -------
+    #        state : numpy array of size self.state_dim
+    #            Model state after observation and control
+    #    """
+    #    raise NotImplementedError
+
+
+    @abstractmethod
+    def run(self, state, new_obs):
         """
         Parameters
         ----------
-            traj : Trajectory
-                State and control history up to present time.
-            latent : Arbitrary python object
-                Latent model data. Can be arbitrary
-                python object. None should be passed for first time
-                step. Used only to avoid redundant computation.
+            state : numpy array of size self.state_dim
+                Current controller state
+            new_obs : numpy array of size self.system.obs_dim
+                Current observation state.
         Returns
         -------
-            u : Next control input
-            latent : Arbitrary python object
-                Data used for latent computation. May be none.
-            grad :
-                Gradient of control wrt state and control history.
+            ctrl : Next control input
+            newstate : numpy array of size self.state_dim
+        """
+        raise NotImplementedError
+    
+
+    @staticmethod
+    @abstractmethod
+    def get_configuration_space(system, model, task):
+        """
+        Returns the controller configuration space for the given
+        system, model, and task.
         """
         raise NotImplementedError
 
-    def get_hyper_options(self):
+    @staticmethod
+    @abstractmethod
+    def is_compatible(system, model, task):
         """
-        Returns a dict containing available hyperparameter options. Only
-        implemented for trainable models. The key is the hyperparameter name
-        and the value is a tuple of the form (hyper, option). If hyper in
-        [Hyper.float_range, Hyper.int_range], option is a tuple of the form
-        [lower_bound, upper_bound]. If hyper is Hyper.choice, option is a set
-        of available choices.  If hyper is Hyper.boolean, option is None.
+        Returns true if the controller is compatible with
+        the given system, model, and task. Returns false
+        otherwise.
         """
-        hyperopts = dict()
-        for k, v in self.__dict__.items():
-            if isinstance(v, Hyperparam):
-                hyperopts[k] = (v.type, v.options)
-        return hyperopts
-
-    def get_hypers(self):
-        """
-        Returns a dict containing hyperaparameter values. Only implemented
-        for trainable models. The keys is the hyperparameter name and the
-        value is the value.
-        """
-        hypers = dict()
-        for k, v in self.__dict__.items():
-            if isinstance(v, Hyperparam):
-                hypers[k] = v.value
-        return hypers
-
-    def set_hypers(self, **hypers):
-        """
-        Parameters
-        ----------
-            hypers : dict
-                A dict containing hyperparameter names and values to
-                be updated. Any hyperparameter not contained in the dict is
-                left unchanged.
-        Only implemented for trainable models.
-        """
-        for k, v in hypers.items():
-            if k in self.__dict__ and isinstance(self.__dict__[k], Hyperparam):
-                self.__dict__[k].value = v
-
-
+        raise NotImplementedError
 
     @property
-    def is_diff(self):
+    @abstractmethod
+    def state_dim(self):
         """
-        Returns true for differentiable models.
+        Returns the size of the model state.
         """
-        return not self.run_diff.__func__ is Controller.run_diff
+        raise NotImplementedError

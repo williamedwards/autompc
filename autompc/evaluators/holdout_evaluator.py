@@ -37,6 +37,9 @@ class HoldoutEvaluator(Evaluator):
         for j, metric in enumerate(self.secondary_metrics):
             secondary_metric_value[j] = metric.accumulate(secondary_metric_values[:,j])
 
-        print("k = {}, score = {}".format(m.k, primary_metric_value))
+        #print("k = {}, score = {}".format(m.k, primary_metric_value))
+        print("CFG:")
+        print(configuration)
+        print("score = {}".format(primary_metric_value))
 
         return primary_metric_value, secondary_metric_value

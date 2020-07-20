@@ -5,38 +5,78 @@ from pdb import set_trace
 from sklearn.linear_model import  Lasso
 
 from ..model import Model
-from ..hyper import ChoiceHyperparam, MultiChoiceHyperparam, FloatRangeHyperparam
+import ConfigSpace as CS
+import ConfigSpace.hyperparameters as CSH
+import ConfigSpace.conditions as CSC
 
 class Koopman(Model):
-    def __init__(self, system):
+    def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
+            poly_degree=1, trig_basis=False, trig_freq=1):
         super().__init__(system)
-        self.method = ChoiceHyperparam(["lstsq", "lasso", "stableAB"])
 
-        self.basis_functions = MultiChoiceHyperparam(["poly3", "trig"])
-        self.lasso_alpha = FloatRangeHyperparam([0.0, 100.0])
+        self.method = method
+        if not lasso_alpha_log10 is None:
+            self.lasso_alpha = 10**lasso_alpha_log10
+        else:
+            self.lasso_alpha = None
+        if type(poly_basis) == str:
+            poly_basis = True if poly_basis == "true" else False
+        self.poly_basis = poly_basis
+        self.poly_degree = poly_degree
+        if type(trig_basis) == str:
+            trig_basis = True if trig_basis == "true" else False
+        self.trig_basis = trig_basis
+        self.trig_freq = trig_freq
+
+        self.basis_funcs = [lambda x: x]
+        if self.poly_basis:
+            self.basis_funcs += [lambda x: x**i for i in range(2, 1+self.poly_degree)]
+        if self.trig_basis:
+            for i in range(1, 1+self.poly_degree):
+                self.basis_funcs += [lambda x: np.sin(i*x), lambda x : np.cos(i*x)]
+
+    @staticmethod
+    def get_configuration_space(system):
+        cs = CS.ConfigurationSpace()
+        method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
+        lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
+                lower=-5.0, upper=2.0, default_value=0.0)
+        use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
+                values=["lasso"])
+
+        poly_basis = CSH.CategoricalHyperparameter("poly_basis", 
+                choices=["true", "false"], default_value="false")
+        poly_degree = CSH.UniformIntegerHyperparameter("poly_degree", lower=2, upper=8,
+                default_value=3)
+        use_poly_degree = CSC.InCondition(child=poly_degree, parent=poly_basis,
+                values=["true"])
+
+        trig_basis = CSH.CategoricalHyperparameter("trig_basis", 
+                choices=["true", "false"], default_value="false")
+        trig_freq = CSH.UniformIntegerHyperparameter("trig_freq", lower=1, upper=8,
+                default_value=1)
+        use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
+                values=["true"])
+
+        cs.add_hyperparameters([method, lasso_alpha_log10, poly_basis, poly_degree,
+            trig_basis, trig_freq])
+        cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
+
+        return cs
+
 
     def _transform_state(self, state):
-        basis = [lambda x: x]
-        if "poly3" in self.basis_functions.value:
-            basis += [lambda x: x**2, lambda x: x**3]
-        if "trig" in self.basis_functions.value:
-            basis += [np.sin, np.cos, np.tan]
-        return np.array([b(x) for b in basis for x in state])
+        return np.array([b(x) for b in self.basis_funcs for x in state])
 
     def traj_to_state(self, traj):
         return self._transform_state(traj[-1].obs[:])
     
-    def update_state(self, state, new_obs, new_ctrl):
+    def update_state(self, state, new_ctrl, new_obs):
         return self._transform_state(new_obs)
 
     @property
     def state_dim(self):
-        basis = [lambda x: x]
-        if "poly3" in self.basis_functions.value:
-            basis += [lambda x: x**2, lambda x: x**3]
-        if "trig" in self.basis_functions.value:
-            basis += [np.sin, np.cos, np.tan]
-        return len(basis) * self.system.obs_dim
+        return len(self.basis_funcs) * self.system.obs_dim
 
     def train(self, trajs):
         X = np.concatenate([np.apply_along_axis(self._transform_state, 1, 
@@ -49,18 +89,18 @@ class Koopman(Model):
         m = U.shape[0] # control dimension    
         
         XU = np.concatenate((X, U), axis = 0) # stack X and U together
-        if self.method.value == "lstsq": # Least Squares Solution
+        if self.method == "lstsq": # Least Squares Solution
             AB = np.dot(Y, sla.pinv2(XU))
             A = AB[:n, :n]
             B = AB[:n, n:]
-        elif self.method.value == "lasso":  # Call lasso regression on coefficients
+        elif self.method == "lasso":  # Call lasso regression on coefficients
             print("Call Lasso")
-            clf = Lasso(alpha=self.lasso_alpha.value)
+            clf = Lasso(alpha=self.lasso_alpha)
             clf.fit(XU.T, Y.T)
             AB = clf.coef_
             A = AB[:n, :n]
             B = AB[:n, n:]
-        elif self.method.value == 3: # Compute stable A, and B
+        elif self.method == 3: # Compute stable A, and B
             print("Compute Stable Koopman")
             # call function
 
