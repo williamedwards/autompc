@@ -11,7 +11,7 @@ import ConfigSpace.conditions as CSC
 
 class Koopman(Model):
     def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
-            poly_degree=1, trig_basis=False, trig_freq=1):
+            poly_degree=1, trig_basis=False, trig_freq=1, product_terms=False):
         super().__init__(system)
 
         self.method = method
@@ -27,6 +27,8 @@ class Koopman(Model):
             trig_basis = True if trig_basis == "true" else False
         self.trig_basis = trig_basis
         self.trig_freq = trig_freq
+        if type(product_terms) == str:
+            self.product_terms = True if product_terms == "true" else False
 
         self.basis_funcs = [lambda x: x]
         if self.poly_basis:
@@ -40,7 +42,7 @@ class Koopman(Model):
         cs = CS.ConfigurationSpace()
         method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
         lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
-                lower=-5.0, upper=2.0, default_value=0.0)
+                lower=-10.0, upper=2.0, default_value=0.0)
         use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
                 values=["lasso"])
 
@@ -58,15 +60,28 @@ class Koopman(Model):
         use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
                 values=["true"])
 
+        product_terms = CSH.CategoricalHyperparameter("product_terms",
+                choices=["true", "false"], default_value="false")
+
+
         cs.add_hyperparameters([method, lasso_alpha_log10, poly_basis, poly_degree,
-            trig_basis, trig_freq])
+            trig_basis, trig_freq, product_terms])
         cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
 
         return cs
 
 
     def _transform_state(self, state):
-        return np.array([b(x) for b in self.basis_funcs for x in state])
+        tr_state = [b(x) for b in self.basis_funcs for x in state]
+        if self.product_terms:
+            pr_terms = []
+            for i, x in enumerate(tr_state):
+                for j, y in enumerate(tr_state):
+                    if i < j:
+                        pr_terms.append(x*y)
+            tr_state += pr_terms
+
+        return np.array(tr_state)
 
     def traj_to_state(self, traj):
         return self._transform_state(traj[-1].obs[:])

@@ -45,15 +45,18 @@ for traj_start, traj_end in zip(traj_boundaries[:-1], traj_boundaries[1:]):
 
 from autompc.sysid import ARX, Koopman
 
-Model = ARX
+Model = Koopman
 
 cs = Model.get_configuration_space(fish_system)
 s = cs.get_default_configuration()
-#s["method"] = "lstsq"
-#s["poly_basis"] = "true"
-#s["poly_degree"] = 4
-#s["trig_basis"] = "false"
-s["history"] = 3
+s["method"] = "lstsq"
+#s["lasso_alpha_log10"] = -10
+s["poly_basis"] = "true"
+s["poly_degree"] = 2
+s["trig_basis"] = "true"
+s["trig_freq"] = 1
+s["product_terms"] = "false"
+#s["history"] = 3
 model = ampc.make_model(fish_system, Model, s)
 model.train(trajs)
 
@@ -71,7 +74,8 @@ def plot_traj_rollout(ax, model, traj, start, obsvar):
 
 fig = plt.figure()
 ax = fig.gca()
-plot_traj_rollout(ax, model, trajs[10], 10, "x")
+plot_traj_rollout(ax, model, trajs[10], 10, "y")
+#ax.set_ylim([0.5, 1])
 plt.show()
 
 set_trace()

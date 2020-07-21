@@ -75,3 +75,11 @@ dt_model.fit(X, u=U, multiple_trajectories=True)
 print("Discrete Time SINDy Results")
 print("=============================")
 print(dt_model.print())
+
+from autompc.sysid import SiNDy
+cs = SiNDy.get_configuration_space(pendulum)
+s = cs.get_default_configuration()
+s["trig_basis"] = "true"
+s["trig_freq"] = 1
+model = ampc.make_model(pendulum, SiNDy, s)
+model.train(trajs)
