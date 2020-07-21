@@ -310,16 +310,14 @@ class NonLinearMPC(Controller):
     """
     def __init__(self, system, task, model):
         # I prefer type checking, but clearly current API does not allow me so
-        Controller.__init__(self, system, model)
-        self.cost_fun = cost
-        self.constr = constraints if constraints is not None else ConstrContainer()
+        Controller.__init__(self, system, model, task)
         self.horizon = IntRangeHyperparam((1, 10))
         self._built = False
 
     def _build_problem(self):
         """Use cvxpy to construct the problem"""
         self._built = True
-        self.problem = NonLinearMPCProblem(self.system, self.cost_fun, self.constr, self.horizon.value)
+        self.problem = NonLinearMPCProblem(self.system, self.task, self.model, self.horizon.value)
         self.wrapper = IpoptWrapper(self.problem)
 
     def _update_problem_and_solve(self, x0):

@@ -5,15 +5,21 @@ import numpy as np
 import autompc as ampc
 import matplotlib.pyplot as plt
 
-from autompc.control.mpc import LQRCost
 from autompc.sysid.dummy_nonlinear import DummyNonlinear
 from autompc.control import NonLinearMPC
+from autompc import Task
 
 
 dummy_sys = ampc.System(["x1", "x2"], ["u"])
 dummy_model = DummyNonlinear(dummy_sys)
-cost = LQRCost(Q=np.eye(2), R=np.eye(1), F=10*np.eye(2))
-nmpc = NonLinearMPC(dummy_model, dummy_model, cost, constraints=None)
+
+task1 = Task(dummy_sys)
+Q = np.eye(2)
+R = np.eye(1)
+F = 10 * np.eye(2)
+task1.set_quad_cost(Q, R, F)
+
+nmpc = NonLinearMPC(dummy_model, task1, dummy_model)
 # just give a random initial state
 sim_traj = ampc.zeros(dummy_sys, 1)
 x = np.array([1, 0.0])
