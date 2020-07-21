@@ -62,7 +62,7 @@ class InfiniteHorizonLQR(Controller):
 
 class FiniteHorizonLQR(Controller):
     def __init__(self, system, task, model, horizon):
-        super().__init__(system, model, task)
+        super().__init__(system, task, model)
         A, B = model.to_linear()
         N = np.zeros((A.shape[0], B.shape[1]))
         self.horizon = horizon
@@ -72,7 +72,7 @@ class FiniteHorizonLQR(Controller):
         Qp[:Q.shape[0], :Q.shape[1]] = Q
         Fp = np.zeros((state_dim, state_dim))
         Fp[:F.shape[0], :F.shape[1]] = F
-        self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, Fp, 10)
+        self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, Fp, horizon)
         self.Qp, self.Rp = Qp, R
         self.model = model
 

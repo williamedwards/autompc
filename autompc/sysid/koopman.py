@@ -61,7 +61,7 @@ class Koopman(Model):
                 values=["true"])
 
         product_terms = CSH.CategoricalHyperparameter("product_terms",
-                choices=["true", "false"], default_value="false")
+                choices=["false"], default_value="false")
 
 
         cs.add_hyperparameters([method, lasso_alpha_log10, poly_basis, poly_degree,
