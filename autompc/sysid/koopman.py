@@ -128,7 +128,7 @@ class Koopman(Model):
     def pred_diff(self, state, ctrl):
         xpred = self.A @ state + self.B @ ctrl
 
-        return xpred, np.copy(self.A)
+        return xpred, np.copy(self.A), np.copy(self.B)
 
     def to_linear(self):
         return np.copy(self.A), np.copy(self.B)
