@@ -83,9 +83,12 @@ trajs = gen_trajs()
 from autompc.sysid import ARX, Koopman#, SINDy
 
 def train_koop():
-    koop = Koopman(pendulum)
-    koop.set_hypers(basis_functions=set(["trig"]),
-            method="lasso", lasso_alpha=lasso_param)
+    cs = Koopman.get_configuration_space(pendulum)
+    cfg = cs.get_default_configuration()
+    cfg["trig_basis"] = "true"
+    cfg["method"] = "lasso"
+    cfg["lasso_alpha_log10"] = np.log10(lasso_param)
+    koop = ampc.make_model(pendulum, Koopman, cfg)
     #koop.set_hypers(basis_functions=set(["trig"]))
     koop.train(trajs)
     return koop
@@ -98,20 +101,24 @@ from autompc.control import FiniteHorizonLQR
 
 Q = np.diag([100.0, 1.0])
 R = np.diag([0.0001])
-con = FiniteHorizonLQR(pendulum, model, Q, R)
+task = ampc.Task(pendulum)
+task.set_quad_cost(Q, R)
+cs = FiniteHorizonLQR.get_configuration_space(pendulum, task, model)
+cfg = cs.get_default_configuration()
+con = ampc.make_controller(pendulum, task, model, FiniteHorizonLQR, cfg)
 
 sim_traj = ampc.zeros(pendulum, 1)
 x = np.array([-np.pi,0.0])
 sim_traj[0].obs[:] = x
+state = con.traj_to_state(sim_traj)
 
 for _ in range(400):
-    u, _ = con.run(sim_traj)
+    u, state = con.run(state, sim_traj[-1].obs[:])
     x = dt_pendulum_dynamics(x, u, dt)
     sim_traj[-1, "torque"] = u
     sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-    xtrans = con.state_func(sim_traj)
 
-A, B, _, _ = koop.to_linear()
+A, B = koop.to_linear()
 print("A:")
 print(A)
 print("B:")
