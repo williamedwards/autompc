@@ -7,6 +7,9 @@ from ..cost import Cost
 import cvxpy as cp
 import numpy as np
 
+from ConfigSpace import ConfigurationSpace
+from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
+
 
 class LinearConstraint(Constraint):
     r"""Define a linear constraint of type
@@ -113,8 +116,8 @@ class LinearMPC(Controller):
     """
     Implementation of the linear controller. For this very basic version, it accepts some linear models and compute output.
     """
-    def __init__(self, system, task, model):
-        Controller.__init__(self, system, model)
+    def __init__(self, system, model, task, horizon=8):
+        Controller.__init__(self, system, model, task)
         assert task.is_cost_quad()
         assert task.are_ineq_cons_affine()
         assert task.are_eq_cons_convex()
@@ -124,8 +127,30 @@ class LinearMPC(Controller):
         self.ineq_cons = task.get_affine_ineq_cons()  # this is path constraint
         self.obs_bound = task.get_obs_bounds()  # dim by 2
         self.ctrl_bound = task.get_ctrl_bounds()  # dim by 2
-        self.horizon = IntRangeHyperparam((5, 20), default_value=8)
+        self.horizon = horizon
         self._built = False
+
+    @property
+    def state_dim(self):
+        return self.model.state_dim
+
+    @staticmethod
+    def get_configuration_space(system, task, model):
+        cs = ConfigurationSpace()
+        horizon = UniformIntegerHyperparameter(name="horizon",
+                lower=1, upper=100, default_value=10)
+        cs.add_hyperparameter(horizon)
+        return cs
+
+    @staticmethod
+    def is_compatible(system, task, model):
+        #TODO: this part is really confusing...
+        return (model.is_linear 
+                and task.is_cost_quad()
+        )
+ 
+    def traj_to_state(self, traj):
+        return self.model.traj_to_state(traj)
 
     def _build_problem(self):
         """Use cvxpy to construct the problem"""
@@ -142,7 +167,7 @@ class LinearMPC(Controller):
         cons = [xs[0] == self._x0]
         # dynamics
         for i in range(horizon):
-            cons.append(xs[i + 1] == self.A * (xs[i]) + self.B * (us[i]))
+            cons.append(xs[i + 1] == self.A * xs[i] + self.B * us[i])
         # constraints, eq first
         A, b = self.eq_cons
         if A.shape[0] > 0:

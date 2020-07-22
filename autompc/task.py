@@ -598,7 +598,7 @@ class Task:
 
     def eval_diff_eq_cons(self, obs):
         value = np.zeros((self.eq_cons_dim,))
-        grad = np.veros((self.eq_cons_dim, self.eq_cons_dim))
+        grad = np.zeros((self.eq_cons_dim, self.eq_cons_dim))
         i = 0
         for A, b in self._affine_eq_cons:
             value[i:A.shape[0]] = A @ obs - b
@@ -703,10 +703,10 @@ class Task:
         value = np.zeros((self.ineq_cons_dim,))
         grad = np.zeros((self.ineq_cons_dim, self.system.obs_dim))
         i = 0
-        A, b = self._affine_ineq_cons
-        value[i:A.shape[0]] = A @ obs - b
-        grad[i:A.shape[0], :] = A
-        i += A.shape[0]
+        for A, b in self._affine_ineq_cons:
+            value[i:A.shape[0]] = A @ obs - b
+            grad[i:A.shape[0], :] = A
+            i += A.shape[0]
         for func, dim in self._conv_ineq_cons:
             val, gr = func(obs)
             value[i:dim] = val

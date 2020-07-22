@@ -78,14 +78,17 @@ trajs = gen_trajs()
 from autompc.sysid import ARX, Koopman#, SINDy
 
 def train_koop():
-    koop = Koopman(pendulum)
-    #koop.set_hypers(basis_functions=set(["trig"]),
-    #        method="lasso", lasso_alpha=0.00001)
-    koop.set_hypers(basis_functions=set(["trig"]))
+    cs = Koopman.get_configuration_space(pendulum)
+    cfg = cs.get_default_configuration()
+    cfg["trig_basis"] = "true"
+    cfg["method"] = "lasso"
+    cfg["lasso_alpha_log10"] = np.log10(lasso_param)
+    koop = ampc.make_model(pendulum, Koopman, cfg)
     koop.train(trajs)
     return koop
 
 
+lasso_param = 1e-3
 koop = train_koop()
 
 model = koop
@@ -98,8 +101,8 @@ task1.set_quad_cost(Q, R, F=Q)
 
 add_state_cost, add_ctrl_cost, terminal_state_cost = task1.get_costs_diff()
 
-con = LinearMPC(pendulum, task1, model)
-con.horizon.value = 8  # set its parameter..
+horizon = 8
+con = LinearMPC(pendulum, model, task1, horizon)
 
 sim_traj = ampc.zeros(pendulum, 1)
 x = np.array([-np.pi, 0.0])

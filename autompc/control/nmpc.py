@@ -84,9 +84,8 @@ class ConstrContainer(object):
 class NonLinearMPCProblem(TrajOptProblem):
     """Just write the NonLinear MPC problem in the OptProblem style.
     """
-    def __init__(self, system, task, model, horizon):
+    def __init__(self, system, model, task, horizon):
         assert task.is_cost_diff()
-        assert task.
         self.system = system
         self.task = task
         self.model = model
@@ -97,7 +96,7 @@ class NonLinearMPCProblem(TrajOptProblem):
         self.obs_dim = ds
         # now I can get the size of the problem
         nx = ds * (horizon + 1) + dc * horizon  # x0 to xN, u0 to u_{N-1}
-        nf = horizon * (task.eq_cons.dim + task.ineq_cons.dim) + horizon * ds  # for dynamics and other constraints
+        nf = horizon * (task.eq_cons_dim + task.ineq_cons_dim) + horizon * ds  # for dynamics and other constraints
         TrajOptProblem.__init__(self, nx, nf)
         self._create_cache()
 
@@ -157,10 +156,10 @@ class NonLinearMPCProblem(TrajOptProblem):
         # then path constraints
         cr = 0  # means currow
         for i in range(self.horizon):
-            v, j = self.task.eval_diff_eq_cons(obs[1 + i])
+            v, j = self.task.eval_diff_eq_cons(self._state[1 + i])
             self._c[cr: cr + v.size] = v
             cr += v.size
-            v2, j2 = self.task.eval_diff_ineq_cons(obs[1 + i])
+            v2, j2 = self.task.eval_diff_ineq_cons(self._state[1 + i])
             self._c[cr: cr + v2.size] = v2
             cr += v2.size
         # currently we do not have terminal constraint so let it be, we will come back later
@@ -189,8 +188,8 @@ class NonLinearMPCProblem(TrajOptProblem):
         xlb, xub = np.zeros((2, self.dimx))
         xlb[:(self.horizon + 1) * ds].reshape((-1, ds))[:] = obsbd[:, 0]
         xub[:(self.horizon + 1) * ds].reshape((-1, ds))[:] = obsbd[:, 1]
-        xlb[-self.horizon * dc].reshape((-1, dc)) = ctrlbd[:, 0]
-        xub[-self.horizon * dc].reshape((-1, dc)) = ctrlbd[:, 1]
+        xlb[-self.horizon * dc:].reshape((-1, dc))[:] = ctrlbd[:, 0]
+        xub[-self.horizon * dc:].reshape((-1, dc))[:] = ctrlbd[:, 1]
         return xlb, xub
 
     def _dense_to_rowcol(self, shape, row0, col0):
@@ -232,6 +231,7 @@ class NonLinearMPCProblem(TrajOptProblem):
             urowptn, ucolptn = self._dense_to_rowcol(mat1[:, dims:].shape, 0, 0)
             # compute patterns for it
             base_x_idx = 0
+            base_u_idx = dims * (self.horizon + 1)
             for i in range(self.horizon):
                 row.append(cr + srowptn)
                 col.append(base_x_idx + i * dims + scolptn)
@@ -251,10 +251,10 @@ class NonLinearMPCProblem(TrajOptProblem):
             ###### Placeholder for terminal constraints
             # then other point constraints
             for i in range(self.horizon):
-                v, j = self.task.eval_diff_eq_cons(obs[1 + i])
+                v, j = self.task.eval_diff_eq_cons(self._state[1 + i])
                 self._jac[cg: cg + j.size] = j.flat
                 cg += j.size
-                v2, j2 = self.task.eval_diff_ineq_cons(obs[1 + i])
+                v2, j2 = self.task.eval_diff_ineq_cons(self._state[1 + i])
                 self._jac[cg: cg + j2.size] = j2.flat
                 cg += j2.size
             # finally for dynamics
@@ -308,16 +308,17 @@ class NonLinearMPC(Controller):
     constraints is a dict of constraints we have to consider, it has two keys: path and terminal. The items are list of Constraints.
     cost is a Cost instance to compute fitness of a trajectory
     """
-    def __init__(self, system, task, model):
+    def __init__(self, system, model, task, horizon):
         # I prefer type checking, but clearly current API does not allow me so
         Controller.__init__(self, system, model, task)
-        self.horizon = IntRangeHyperparam((1, 10))
+        self.horizon = horizon
         self._built = False
+        self._guess = None
 
     def _build_problem(self):
         """Use cvxpy to construct the problem"""
         self._built = True
-        self.problem = NonLinearMPCProblem(self.system, self.task, self.model, self.horizon.value)
+        self.problem = NonLinearMPCProblem(self.system, self.model, self.task, self.horizon)
         self.wrapper = IpoptWrapper(self.problem)
 
     def _update_problem_and_solve(self, x0):
@@ -328,15 +329,40 @@ class NonLinearMPC(Controller):
         self.wrapper.get_xlb()[:dims] = self.wrapper.get_xub()[:dims] = x0  # so I set this one
         config = OptConfig(backend='ipopt')
         solver = OptSolver(self.wrapper, config)
-        rst = solver.solve_rand()
+        if self._guess is None:
+            rst = solver.solve_rand()
+        else:
+            rst = solver.solve_guess(self._guess)
         return rst
+
+    @property
+    def state_dim(self):
+        return self.model.state_dim
+
+    @staticmethod
+    def get_configuration_space(system, task, model):
+        cs = ConfigurationSpace()
+        horizon = UniformIntegerHyperparameter(name="horizon",
+                lower=1, upper=100, default_value=10)
+        cs.add_hyperparameter(horizon)
+        return cs
+
+    @staticmethod
+    def is_compatible(system, task, model):
+        #TODO: this part is really confusing...
+        return True  # this should be universal...
+ 
+    def traj_to_state(self, traj):
+        return self.model.traj_to_state(traj)
 
     def run(self, traj, latent=None):
         x = self.model.traj_to_state(traj)
         rst = self._update_problem_and_solve(x)
         print(rst.flag)
         sol = rst.sol.copy()
+        # update guess
+        self._guess = sol
         dims = self.problem.obs_dim
         dimu = self.problem.ctrl_dim
-        idx0 = dims * (self.horizon.value + 1)
+        idx0 = dims * (self.horizon + 1)
         return sol[idx0: idx0 + dimu], None
