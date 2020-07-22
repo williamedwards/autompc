@@ -76,10 +76,19 @@ print("Discrete Time SINDy Results")
 print("=============================")
 print(dt_model.print())
 
-from autompc.sysid import SiNDy
-cs = SiNDy.get_configuration_space(pendulum)
+from autompc.sysid import SINDy
+cs = SINDy.get_configuration_space(pendulum)
 s = cs.get_default_configuration()
 s["trig_basis"] = "true"
 s["trig_freq"] = 1
-model = ampc.make_model(pendulum, SiNDy, s)
+s["poly_basis"] = "false"
+#s["poly_degree"] = 2
+model = ampc.make_model(pendulum, SINDy, s)
 model.train(trajs)
+state = np.array([1.0, 2.0])
+ctrl = np.array([3.0])
+print("model.pred")
+print(model.pred(state.copy(), ctrl))
+print("model.pred_diff")
+print(model.pred_diff(state.copy(), ctrl))
+set_trace()

@@ -70,9 +70,12 @@ class Model(ABC):
         -------
             state : Numpy array of size self.state_dim
                 New predicted model state
-            grad : Numpy  array of shape (self.state_dim, 
-                self.state_dim+self.system.ctrl_dim).
-                Gradient of predicted model state
+            state_jac : Numpy  array of shape (self.state_dim, 
+                self.state_dim).
+                Gradient of predicted model state wrt to state
+            ctrl_jac : Numpy  array of shape (self.state_dim, 
+                self.ctrl_dim).
+                Gradient of predicted model state wrt to ctrl
         """
         raise NotImplementedError
 

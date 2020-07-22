@@ -29,19 +29,16 @@ yvel = mat['v2_int_list']
 omega = mat['omega_int_list']
 u1 = mat['u1_list']
 u2 = mat['u2_list']
-
-traj_boundaries = [0]
-for i in range(1, x.shape[0]):
-    if u1[i] != u1[i-1] or u2[i] != u2[i-1]:
-        traj_boundaries.append(i)
-traj_boundaries.append(x.shape[0])
+traj_ends = mat["Lengths"]
 
 trajs = []
-for traj_start, traj_end in zip(traj_boundaries[:-1], traj_boundaries[1:]):
+traj_start = 0
+for traj_end in traj_ends:
     traj = ampc.zeros(fish_system, traj_end - traj_start)
     traj.obs[:] = np.c_[x,y,theta,xvel,yvel,omega][traj_start:traj_end]
     traj.ctrls[:] = np.c_[u1, u2][traj_start:traj_end]
     trajs.append(traj)
+    traj_start = traj_end + 1
 
 from autompc.sysid import ARX, Koopman
 
@@ -50,15 +47,15 @@ Model = Koopman
 cs = Model.get_configuration_space(fish_system)
 s = cs.get_default_configuration()
 s["method"] = "lstsq"
-#s["lasso_alpha_log10"] = -10
+##s["lasso_alpha_log10"] = -10
 s["poly_basis"] = "true"
 s["poly_degree"] = 2
 s["trig_basis"] = "true"
-s["trig_freq"] = 1
-s["product_terms"] = "false"
-#s["history"] = 3
+#s["trig_freq"] = 1
+#s["product_terms"] = "false"
+#s["history"] = 8
 model = ampc.make_model(fish_system, Model, s)
-model.train(trajs)
+model.train(trajs[2:])
 
 
 def plot_traj_rollout(ax, model, traj, start, obsvar):
@@ -72,13 +69,18 @@ def plot_traj_rollout(ax, model, traj, start, obsvar):
     ax.plot(list(range(start, len(traj))), actualobs, "g-")
     ax.plot(list(range(start, len(traj))), predobs, "r-")
 
+def plot_traj_rollout_all(fig, traj, start):
+    for i, var in enumerate(fish_system.observations):
+        ax = fig.add_subplot(231 + i)
+        plot_traj_rollout(ax, model, traj, start, var)
+        ax.set_xlabel("Time Step")
+        ax.set_ylabel(var)
+
 fig = plt.figure()
-ax = fig.gca()
-plot_traj_rollout(ax, model, trajs[10], 10, "y")
-#ax.set_ylim([0.5, 1])
+plot_traj_rollout_all(fig, trajs[10], 10)
 plt.show()
 
-set_trace()
+sys.exit(0)
 
 from autompc.evaluators import HoldoutEvaluator
 from autompc.metrics import RmseKstepMetric

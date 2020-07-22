@@ -61,7 +61,7 @@ class Koopman(Model):
                 values=["true"])
 
         product_terms = CSH.CategoricalHyperparameter("product_terms",
-                choices=["true", "false"], default_value="false")
+                choices=["false"], default_value="false")
 
 
         cs.add_hyperparameters([method, lasso_alpha_log10, poly_basis, poly_degree,
@@ -128,7 +128,7 @@ class Koopman(Model):
     def pred_diff(self, state, ctrl):
         xpred = self.A @ state + self.B @ ctrl
 
-        return xpred, np.copy(self.A)
+        return xpred, np.copy(self.A), np.copy(self.B)
 
     def to_linear(self):
         return np.copy(self.A), np.copy(self.B)

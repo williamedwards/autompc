@@ -6,7 +6,7 @@ from pdb import set_trace
 from .hyper import Hyperparam
 
 class Controller(ABC):
-    def __init__(self, system, model, task):
+    def __init__(self, system, task, model):
         self.system = system
         self.model = model
         self.task = task
@@ -63,7 +63,7 @@ class Controller(ABC):
 
     @staticmethod
     @abstractmethod
-    def get_configuration_space(system, model, task):
+    def get_configuration_space(system, task, model):
         """
         Returns the controller configuration space for the given
         system, model, and task.
@@ -72,7 +72,7 @@ class Controller(ABC):
 
     @staticmethod
     @abstractmethod
-    def is_compatible(system, model, task):
+    def is_compatible(system, task, model):
         """
         Returns true if the controller is compatible with
         the given system, model, and task. Returns false
