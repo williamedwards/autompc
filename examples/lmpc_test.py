@@ -83,8 +83,8 @@ def train_koop():
     cs = Koopman.get_configuration_space(pendulum)
     cfg = cs.get_default_configuration()
     cfg["trig_basis"] = "true"
-    cfg["method"] = "lasso"
-    cfg["lasso_alpha_log10"] = np.log10(lasso_param)
+    cfg["method"] = "lstsq"
+    # cfg["lasso_alpha_log10"] = np.log10(lasso_param)
     koop = ampc.make_model(pendulum, Koopman, cfg)
     koop.train(trajs)
     return koop
@@ -94,14 +94,46 @@ lasso_param = 1e-4
 koop = train_koop()
 
 model = koop
+
+
+from autompc.evaluators import HoldoutEvaluator
+from autompc.metrics import RmseKstepMetric
+from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
+
+metric = RmseKstepMetric(pendulum, k=50)
+#grapher = KstepGrapher(pendulum, kmax=50, kstep=5, evalstep=10)
+grapher = InteractiveEvalGrapher(pendulum)
+
+rng = np.random.default_rng(42)
+evaluator = HoldoutEvaluator(pendulum, trajs, metric, rng, holdout_prop=0.25)
+evaluator.add_grapher(grapher)
+cs = Koopman.get_configuration_space(pendulum)
+cfg = cs.get_default_configuration()
+cfg["trig_basis"] = "true"
+cfg["method"] = "lstsq"
+# cfg["lasso_alpha_log10"] = np.log10(lasso_param)
+eval_score, _, graphs = evaluator(Koopman, cfg)
+print("eval_score = {}".format(eval_score))
+fig = plt.figure()
+graph = graphs[0]
+# graph.set_obs_lower_bound("theta", -0.2)
+# graph.set_obs_upper_bound("theta", 0.2)
+# graph.set_obs_lower_bound("omega", -0.2)
+# graph.set_obs_upper_bound("omega", 0.2)
+# graph.set_obs_lower_bound("dx", -0.2)
+# graph.set_obs_upper_bound("dx", 0.2)
+graphs[0](fig)
+#plt.tight_layout()
+plt.show()
+
 from autompc.control.mpc import LinearMPC
 
 task1 = ampc.Task(pendulum)
 Q = np.diag([10., 0.5])
-R = np.eye(1) * 0.1
+R = np.eye(1) * 0.2
 task1.set_quad_cost(Q, R)
 
-horizon = 80
+horizon = 40
 con = LinearMPC(pendulum, model, task1, horizon)
 
 sim_traj = ampc.zeros(pendulum, 1)
