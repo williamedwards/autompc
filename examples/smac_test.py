@@ -25,6 +25,7 @@ def dt_pendulum_dynamics(y,u,dt,g=9.8,m=1,L=1,b=0.1):
     if not sol.success:
         raise Exception("Integration failed due to {}".format(sol.message))
     y = sol.y.reshape((2,))
+    y[0] %= 2*np.pi
     y[0] -= np.pi
     return sol.y.reshape((2,))
 
@@ -92,10 +93,11 @@ model.train(trajs)
 
 from autompc.evaluators import HoldoutEvaluator
 from autompc.metrics import RmseKstepMetric
-from autompc.graphs import KstepGrapher
+from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
 
 metric = RmseKstepMetric(pendulum, k=50)
-grapher = KstepGrapher(pendulum, kmax=50, kstep=5, evalstep=10)
+#grapher = KstepGrapher(pendulum, kmax=50, kstep=5, evalstep=10)
+grapher = InteractiveEvalGrapher(pendulum)
 
 rng = np.random.default_rng(42)
 evaluator = HoldoutEvaluator(pendulum, trajs, metric, rng, holdout_prop=0.25) 
@@ -103,8 +105,10 @@ evaluator.add_grapher(grapher)
 eval_score, _, graphs = evaluator(Model, s)
 print("eval_score = {}".format(eval_score))
 fig = plt.figure()
-ax = fig.gca()
-graphs[0](ax)
+graph = graphs[0]
+graph.set_obs_lower_bound("ang", -0.2)
+graph.set_obs_upper_bound("ang", 0.2)
+graphs[0](fig)
 plt.show()
 sys.exit(0)
 
