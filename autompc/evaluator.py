@@ -50,4 +50,4 @@ class Evaluator(ABC):
         self.secondary_metrics.append(metric)
 
     def add_grapher(self, grapher):
-        self.graphers = []
+        self.graphers.append(grapher)

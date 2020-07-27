@@ -92,13 +92,21 @@ model.train(trajs)
 
 from autompc.evaluators import HoldoutEvaluator
 from autompc.metrics import RmseKstepMetric
+from autompc.graphs import KstepGrapher
 
 metric = RmseKstepMetric(pendulum, k=50)
+grapher = KstepGrapher(pendulum, kmax=50, kstep=5, evalstep=10)
 
 rng = np.random.default_rng(42)
 evaluator = HoldoutEvaluator(pendulum, trajs, metric, rng, holdout_prop=0.25) 
-eval_score = evaluator(Model, s)
+evaluator.add_grapher(grapher)
+eval_score, _, graphs = evaluator(Model, s)
 print("eval_score = {}".format(eval_score))
+fig = plt.figure()
+ax = fig.gca()
+graphs[0](ax)
+plt.show()
+sys.exit(0)
 
 tuner = ampc.ModelTuner(pendulum, evaluator)
 tuner.add_model(ARX)
