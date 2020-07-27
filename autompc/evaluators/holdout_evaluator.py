@@ -40,6 +40,19 @@ class HoldoutEvaluator(Evaluator):
             for graph in graphs:
                 graph.add_traj(predictor, traj)
 
+        need_training_eval = False
+        for graph in graphs:
+            if graph.need_training_eval:
+                need_training_eval = True
+                break
+
+        if need_training_eval:
+            for traj in self.training_set:
+                predictor = CachingPredictor(traj, m)
+                for graph in graphs:
+                    if graph.need_training_eval:
+                        graph.add_traj(predictor, traj, training=True)
+
         primary_metric_value = self.primary_metric.accumulate(primary_metric_values)
         secondary_metric_value = np.array(len(self.secondary_metrics))
 

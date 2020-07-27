@@ -27,7 +27,7 @@ class KstepGraph(Graph):
         self.sumsqes = np.zeros((len(self.ks),))
         self.nevals = np.zeros((len(self.ks),))
 
-    def add_traj(self, predictor, traj):
+    def add_traj(self, predictor, traj, training=False):
         for i, k in enumerate(self.ks):
             for j in range(0, len(traj)-k, self.evalstep):
                 pred_obs = predictor(j, k)
@@ -36,12 +36,11 @@ class KstepGraph(Graph):
                 self.nevals[i] += 1
 
             
-    def __call__(self, ax):
+    def __call__(self, fig):
+        ax = fig.gca()
         ax.set_xlabel("Prediction Horizon")
         ax.set_ylabel("Prediction Error (RMSE)")
         rmses = []
         for sumsqe, n in zip(self.sumsqes, self.nevals):
             rmses.append(np.sqrt(sumsqe / n))
         ax.plot(self.ks, rmses)
-        
-
