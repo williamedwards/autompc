@@ -41,9 +41,9 @@ class DummyNonlinear(Model):
         u = ctrl[0]
         x1, x2 = state[0], state[1]
         xpred = [x1 + x2**3, x2 + u]
-        grad = np.array([[1.0, 3 * x2**2, 0.0], [0.0, 1.0, 1.0]])
-
-        return xpred, grad
+        grad1 = np.array([[1.0, 3 * x2 ** 2], [0., 1.]])
+        grad2 = np.array([[0.], [1.]])
+        return xpred, grad1, grad2
 
     @staticmethod
     def get_configuration_space(system):

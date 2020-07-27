@@ -226,9 +226,9 @@ class NonLinearMPCProblem(TrajOptProblem):
                 col.append(coljac2 + base_x_idx + i * dims)
                 cr += self.task.ineq_cons_dim
             # finally for dynamics
-            _, mat1 = self.model.pred_diff(self._state[0], self._ctrl[0])
-            srowptn, scolptn = self._dense_to_rowcol(mat1[:, :dims].shape, 0, 0)
-            urowptn, ucolptn = self._dense_to_rowcol(mat1[:, dims:].shape, 0, 0)
+            _, mat1, mat2 = self.model.pred_diff(self._state[0], self._ctrl[0])
+            srowptn, scolptn = self._dense_to_rowcol(mat1.shape, 0, 0)
+            urowptn, ucolptn = self._dense_to_rowcol(mat2.shape, 0, 0)
             # compute patterns for it
             base_x_idx = 0
             base_u_idx = dims * (self.horizon + 1)
@@ -259,9 +259,7 @@ class NonLinearMPCProblem(TrajOptProblem):
                 cg += j2.size
             # finally for dynamics
             for i in range(self.horizon):
-                _, mat = self.model.pred_diff(self._state[i], self._ctrl[i])
-                mats = mat[:, :dims]
-                matu = mat[:, dims:]
+                _, mats, matu = self.model.pred_diff(self._state[i], self._ctrl[i])
                 self._jac[cg: cg + mats.size] = mats.flat
                 cg += mats.size
                 self._jac[cg: cg + matu.size] = matu.flat
@@ -310,7 +308,7 @@ class NonLinearMPC(Controller):
     """
     def __init__(self, system, model, task, horizon):
         # I prefer type checking, but clearly current API does not allow me so
-        Controller.__init__(self, system, model, task)
+        Controller.__init__(self, system, task, model)
         self.horizon = horizon
         self._built = False
         self._guess = None

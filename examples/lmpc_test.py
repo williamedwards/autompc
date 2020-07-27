@@ -51,7 +51,9 @@ def animate_pendulum(fig, ax, dt, traj):
 
     return ani
 
-dt = 0.025
+ttl = 10
+dt = 0.1
+run_num = int(ttl / dt)
 
 umin = -2.0
 umax = 2.0
@@ -65,8 +67,8 @@ def gen_trajs():
     trajs = []
     for _ in range(num_trajs):
         y = [-np.pi, 0.0]
-        traj = ampc.zeros(pendulum, 400)
-        for i in range(400):
+        traj = ampc.zeros(pendulum, run_num)
+        for i in range(run_num):
             traj[i].obs[:] = y
             u = rng.uniform(umin, umax, 1)
             y = dt_pendulum_dynamics(y, u, dt)
@@ -88,7 +90,7 @@ def train_koop():
     return koop
 
 
-lasso_param = 1e-3
+lasso_param = 1e-4
 koop = train_koop()
 
 model = koop
@@ -96,12 +98,10 @@ from autompc.control.mpc import LinearMPC
 
 task1 = ampc.Task(pendulum)
 Q = np.diag([10., 0.5])
-R = np.eye(1) * 0.01
-task1.set_quad_cost(Q, R, F=Q)
+R = np.eye(1) * 0.1
+task1.set_quad_cost(Q, R)
 
-add_state_cost, add_ctrl_cost, terminal_state_cost = task1.get_costs_diff()
-
-horizon = 8
+horizon = 80
 con = LinearMPC(pendulum, model, task1, horizon)
 
 sim_traj = ampc.zeros(pendulum, 1)
@@ -110,10 +110,11 @@ sim_traj[0].obs[:] = x
 
 for _ in range(100):
     u, _ = con.run(sim_traj)
+    print('u = ', u)
     x = dt_pendulum_dynamics(x, u, dt)
     sim_traj[-1, "torque"] = u
     sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-    xtrans = con.state_func(sim_traj)
+    xtrans = model.traj_to_state(sim_traj)
 
 #plt.plot(sim_traj[:,"x1"], sim_traj[:,"x2"], "b-o")
 #plt.show()
