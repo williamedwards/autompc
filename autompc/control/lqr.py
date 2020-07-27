@@ -84,7 +84,7 @@ class FiniteHorizonLQR(Controller):
     def get_configuration_space(system, task, model):
         cs = ConfigurationSpace()
         horizon = UniformIntegerHyperparameter(name="horizon",
-                lower=1, upper=100, default_value=10)
+                lower=1, upper=1000, default_value=10)
         cs.add_hyperparameter(horizon)
         return cs
 

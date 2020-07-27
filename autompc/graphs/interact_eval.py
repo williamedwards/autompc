@@ -6,6 +6,8 @@ from pdb import set_trace
 import numpy as np
 import numpy.linalg as la
 
+from matplotlib.ticker import FormatStrFormatter
+
 from ..grapher import Grapher
 from ..graph import Graph
 
@@ -95,6 +97,7 @@ class InteractiveEvalGraph(Graph):
             ax = fig.add_subplot(4, n, i+1)
             ax.set_xlabel("Test " + labels[i])
             ax.set_ylabel("RMSE")
+            ax.yaxis.set_major_formatter(FormatStrFormatter("%.2e"))
             ax.set_xticks([])
             ax.bar([1], testing_res[i:i+1])
             ax.set_xlim([0.0, 2.0])
@@ -104,6 +107,7 @@ class InteractiveEvalGraph(Graph):
             ax = fig.add_subplot(4, n, n+i+1)
             ax.set_xlabel("Train " + labels[i])
             ax.set_ylabel("RMSE")
+            ax.yaxis.set_major_formatter(FormatStrFormatter("%.2e"))
             ax.set_xticks([])
             ax.bar([1], training_res[i:i+1], color = "g")
             ax.set_xlim([0.0, 2.0])
