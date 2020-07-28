@@ -130,7 +130,7 @@ def train_sindy():
     sindy.train(trajs)
     return sindy
 
-#arx = train_arx(k=1)
+arx = train_arx(k=4)
 koop = train_koop()
 #sindy = train_sindy()
 #set_trace()
@@ -150,8 +150,9 @@ koop = train_koop()
 #assert(np.allclose(state[-3:-1], traj[11].obs))
 
 model = koop
+Model = Koopman
 
-if False:
+if True:
     from autompc.evaluators import HoldoutEvaluator
     from autompc.metrics import RmseKstepMetric
     from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
@@ -163,21 +164,25 @@ if False:
     rng = np.random.default_rng(42)
     evaluator = HoldoutEvaluator(cartpole, trajs, metric, rng, holdout_prop=0.25) 
     evaluator.add_grapher(grapher)
-    cs = Koopman.get_configuration_space(cartpole)
+    cs = Model.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     cfg["trig_basis"] = "true"
-    cfg["poly_basis"] = "true"
-    cfg["poly_degree"] = 3
-    eval_score, _, graphs = evaluator(Koopman, cfg)
+    cfg["method"] = "lstsq"
+    #cfg["poly_basis"] = "true"
+    #cfg["poly_degree"] = 3
+    #cfg["history"] = 4
+    eval_score, _, graphs = evaluator(Model, cfg)
     print("eval_score = {}".format(eval_score))
     fig = plt.figure()
     graph = graphs[0]
-    graph.set_obs_lower_bound("theta", -0.2)
-    graph.set_obs_upper_bound("theta", 0.2)
-    graph.set_obs_lower_bound("omega", -0.2)
-    graph.set_obs_upper_bound("omega", 0.2)
-    graph.set_obs_lower_bound("dx", -0.2)
-    graph.set_obs_upper_bound("dx", 0.2)
+    #graph.set_obs_lower_bound("theta", -0.2)
+    #graph.set_obs_upper_bound("theta", 0.2)
+    #graph.set_obs_lower_bound("omega", -0.2)
+    #graph.set_obs_upper_bound("omega", 0.2)
+    #graph.set_obs_lower_bound("dx", -0.2)
+    #graph.set_obs_upper_bound("dx", 0.2)
+    graph.set_obs_lower_bound("x", -3)
+    graph.set_obs_upper_bound("x", -1)
     graphs[0](fig)
     #plt.tight_layout()
     plt.show()
