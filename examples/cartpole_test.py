@@ -45,6 +45,7 @@ def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     if not sol.success:
         raise Exception("Integration failed due to {}".format(sol.message))
     y = sol.y.reshape((4,))
+    y[0] %= 2 * np.pi
     y[0] -= np.pi
     return sol.y.reshape((4,))
 
@@ -121,6 +122,7 @@ def train_koop():
     cfg = cs.get_default_configuration()
     cfg["trig_basis"] = "true"
     cfg["poly_basis"] = "false"
+    cfg["method"] = "lstsq"
     koop = ampc.make_model(cartpole, Koopman, cfg)
     koop.train(trajs)
     return koop
@@ -175,14 +177,14 @@ if True:
     print("eval_score = {}".format(eval_score))
     fig = plt.figure()
     graph = graphs[0]
-    #graph.set_obs_lower_bound("theta", -0.2)
-    #graph.set_obs_upper_bound("theta", 0.2)
-    #graph.set_obs_lower_bound("omega", -0.2)
-    #graph.set_obs_upper_bound("omega", 0.2)
+    graph.set_obs_lower_bound("theta", -0.2)
+    graph.set_obs_upper_bound("theta", 0.2)
+    graph.set_obs_lower_bound("omega", -0.2)
+    graph.set_obs_upper_bound("omega", 0.2)
     #graph.set_obs_lower_bound("dx", -0.2)
     #graph.set_obs_upper_bound("dx", 0.2)
-    graph.set_obs_lower_bound("x", -3)
-    graph.set_obs_upper_bound("x", -1)
+    #graph.set_obs_lower_bound("x", -0.2)
+    #graph.set_obs_upper_bound("x", 0.2)
     graphs[0](fig)
     #plt.tight_layout()
     plt.show()
@@ -192,18 +194,18 @@ from autompc.control import FiniteHorizonLQR
 #from autompc.control.mpc import LQRCost, LinearMPC
 
 task = ampc.Task(cartpole)
-Q = np.diag([1000.0, 1.0, 1000.0, 10.0])
+Q = np.diag([1.0, 10.0, 10.0, 10.0])
 R = np.diag([0.001])
 task.set_quad_cost(Q, R)
 
 
 cs = FiniteHorizonLQR.get_configuration_space(cartpole, task, model)
 cfg = cs.get_default_configuration()
-cfg["horizon"] = 100
+cfg["horizon"] = 200
 con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
 
 sim_traj = ampc.zeros(cartpole, 1)
-x = np.array([0.001,0.0,0.0,0.0])
+x = np.array([0.0,0.05,0.0,0.0])
 sim_traj[0].obs[:] = x
 
 constate = con.traj_to_state(sim_traj[:1])
