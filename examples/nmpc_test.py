@@ -159,7 +159,7 @@ def test_sindy_cartpole():
     trajs = collect_cartpole_trajs(dt, umin, umax)
     model = ampc.make_model(cartpole, SINDy, s)
     model.train(trajs)
-    set_trace()
+    #set_trace()
 
     # Evaluate model
     if False:
