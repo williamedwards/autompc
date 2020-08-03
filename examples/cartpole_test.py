@@ -151,7 +151,7 @@ koop = train_koop()
 
 model = koop
 
-if False:
+if True:
     from autompc.evaluators import HoldoutEvaluator
     from autompc.metrics import RmseKstepMetric
     from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
