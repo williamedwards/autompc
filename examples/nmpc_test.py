@@ -157,6 +157,7 @@ def test_sindy_cartpole():
     dt = 0.025
     umin, umax = -2, 2
     trajs = collect_cartpole_trajs(dt, umin, umax)
+    cartpole.dt = dt
     model = ampc.make_model(cartpole, SINDy, s)
     model.train(trajs)
     #set_trace()
@@ -191,27 +192,50 @@ def test_sindy_cartpole():
 
     # Now it's time to apply the controller
     task1 = Task(cartpole)
-    Q = np.diag([1.0, 1.0, 1.0, 1.0])
+    Q = np.diag([1.0, 0.1, 0.1, 0.1])  # theta, omega, x, dx
     R = np.diag([1.0]) 
-    F = np.eye(4)
+    F = np.diag([10., 10., 2., 10.])
     task1.set_quad_cost(Q, R, F)
 
-    horizon = 80  # this is indeed too short for a frequency of 100 Hz model
+    horizon = 0.25  # this is indeed too short for a frequency of 100 Hz model
+    hh = 10
     nmpc = NonLinearMPC(cartpole, model, task1, horizon)
+    nmpc._guess = np.zeros(hh + (hh + 1) * 4) + 1e-5
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
     x = np.array([0.0, 0, 0, 0])
     sim_traj[0].obs[:] = x
 
-    for _ in range(400):
+    us = []
+
+    for step in range(400):
         u, _ = nmpc.run(sim_traj)
         #u = -np.ones((1,))
         print('u = ', u)
         x = model.traj_to_state(sim_traj)
-        #x = model.pred(x, u)
+        saved_state = x.copy()
+        # x = model.pred(x, u)
         x = dt_cartpole_dynamics(x, u, dt)
         sim_traj[-1, "u"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
+        # compare what happens if zero control for 80 steps
+        if False and np.abs(u) > 1e-2:
+            states = [saved_state]
+            for _ in range(nmpc.horizon):
+                states.append(dt_cartpole_dynamics(states[-1].copy(), 0, dt))
+            fig, ax = plt.subplots(2, 2)
+            ax = ax.reshape(-1)
+            pred = nmpc._guess[:4 * (hh + 1)].reshape((-1, 4))
+            states = np.array(states)
+            for j in range(4):
+                ax[j].plot(states[:, j], label='zero control')
+                ax[j].plot(pred[:, j], label='nmpc')
+                ax[j].legend()
+            plt.show()
+
+        us.append(u)
+    # print(np.array(us))
+    # raise
 
     #print(sim_traj[:, "ang"], sim_traj[:, 'angvel'])
     #fig = plt.figure()
@@ -331,7 +355,7 @@ def gen_cartpole_trajs(dt, num_trajs, umin, umax):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, choices=['koopman', 'sindy-pendulum', 
-        "sindy-cartpole"], help='Specify which system id to test')
+        "sindy-cartpole"], default='sindy-cartpole', help='Specify which system id to test')
     args = parser.parse_args()
     if args.model == 'koopman':
         test_dummy()

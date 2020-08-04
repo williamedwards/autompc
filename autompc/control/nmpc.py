@@ -123,11 +123,12 @@ class NonLinearMPCProblem(TrajOptProblem):
         # compute the cost function, not sure how it's gonna be written though
         add_obs_cost, add_ctrl_cost, term_obs_cost = self.task.get_costs_diff()
         self._x[:] = x  # copy contents in
+        dt = self.system.dt
         tc, _ = term_obs_cost(self._state[-1])
         for i in range(self.horizon + 1):
-            tc += add_obs_cost(self._state[i])[0]
+            tc += add_obs_cost(self._state[i])[0] * dt
         for i in range(self.horizon):
-            tc += add_ctrl_cost(self._ctrl[i])[0]
+            tc += add_ctrl_cost(self._ctrl[i])[0] * dt
         return tc
 
     def get_gradient(self, x):
@@ -138,12 +139,13 @@ class NonLinearMPCProblem(TrajOptProblem):
         add_obs_cost, add_ctrl_cost, term_obs_cost = self.task.get_costs_diff()
         _, gradtc = term_obs_cost(self._state[-1])
         self._grad_state[-1] = gradtc
+        dt = self.system.dt
         for i in range(self.horizon + 1):
             _, gradx = add_obs_cost(self._state[i])
-            self._grad_state[i] += gradx
+            self._grad_state[i] += gradx * dt
         for i in range(self.horizon):
             _, gradu = add_ctrl_cost(self._ctrl[i])
-            self._grad_ctrl[i] = gradu
+            self._grad_ctrl[i] = gradu * dt
         return self._grad
 
     def get_constraint(self, x):
@@ -309,7 +311,7 @@ class NonLinearMPC(Controller):
     def __init__(self, system, model, task, horizon):
         # I prefer type checking, but clearly current API does not allow me so
         Controller.__init__(self, system, task, model)
-        self.horizon = horizon
+        self.horizon = int(np.ceil(horizon / system.dt))
         self._built = False
         self._guess = None
 
@@ -355,6 +357,8 @@ class NonLinearMPC(Controller):
 
     def run(self, traj, latent=None):
         x = self.model.traj_to_state(traj)
+        self._x_cache = x
+        print('state is ', x)
         rst = self._update_problem_and_solve(x)
         print(rst.flag)
         sol = rst.sol.copy()
