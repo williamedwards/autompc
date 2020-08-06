@@ -14,7 +14,7 @@ memory = Memory("cache")
 
 cartpole = ampc.System(["theta", "omega", "x", "dx"], ["u"])
 
-def cartpole_dynamics(y, u, g = 1.0, m_c = 1, m_p = 1, L = 1, b = 1.0):
+def cartpole_dynamics(y, u, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
     """
     Parameters
     ----------
@@ -80,17 +80,17 @@ umax = 2.0
 udmax = 0.25
 
 # Generate trajectories for training
-num_trajs = 100
+num_trajs = 500
 
 @memory.cache
-def gen_trajs():
+def gen_trajs(num_trajs=num_trajs):
     rng = np.random.default_rng(49)
     trajs = []
     for _ in range(num_trajs):
-        theta0 = rng.uniform(-0.02, 0.02, 1)[0]
+        theta0 = rng.uniform(-0.002, 0.002, 1)[0]
         y = [theta0, 0.0, 0.0, 0.0]
         traj = ampc.zeros(cartpole, 400)
-        for i in range(400):
+        for i in range(2):
             traj[i].obs[:] = y
             #if u[0] > umax:
             #    u[0] = umax
@@ -119,7 +119,7 @@ def train_arx(k=2):
 def train_koop():
     cs = Koopman.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["trig_basis"] = "true"
+    cfg["trig_basis"] = "false"
     cfg["poly_basis"] = "false"
     koop = ampc.make_model(cartpole, Koopman, cfg)
     koop.train(trajs)
@@ -149,7 +149,29 @@ koop = train_koop()
 
 #assert(np.allclose(state[-3:-1], traj[11].obs))
 
-model = koop
+from autompc.sysid.dummy_linear import DummyLinear
+#A = np.array([[1.   , 0.01 , 0.   , 0.   ],
+#       [0.147, 0.995, 0.   , 0.   ],
+#       [0.   , 0.   , 1.   , 0.01 ],
+#       [0.098, 0.   , 0.   , 1.   ]])
+#B = np.array([[0.   ],
+#       [0.005],
+#       [0.   ],
+#       [0.01 ]])
+A =np.array([[ 0.9998053 ,  0.02499673,  0.        ,  0.        ],
+       [ 0.30379558,  0.98433411,  0.        , -0.01052765],
+       [ 0.        ,  0.        ,  0.99988456,  0.02499332],
+       [-0.18344387,  0.02941821,  0.01390835,  1.04997096]])
+B = np.array([[0.        ],
+       [0.        ],
+       [0.        ],
+       [0.02041931]])
+class MyLinear(DummyLinear):
+    def __init__(self, system):
+        super().__init__(system, A, B)
+model = MyLinear(cartpole)
+#model = koop
+#set_trace()
 
 if True:
     from autompc.evaluators import HoldoutEvaluator
@@ -163,12 +185,14 @@ if True:
     rng = np.random.default_rng(42)
     evaluator = HoldoutEvaluator(cartpole, trajs, metric, rng, holdout_prop=0.25) 
     evaluator.add_grapher(grapher)
-    cs = Koopman.get_configuration_space(cartpole)
+    #cs = Koopman.get_configuration_space(cartpole)
+    #cfg = cs.get_default_configuration()
+    #cfg["trig_basis"] = "false"
+    #cfg["poly_basis"] = "false"
+    #cfg["poly_degree"] = 3
+    cs = MyLinear.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["trig_basis"] = "true"
-    cfg["poly_basis"] = "true"
-    cfg["poly_degree"] = 3
-    eval_score, _, graphs = evaluator(Koopman, cfg)
+    eval_score, _, graphs = evaluator(MyLinear, cfg)
     print("eval_score = {}".format(eval_score))
     fig = plt.figure()
     graph = graphs[0]
@@ -183,25 +207,41 @@ if True:
     plt.show()
 
 
-from autompc.control import FiniteHorizonLQR
+from autompc.control import InfiniteHorizonLQR, FiniteHorizonLQR
 #from autompc.control.mpc import LQRCost, LinearMPC
 
 task = ampc.Task(cartpole)
-Q = np.diag([1000.0, 1.0, 1000.0, 10.0])
-R = np.diag([0.001])
+Q = np.diag([10.0, 1.0, 10.0, 1.0])
+R = np.diag([1.0])
 task.set_quad_cost(Q, R)
 
 
 cs = FiniteHorizonLQR.get_configuration_space(cartpole, task, model)
 cfg = cs.get_default_configuration()
-cfg["horizon"] = 100
+cfg["horizon"] = 1000
 con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
 
 sim_traj = ampc.zeros(cartpole, 1)
-x = np.array([0.001,0.0,0.0,0.0])
+x = np.array([0.01,0.0,0.0,0.0])
 sim_traj[0].obs[:] = x
+set_trace()
 
 constate = con.traj_to_state(sim_traj[:1])
+#K2 = -np.array([[103.95635975,  27.79511119,  -2.82043609,  -4.75267206]])
+#X1 = np.array([[5053.06324338, -268.47827486,    0.,            0.,        ],
+# [-268.47827486, 5054.34910433,    0.,            0.,        ],
+# [   0.,            0.,           10.,            0.,        ],
+# [   0.,            0.,            0.,           11.,        ]])
+#X2 = np.array([[183594.97608883,  51609.12730918, -11131.75586988,
+#         -14457.5851753 ],
+#        [ 51609.12730918,  14625.69494522,  -3284.68327891,
+#          -4266.9610752 ],
+#        [-11131.75586988,  -3284.68327891,   1654.86316438,
+#           1311.0117305 ],
+#        [-14457.5851753 ,  -4266.9610752 ,   1311.0117305 ,
+#           1588.48817528]])
+#N = np.zeros((4,1))
+#set_trace()
 for _ in range(1000):
     u, constate = con.run(constate, sim_traj[-1].obs)
     x = dt_cartpole_dynamics(x, u, dt)
@@ -220,5 +260,5 @@ ax.set_xlim([-1.1, 1.1])
 ax.set_ylim([-1.1, 1.1])
 #set_trace()
 ani = animate_cartpole(fig, ax, dt, sim_traj)
-#ani.save("out/test4/cartpole.mp4")
-plt.show()
+ani.save("out/cartpole_test/aug05_05.mp4")
+#plt.show()

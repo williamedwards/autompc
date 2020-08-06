@@ -114,7 +114,7 @@ def test_sindy_pendulum():
     task1 = Task(pendulum)
     Q = np.diag([100.0, 1.0])
     R = np.diag([1.0]) 
-    F = 10 * np.eye(2)
+    F = 100 * np.eye(2)
     task1.set_quad_cost(Q, R, F)
 
     horizon = 40  # this is indeed too short for a frequency of 100 Hz model
@@ -149,6 +149,8 @@ def test_sindy_pendulum():
 
 def test_sindy_cartpole():
     from autompc.sysid import SINDy
+    from cartpole_model import CartpoleModel
+    #cs = CartpoleModel.get_configuration_space(cartpole)
     cs = SINDy.get_configuration_space(cartpole)
     s = cs.get_default_configuration()
     s["trig_basis"] = "true"
@@ -159,10 +161,10 @@ def test_sindy_cartpole():
     trajs = collect_cartpole_trajs(dt, umin, umax)
     model = ampc.make_model(cartpole, SINDy, s)
     model.train(trajs)
-    #set_trace()
+    set_trace()
 
     # Evaluate model
-    if False:
+    if True:
         from autompc.evaluators import HoldoutEvaluator
         from autompc.metrics import RmseKstepMetric
         from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
@@ -191,7 +193,7 @@ def test_sindy_cartpole():
 
     # Now it's time to apply the controller
     task1 = Task(cartpole)
-    Q = np.diag([1.0, 1.0, 1.0, 1.0])
+    Q = np.diag([10.0, 1.0, 10.0, 1.0])
     R = np.diag([1.0]) 
     F = np.eye(4)
     task1.set_quad_cost(Q, R, F)
@@ -200,14 +202,14 @@ def test_sindy_cartpole():
     nmpc = NonLinearMPC(cartpole, model, task1, horizon)
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
-    x = np.array([0.0, 0, 0, 0])
+    x = np.array([0.1, 0, 0, 0])
     sim_traj[0].obs[:] = x
 
-    for _ in range(400):
+    for _ in range(200):
         u, _ = nmpc.run(sim_traj)
-        #u = -np.ones((1,))
+        #u = -np.zeros((1,))
         print('u = ', u)
-        x = model.traj_to_state(sim_traj)
+        #x = model.traj_to_state(sim_traj)
         #x = model.pred(x, u)
         x = dt_cartpole_dynamics(x, u, dt)
         sim_traj[-1, "u"] = u
@@ -225,7 +227,8 @@ def test_sindy_cartpole():
     ax.set_xlim([-1.1, 1.1])
     ax.set_ylim([-1.1, 1.1])
     ani = animate_cartpole(fig, ax, dt, sim_traj)
-    plt.show()
+    #plt.show()
+    ani.save("out/nmpc_test/aug05_04.mp4")
 
 
 memory = Memory("cache")
