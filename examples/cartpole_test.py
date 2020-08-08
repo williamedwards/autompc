@@ -89,8 +89,8 @@ def gen_trajs(num_trajs=num_trajs):
     for _ in range(num_trajs):
         theta0 = rng.uniform(-0.002, 0.002, 1)[0]
         y = [theta0, 0.0, 0.0, 0.0]
-        traj = ampc.zeros(cartpole, 400)
-        for i in range(2):
+        traj = ampc.zeros(cartpole, 5)
+        for i in range(5):
             traj[i].obs[:] = y
             #if u[0] > umax:
             #    u[0] = umax
@@ -150,30 +150,30 @@ koop = train_koop()
 #assert(np.allclose(state[-3:-1], traj[11].obs))
 
 from autompc.sysid.dummy_linear import DummyLinear
-#A = np.array([[1.   , 0.01 , 0.   , 0.   ],
-#       [0.147, 0.995, 0.   , 0.   ],
-#       [0.   , 0.   , 1.   , 0.01 ],
-#       [0.098, 0.   , 0.   , 1.   ]])
-#B = np.array([[0.   ],
-#       [0.005],
-#       [0.   ],
-#       [0.01 ]])
-A =np.array([[ 0.9998053 ,  0.02499673,  0.        ,  0.        ],
-       [ 0.30379558,  0.98433411,  0.        , -0.01052765],
-       [ 0.        ,  0.        ,  0.99988456,  0.02499332],
-       [-0.18344387,  0.02941821,  0.01390835,  1.04997096]])
-B = np.array([[0.        ],
-       [0.        ],
-       [0.        ],
-       [0.02041931]])
+A = np.array([[1.   , 0.01 , 0.   , 0.   ],
+       [0.147, 0.995, 0.   , 0.   ],
+       [0.   , 0.   , 1.   , 0.01 ],
+       [0.098, 0.   , 0.   , 1.   ]])
+B = np.array([[0.   ],
+       [0.005],
+       [0.   ],
+       [0.01 ]])
+#A =np.array([[ 0.9998053 ,  0.02499673,  0.        ,  0.        ],
+#       [ 0.30379558,  0.98433411,  0.        , -0.01052765],
+#       [ 0.        ,  0.        ,  0.99988456,  0.02499332],
+#       [-0.18344387,  0.02941821,  0.01390835,  1.04997096]])
+#B = np.array([[0.        ],
+#       [0.        ],
+#       [0.        ],
+#       [0.02041931]])
 class MyLinear(DummyLinear):
     def __init__(self, system):
         super().__init__(system, A, B)
-model = MyLinear(cartpole)
-#model = koop
+#model = MyLinear(cartpole)
+model = koop
 #set_trace()
 
-if True:
+if False:
     from autompc.evaluators import HoldoutEvaluator
     from autompc.metrics import RmseKstepMetric
     from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
@@ -222,7 +222,7 @@ cfg["horizon"] = 1000
 con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
 
 sim_traj = ampc.zeros(cartpole, 1)
-x = np.array([0.01,0.0,0.0,0.0])
+x = np.array([3.0,0.0,0.0,0.0])
 sim_traj[0].obs[:] = x
 set_trace()
 
@@ -260,5 +260,5 @@ ax.set_xlim([-1.1, 1.1])
 ax.set_ylim([-1.1, 1.1])
 #set_trace()
 ani = animate_cartpole(fig, ax, dt, sim_traj)
-ani.save("out/cartpole_test/aug05_05.mp4")
-#plt.show()
+#ani.save("out/cartpole_test/aug05_05.mp4")
+plt.show()
