@@ -222,7 +222,7 @@ cfg["horizon"] = 1000
 con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
 
 sim_traj = ampc.zeros(cartpole, 1)
-x = np.array([3.0,0.0,0.0,0.0])
+x = np.array([1.0,0.0,0.0,0.0])
 sim_traj[0].obs[:] = x
 set_trace()
 
