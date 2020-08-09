@@ -115,7 +115,7 @@ class SINDy(Model):
         self.function_gradients = function_gradients
 
         sindy_model = ps.SINDy(feature_library=library, discrete_time=True,
-                optimizer=ps.STLSQ(threshold=0.005))
+                optimizer=ps.STLSQ(threshold=0.000))
         sindy_model.fit(X, u=U, multiple_trajectories=True)
         self.model = sindy_model
 
