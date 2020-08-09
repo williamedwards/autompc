@@ -153,10 +153,10 @@ def test_sindy_cartpole():
     #cs = CartpoleModel.get_configuration_space(cartpole)
     cs = SINDy.get_configuration_space(cartpole)
     s = cs.get_default_configuration()
-    s["trig_basis"] = "true"
-    s["trig_freq"] = 1
+    s["trig_basis"] = "false"
+    #s["trig_freq"] = 1
     s["poly_basis"] = "false"
-    dt = 0.025
+    dt = 0.01
     umin, umax = -2, 2
     trajs = collect_cartpole_trajs(dt, umin, umax)
     cartpole.dt = dt
@@ -248,8 +248,67 @@ def test_sindy_cartpole():
     ax.set_xlim([-1.1, 1.1])
     ax.set_ylim([-1.1, 1.1])
     ani = animate_cartpole(fig, ax, dt, sim_traj)
-    #plt.show()
-    ani.save("out/nmpc_test/aug05_04.mp4")
+    plt.show()
+    #ani.save("out/nmpc_test/aug05_04.mp4")
+
+def test_linear_cartpole():
+    from autompc.sysid.dummy_linear import DummyLinear
+    A = np.array([[1.   , 0.01 , 0.   , 0.   ],
+           [0.147, 0.995, 0.   , 0.   ],
+           [0.   , 0.   , 1.   , 0.01 ],
+           [0.098, 0.   , 0.   , 1.   ]])
+    B = np.array([[0.   ],
+           [0.005],
+           [0.   ],
+           [0.01 ]])
+
+    class MyLinear(DummyLinear):
+        def __init__(self, system):
+            super().__init__(system, A, B)
+
+    model = MyLinear(cartpole)
+
+    dt = 0.01
+    cartpole.dt = dt
+
+    # Create task
+    task1 = Task(cartpole)
+    Q = np.diag([10.0, 1.0, 10.0, 1.0])
+    R = np.diag([1.0]) 
+    #F = np.diag([10., 10., 2., 10.])
+    F = np.zeros((4,4))
+    task1.set_quad_cost(Q, R, F)
+
+    # Initialize controller
+    horizon = 0.1  # this is indeed too short for a frequency of 100 Hz model
+    hh = 10
+    nmpc = NonLinearMPC(cartpole, model, task1, horizon)
+    nmpc._guess = np.zeros(hh + (hh + 1) * 4) + 1e-5
+    # just give a random initial state
+    sim_traj = ampc.zeros(cartpole, 1)
+    x = np.array([0.1, 0, 0, 0])
+    sim_traj[0].obs[:] = x
+    us = []
+
+    # Run simulation
+    for step in range(400):
+        u, _ = nmpc.run(sim_traj)
+        #u = -np.zeros((1,))
+        print('u = ', u)
+        # x = model.pred(x, u)
+        x = dt_cartpole_dynamics(x, u, dt)
+        sim_traj[-1, "u"] = u
+        sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
+        # compare what happens if zero control for 80 steps
+        us.append(u)
+    # Siplay results
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.set_aspect("equal")
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ani = animate_cartpole(fig, ax, dt, sim_traj)
+    plt.show()
 
 
 memory = Memory("cache")
@@ -339,10 +398,10 @@ def gen_cartpole_trajs(dt, num_trajs, umin, umax):
     rng = np.random.default_rng(49)
     trajs = []
     for _ in range(num_trajs):
-        theta0 = rng.uniform(-0.02, 0.02, 1)[0]
+        theta0 = rng.uniform(-0.002, 0.002, 1)[0]
         y = [theta0, 0.0, 0.0, 0.0]
-        traj = ampc.zeros(cartpole, 400)
-        for i in range(400):
+        traj = ampc.zeros(cartpole, 4)
+        for i in range(4):
             traj[i].obs[:] = y
             u  = rng.uniform(umin, umax, 1)
             y = dt_cartpole_dynamics(y, u, dt)
@@ -355,7 +414,7 @@ def gen_cartpole_trajs(dt, num_trajs, umin, umax):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, choices=['koopman', 'sindy-pendulum', 
-        "sindy-cartpole"], default='sindy-cartpole', help='Specify which system id to test')
+        "sindy-cartpole", "linear-cartpole"], default='sindy-cartpole', help='Specify which system id to test')
     args = parser.parse_args()
     if args.model == 'koopman':
         test_dummy()
@@ -363,3 +422,5 @@ if __name__ == '__main__':
         test_sindy_pendulum()
     if args.model == 'sindy-cartpole':
         test_sindy_cartpole()
+    if args.model == 'linear-cartpole':
+        test_linear_cartpole()
