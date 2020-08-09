@@ -33,14 +33,14 @@ class DummyNonlinear(Model):
     def pred(self, state, ctrl):
         u = ctrl[0]
         x1, x2 = state[0], state[1]
-        xpred = [x1 + x2**3, x2 + u]
+        xpred = np.array([x1 + x2**3, x2 + u])
 
         return xpred
 
     def pred_diff(self, state, ctrl):
         u = ctrl[0]
         x1, x2 = state[0], state[1]
-        xpred = [x1 + x2**3, x2 + u]
+        xpred = np.array([x1 + x2**3, x2 + u])
         grad1 = np.array([[1.0, 3 * x2 ** 2], [0., 1.]])
         grad2 = np.array([[0.], [1.]])
         return xpred, grad1, grad2

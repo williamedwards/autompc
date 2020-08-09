@@ -16,6 +16,7 @@ from autompc import Task
 from joblib import Memory
 from scipy.integrate import solve_ivp
 
+
 def animate_pendulum(fig, ax, dt, traj):
     ax.grid()
 
@@ -74,8 +75,7 @@ def test_dummy():
     F = 10 * np.eye(2)
     task1.set_quad_cost(Q, R, F)
 
-    horizon = 8
-    nmpc = NonLinearMPC(dummy_sys, dummy_model, task1, horizon)
+    nmpc = NonLinearMPC(dummy_sys, dummy_model, task1)
     # just give a random initial state
     sim_traj = ampc.zeros(dummy_sys, 1)
     x = np.array([2, 1.0])
