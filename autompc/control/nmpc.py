@@ -327,7 +327,7 @@ class NonLinearMPC(Controller):
             self._build_problem()
         dims = self.problem.obs_dim
         self.wrapper.get_xlb()[:dims] = self.wrapper.get_xub()[:dims] = x0  # so I set this one
-        config = OptConfig(backend='ipopt')
+        config = OptConfig(backend='ipopt', print_level=0)
         solver = OptSolver(self.wrapper, config)
         if self._guess is None:
             rst = solver.solve_rand()
@@ -367,4 +367,5 @@ class NonLinearMPC(Controller):
         dims = self.problem.obs_dim
         dimu = self.problem.ctrl_dim
         idx0 = dims * (self.horizon + 1)
+        # print('path is ', sol[:idx0].reshape((-1, dims)))
         return sol[idx0: idx0 + dimu], None

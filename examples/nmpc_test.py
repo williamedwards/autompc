@@ -10,7 +10,7 @@ import matplotlib.animation as animation
 from pdb import set_trace
 
 from autompc.sysid.dummy_nonlinear import DummyNonlinear
-from autompc.control import NonLinearMPC
+from autompc.control import NonLinearMPC, LinearMPC
 from autompc import Task
 
 from joblib import Memory
@@ -265,6 +265,7 @@ def test_linear_cartpole():
     class MyLinear(DummyLinear):
         def __init__(self, system):
             super().__init__(system, A, B)
+            self.dt = 0.01
 
     model = MyLinear(cartpole)
 
@@ -274,16 +275,17 @@ def test_linear_cartpole():
     # Create task
     task1 = Task(cartpole)
     Q = np.diag([10.0, 1.0, 10.0, 1.0])
-    R = np.diag([1.0]) 
-    #F = np.diag([10., 10., 2., 10.])
-    F = np.zeros((4,4))
+    R = np.diag([0.01]) 
+    F = np.diag([10., 10., 10., 10.]) * 100
+    # F = np.zeros((4,4))
     task1.set_quad_cost(Q, R, F)
 
     # Initialize controller
-    horizon = 0.1  # this is indeed too short for a frequency of 100 Hz model
-    hh = 10
+    horizon = 1  # this is indeed too short for a frequency of 100 Hz model
+    hh = 100
     nmpc = NonLinearMPC(cartpole, model, task1, horizon)
     nmpc._guess = np.zeros(hh + (hh + 1) * 4) + 1e-5
+    # nmpc = LinearMPC(cartpole, model, task1, hh)
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
     x = np.array([0.1, 0, 0, 0])
@@ -291,11 +293,11 @@ def test_linear_cartpole():
     us = []
 
     # Run simulation
-    for step in range(400):
+    for step in range(200):
         u, _ = nmpc.run(sim_traj)
         #u = -np.zeros((1,))
-        print('u = ', u)
         # x = model.pred(x, u)
+        print('u = ', u, 'x = ', x)
         x = dt_cartpole_dynamics(x, u, dt)
         sim_traj[-1, "u"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
