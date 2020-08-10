@@ -78,7 +78,7 @@ class Pendulum:
         g, m, L, b = self.g, self.m, self.L, self.b
         x0 = np.array([theta + omega * self.dt, omega + self.dt * ((ctrl[0] - b * omega) / (m * L ** 2) - g * np.sin(theta) / L)])
         # x1 = dt_pendulum_dynamics(state, ctrl, self.dt)
-        return x0
+        return x0 + np.random.normal(scale=0.05, size=2)
 
     def pred_parallel(self, state, ctrl):
         theta, omega = state.T
@@ -231,21 +231,6 @@ def collect_pendulum_trajs(dt, umin, umax):
     return trajs
 
 
-@memory.cache
-def gen_pendulum_trajs(dt, num_trajs, umin, umax):
-    rng = np.random.default_rng(42)
-    trajs = []
-    for _ in range(num_trajs):
-        y = [-np.pi, 0.0]
-        traj = ampc.zeros(pendulum, 400)
-        for i in range(400):
-            traj[i].obs[:] = y
-            u = rng.uniform(umin, umax, 1)
-            y = dt_pendulum_dynamics(y, u, dt)
-            traj[i].ctrl[:] = u
-        trajs.append(traj)
-    return trajs
-
 def cartpole_dynamics(y, u, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
     """
     Parameters
@@ -285,23 +270,6 @@ def collect_cartpole_trajs(dt, umin, umax):
     # Generate trajectories for training
     num_trajs = 100
     trajs = gen_cartpole_trajs(dt, num_trajs, umin, umax)
-    return trajs
-
-
-@memory.cache
-def gen_cartpole_trajs(dt, num_trajs, umin, umax):
-    rng = np.random.default_rng(49)
-    trajs = []
-    for _ in range(num_trajs):
-        theta0 = rng.uniform(-0.02, 0.02, 1)[0]
-        y = [theta0, 0.0, 0.0, 0.0]
-        traj = ampc.zeros(cartpole, 400)
-        for i in range(400):
-            traj[i].obs[:] = y
-            u  = rng.uniform(umin, umax, 1)
-            y = dt_cartpole_dynamics(y, u, dt)
-            traj[i].ctrl[:] = u
-        trajs.append(traj)
     return trajs
 
 
