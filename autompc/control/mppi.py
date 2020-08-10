@@ -42,6 +42,8 @@ class MPPI:
         self.act_sequence = np.zeros((self.H, self.dim_ctrl))  # set initial default action as zero
         self.noise_dist = MultivariateNormal(0, self.sigma)
         self.act_sequence = self.noise_dist.sample((self.H,))
+        self.umin = kwargs.get('umin', None)
+        self.umax = kwargs.get('umax', None)
         # for the seed
         self.cur_step = 0
         self.niter = 1
@@ -72,6 +74,10 @@ class MPPI:
         action_cost = np.zeros_like(costs)
         for i in range(self.H):
             actions = eps[i] + self.act_sequence[i]
+            # bound actions if necessary
+            if self.umin is not None and self.umax is not None:
+                actions = np.minimum(self.umax, np.maximum(self.umin, actions))
+                eps[i] = actions - self.act_sequence[i]
             # costs += self.cost_eqn(path[i], actions) + self.lmda / self.sigma * np.einsum('ij,ij->i', actions, eps[i])
             # path[i + 1] = self.dyn_eqn(path[i], actions)
             costs += self.cost_eqn(path, actions)

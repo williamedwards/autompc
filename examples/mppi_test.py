@@ -22,6 +22,11 @@ memory = Memory("cache")
 pendulum = ampc.System(["ang", "angvel"], ["torque"])
 cartpole = ampc.System(["theta", "omega", "x", "dx"], ["u"])
 
+GRAVITY = 9.8
+M_C = 1
+M_P = 0.2
+LEN = 1
+BB = 1
 
 def animate_pendulum(fig, ax, dt, traj):
     ax.grid()
@@ -121,8 +126,7 @@ class CartPole:
         else:
             self.pred = self.pred_rk4
 
-    def pred_euler(self, state, ctrl, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
-        # return dt_cartpole_dynamics(state, ctrl, self.dt)  # TODO: see why RK4 fails...
+    def pred_euler(self, state, ctrl, g = GRAVITY, m_c = M_C, m_p = M_P, L = LEN, b = BB):
         theta, omega, x, dx = state
         u = ctrl[0]
         statedot = np.array([omega,
@@ -138,8 +142,8 @@ class CartPole:
     def pred_rk4(self, state, ctrl):
         return dt_cartpole_dynamics(state, ctrl, self.dt)
 
-    def pred_parallel(self, state, ctrl, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
-        theta, omega, x, dx = state.T  # TODO: implement parallel version of RK4...
+    def pred_parallel(self, state, ctrl, g = GRAVITY, m_c = M_C, m_p = M_P, L = LEN, b = BB):
+        theta, omega, x, dx = state.T 
         u = ctrl[:, 0]
         statedot = np.c_[omega,
                 1.0/(L*(m_c+m_p+m_p*np.sin(theta)**2))*(-u*np.cos(theta) 
@@ -238,13 +242,13 @@ def test_cartpole():
     R = np.diag([0.1]) 
     F = np.diag([10., 10., 2., 10.])
     task1.set_quad_cost(Q, R, F)
-    model = CartPole()
+    model = CartPole('RK4')
     model.system = cartpole
     path_cost, term_cost = lqr_task_to_mppi_cost(task1, model.dt)
     nmpc = MPPI(model.pred_parallel, path_cost, term_cost, model, H=20, sigma=5, num_path=100)
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
-    x = np.array([0.1, 0., 0, 0])
+    x = np.array([0.2, 0., 0, 0])
     sim_traj[0].obs[:] = x
     us = []
 
@@ -266,6 +270,60 @@ def test_cartpole():
     ani = animate_cartpole(fig, ax, dt, sim_traj)
     #plt.show()
     ani.save("out/nmpc_test/aug05_04.mp4")
+
+
+def test_adaptive_cartpole():
+    """Just test the adaptive mppi on the pendulum problem.
+    Now it supports model re-training so hopefully a few iterations sovle the problem.
+    """
+    model = CartPole(choice='Euler')
+    model.system = cartpole
+
+    import torch
+    network = torch.nn.Sequential(
+        torch.nn.Linear(5, 32),
+        torch.nn.ReLU(),
+        torch.nn.Linear(32, 32),
+        torch.nn.ReLU(),
+        torch.nn.Linear(32, 4)
+    ).double().cuda()
+
+    # Now it's time to apply the controller
+    task1 = Task(cartpole)
+    Q = np.diag([5, 5.0, 5.0, 5.0])
+    R = np.diag([0.1]) 
+    F = np.diag([10., 10., 10., 10.]) * 10
+    task1.set_quad_cost(Q, R, F)
+    path_cost, term_cost = lqr_task_to_mppi_cost(task1, model.dt)
+
+    mppi = MPPIAdaptive(network, path_cost, term_cost, model, H=20, sigma=5, num_path=1000, umin=-5, umax=5)
+    TRAIN_EPOCH = 50
+    # the first step is to collect some initial trajectories and train the network...
+    trajs = collect_cartpole_trajs(model.dt, -2, 2)
+    mppi.init_network(trajs, niter=TRAIN_EPOCH, lr=5e-4)
+
+    init_state = np.array([0.2, 0, 0, 0])
+    # now we can run a few iterations, each iteration is one episode
+    num_iter = 500
+    num_step = 100
+    # the same network run 10 times and see if there is any difference in results we get...
+    update_config = {'niter': TRAIN_EPOCH * 2, 'lr': 5e-4}
+    for itr in range(num_iter):
+        best_traj = None
+        best_cost = np.inf
+        for _ in range(10):
+            traj = mppi.run_episode(init_state, num_step)
+            # compute the cost...
+            costi = np.sum(path_cost(traj.obs[:-1], traj.ctrls[:-1])) + np.sum(term_cost(traj.obs[-1:]))
+            print('traj end with ', traj.obs[-1], 'costi = ', costi)
+            if costi < best_cost:
+                best_cost = costi
+                best_traj = traj
+        print(best_traj.obs[-1])
+        if np.linalg.norm(best_traj.obs[-1], np.inf) < 0.2:
+            break
+        mppi.update_network(mppi.network, best_traj, **update_config)
+
 
 def pendulum_dynamics(y,u,g=9.8,m=1,L=1,b=0.1):
     theta, omega = y
@@ -289,7 +347,7 @@ def collect_pendulum_trajs(dt, umin, umax):
     return trajs
 
 
-def cartpole_dynamics(y, u, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
+def cartpole_dynamics(y, u, g = GRAVITY, m_c = M_C, m_p = M_P, L = LEN, b = BB):
     """
     Parameters
     ----------
@@ -314,9 +372,9 @@ def cartpole_dynamics(y, u, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
             1.0/(m_c + m_p*np.sin(theta)**2)*(u + m_p*np.sin(theta)*
                 (L*omega**2 + g*np.cos(theta)))]
 
-def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
+def dt_cartpole_dynamics(y,u,dt,g=GRAVITY,m_c=M_C, m_p=M_P, L=LEN,b=BB):
     y[0] += np.pi
-    sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
+    sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m_c, m_p, L, b), (0, dt), y, t_eval = [dt])
     if not sol.success:
         raise Exception("Integration failed due to {}".format(sol.message))
     y[0] -= np.pi
@@ -347,18 +405,21 @@ def gen_pendulum_trajs(dt, num_trajs, umin, umax):
     return trajs
 
 
+# GAO comment: it seems that using forward euler makes everything much easier. Here I keep this part untouched.
 @memory.cache
 def gen_cartpole_trajs(dt, num_trajs, umin, umax):
     rng = np.random.default_rng(49)
     trajs = []
+    # model = CartPole(choice='Euler')
     for _ in range(num_trajs):
         theta0 = rng.uniform(-0.002, 0.002, 1)[0]
         y = [theta0, 0.0, 0.0, 0.0]
-        traj = ampc.zeros(cartpole, 4)
-        for i in range(4):
+        traj = ampc.zeros(cartpole, 100)
+        for i in range(100):
             traj[i].obs[:] = y
             u  = rng.uniform(umin, umax, 1)
             y = dt_cartpole_dynamics(y, u, dt)
+            # y = model.pred(y, u)
             traj[i].ctrl[:] = u
         trajs.append(traj)
     return trajs
@@ -367,7 +428,7 @@ def gen_cartpole_trajs(dt, num_trajs, umin, umax):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, choices=['pendulum', 'adaptive_pendulum',
-        "cartpole"], default='pendulum', help='Specify which system id to test')
+        "cartpole", 'adaptive_cartpole'], default='pendulum', help='Specify which system id to test')
     args = parser.parse_args()
     if args.model == 'pendulum':
         test_pendulum()
@@ -375,3 +436,5 @@ if __name__ == '__main__':
         test_adaptive_pendulum()
     if args.model == 'cartpole':
         test_cartpole()
+    if args.model == 'adaptive_cartpole':
+        test_adaptive_cartpole()
