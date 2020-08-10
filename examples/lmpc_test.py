@@ -51,7 +51,9 @@ def animate_pendulum(fig, ax, dt, traj):
 
     return ani
 
-dt = 0.025
+ttl = 10
+dt = 0.1
+run_num = int(ttl / dt)
 
 umin = -2.0
 umax = 2.0
@@ -65,8 +67,8 @@ def gen_trajs():
     trajs = []
     for _ in range(num_trajs):
         y = [-np.pi, 0.0]
-        traj = ampc.zeros(pendulum, 400)
-        for i in range(400):
+        traj = ampc.zeros(pendulum, run_num)
+        for i in range(run_num):
             traj[i].obs[:] = y
             u = rng.uniform(umin, umax, 1)
             y = dt_pendulum_dynamics(y, u, dt)
@@ -78,34 +80,73 @@ trajs = gen_trajs()
 from autompc.sysid import ARX, Koopman#, SINDy
 
 def train_koop():
-    koop = Koopman(pendulum)
-    #koop.set_hypers(basis_functions=set(["trig"]),
-    #        method="lasso", lasso_alpha=0.00001)
-    koop.set_hypers(basis_functions=set(["trig"]))
+    cs = Koopman.get_configuration_space(pendulum)
+    cfg = cs.get_default_configuration()
+    cfg["trig_basis"] = "true"
+    cfg["method"] = "lstsq"
+    # cfg["lasso_alpha_log10"] = np.log10(lasso_param)
+    koop = ampc.make_model(pendulum, Koopman, cfg)
     koop.train(trajs)
     return koop
 
 
+lasso_param = 1e-4
 koop = train_koop()
 
 model = koop
-from autompc.control.mpc import LQRCost, LinearMPC
 
-Q = np.diag([100.0, 1.0])
-R = np.diag([0.1])
-cost = LQRCost(Q, R)
-con = LinearMPC(pendulum, model, cost)
+
+from autompc.evaluators import HoldoutEvaluator
+from autompc.metrics import RmseKstepMetric
+from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
+
+metric = RmseKstepMetric(pendulum, k=50)
+#grapher = KstepGrapher(pendulum, kmax=50, kstep=5, evalstep=10)
+grapher = InteractiveEvalGrapher(pendulum)
+
+rng = np.random.default_rng(42)
+evaluator = HoldoutEvaluator(pendulum, trajs, metric, rng, holdout_prop=0.25)
+evaluator.add_grapher(grapher)
+cs = Koopman.get_configuration_space(pendulum)
+cfg = cs.get_default_configuration()
+cfg["trig_basis"] = "true"
+cfg["method"] = "lstsq"
+# cfg["lasso_alpha_log10"] = np.log10(lasso_param)
+eval_score, _, graphs = evaluator(Koopman, cfg)
+print("eval_score = {}".format(eval_score))
+fig = plt.figure()
+graph = graphs[0]
+# graph.set_obs_lower_bound("theta", -0.2)
+# graph.set_obs_upper_bound("theta", 0.2)
+# graph.set_obs_lower_bound("omega", -0.2)
+# graph.set_obs_upper_bound("omega", 0.2)
+# graph.set_obs_lower_bound("dx", -0.2)
+# graph.set_obs_upper_bound("dx", 0.2)
+graphs[0](fig)
+#plt.tight_layout()
+plt.show()
+
+from autompc.control.mpc import LinearMPC
+
+task1 = ampc.Task(pendulum)
+Q = np.diag([10., 0.5])
+R = np.eye(1) * 0.2
+task1.set_quad_cost(Q, R)
+
+horizon = 40
+con = LinearMPC(pendulum, model, task1, horizon)
 
 sim_traj = ampc.zeros(pendulum, 1)
-x = np.array([-np.pi,0.0])
+x = np.array([-np.pi, 0.0])
 sim_traj[0].obs[:] = x
 
-for _ in range(400):
+for _ in range(100):
     u, _ = con.run(sim_traj)
+    print('u = ', u)
     x = dt_pendulum_dynamics(x, u, dt)
     sim_traj[-1, "torque"] = u
     sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-    xtrans = con.state_func(sim_traj)
+    xtrans = model.traj_to_state(sim_traj)
 
 #plt.plot(sim_traj[:,"x1"], sim_traj[:,"x2"], "b-o")
 #plt.show()
