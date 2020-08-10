@@ -112,8 +112,13 @@ x = np.array([-np.pi,0.0])
 sim_traj[0].obs[:] = x
 state = con.traj_to_state(sim_traj)
 
+ulim = 8
 for _ in range(400):
     u, state = con.run(state, sim_traj[-1].obs[:])
+    if u[0] > ulim:
+        u[0] = ulim
+    if u[0] < -ulim:
+        u[0] = -ulim
     x = dt_pendulum_dynamics(x, u, dt)
     sim_traj[-1, "torque"] = u
     sim_traj = ampc.extend(sim_traj, [x], [[0.0]])

@@ -5,6 +5,8 @@ from pdb import set_trace
 from sklearn.linear_model import  Lasso
 
 from ..model import Model
+from .stable_koopman import stabilize_discrete
+
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
@@ -40,7 +42,8 @@ class Koopman(Model):
     @staticmethod
     def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
-        method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
+        method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso",
+            "stable"])
         lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
                 lower=-10.0, upper=2.0, default_value=0.0)
         use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
@@ -115,9 +118,10 @@ class Koopman(Model):
             AB = clf.coef_
             A = AB[:n, :n]
             B = AB[:n, n:]
-        elif self.method == 3: # Compute stable A, and B
+        elif self.method == "stable": # Compute stable A, and B
             print("Compute Stable Koopman")
             # call function
+            A, _, _, _, B, _ = stabilize_discrete(X, U, Y)
 
         self.A, self.B = A, B
 

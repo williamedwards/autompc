@@ -45,6 +45,7 @@ def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     if not sol.success:
         raise Exception("Integration failed due to {}".format(sol.message))
     y = sol.y.reshape((4,))
+    y[0] %= 2 * np.pi
     y[0] -= np.pi
     return sol.y.reshape((4,))
 
@@ -121,6 +122,7 @@ def train_koop():
     cfg = cs.get_default_configuration()
     cfg["trig_basis"] = "false"
     cfg["poly_basis"] = "false"
+    cfg["method"] = "lstsq"
     koop = ampc.make_model(cartpole, Koopman, cfg)
     koop.train(trajs)
     return koop
@@ -130,7 +132,7 @@ def train_sindy():
     sindy.train(trajs)
     return sindy
 
-#arx = train_arx(k=1)
+arx = train_arx(k=4)
 koop = train_koop()
 #sindy = train_sindy()
 #set_trace()
@@ -173,7 +175,7 @@ class MyLinear(DummyLinear):
 model = koop
 #set_trace()
 
-if False:
+if True:
     from autompc.evaluators import HoldoutEvaluator
     from autompc.metrics import RmseKstepMetric
     from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
@@ -200,8 +202,10 @@ if False:
     graph.set_obs_upper_bound("theta", 0.2)
     graph.set_obs_lower_bound("omega", -0.2)
     graph.set_obs_upper_bound("omega", 0.2)
-    graph.set_obs_lower_bound("dx", -0.2)
-    graph.set_obs_upper_bound("dx", 0.2)
+    #graph.set_obs_lower_bound("dx", -0.2)
+    #graph.set_obs_upper_bound("dx", 0.2)
+    #graph.set_obs_lower_bound("x", -0.2)
+    #graph.set_obs_upper_bound("x", 0.2)
     graphs[0](fig)
     #plt.tight_layout()
     plt.show()
