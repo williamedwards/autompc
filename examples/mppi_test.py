@@ -3,6 +3,7 @@ Test the nmpc.py file.
 """
 import argparse
 import numpy as np
+import torch
 import autompc as ampc
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -10,11 +11,17 @@ import matplotlib.animation as animation
 from pdb import set_trace
 
 from autompc.sysid.dummy_nonlinear import DummyNonlinear
-from autompc.control import MPPI
+from autompc.control import MPPI, MPPIAdaptive
 from autompc import Task
 
 from joblib import Memory
 from scipy.integrate import solve_ivp
+
+
+memory = Memory("cache")
+pendulum = ampc.System(["ang", "angvel"], ["torque"])
+cartpole = ampc.System(["theta", "omega", "x", "dx"], ["u"])
+
 
 def animate_pendulum(fig, ax, dt, traj):
     ax.grid()
@@ -66,19 +73,26 @@ def animate_cartpole(fig, ax, dt, traj):
 
 
 class Pendulum:
-    def __init__(self):
+    def __init__(self, choice='Euler'):
         self.dt = 0.05
         self.g = 9.8
         self.m = 1
         self.L = 1
         self.b = 0.1
+        if choice == 'Euler':
+            self.pred = self.pred_euler
+        else:
+            self.pred = self.pred_rk4
 
-    def pred(self, state, ctrl):
+    def pred_euler(self, state, ctrl):
         theta, omega = state
         g, m, L, b = self.g, self.m, self.L, self.b
         x0 = np.array([theta + omega * self.dt, omega + self.dt * ((ctrl[0] - b * omega) / (m * L ** 2) - g * np.sin(theta) / L)])
         # x1 = dt_pendulum_dynamics(state, ctrl, self.dt)
         return x0 + np.random.normal(scale=0.05, size=2)
+
+    def pred_rk4(self, state, ctrl):
+        return dt_pendulum_dynamics(state, ctrl, self.dt)
 
     def pred_parallel(self, state, ctrl):
         theta, omega = state.T
@@ -100,10 +114,14 @@ def lqr_task_to_mppi_cost(task, dt):
 
 
 class CartPole:
-    def __init__(self):
+    def __init__(self, choice='Euler'):
         self.dt = 0.1
+        if choice == 'Euler':
+            self.pred = self.pred_euler
+        else:
+            self.pred = self.pred_rk4
 
-    def pred(self, state, ctrl, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
+    def pred_euler(self, state, ctrl, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
         # return dt_cartpole_dynamics(state, ctrl, self.dt)  # TODO: see why RK4 fails...
         theta, omega, x, dx = state
         u = ctrl[0]
@@ -115,7 +133,10 @@ class CartPole:
                 dx,
                 1.0/(m_c + m_p*np.sin(theta)**2)*(u + m_p*np.sin(theta)*
                     (L*omega**2 + g*np.cos(theta)))])
-        return state + self.dt * statedot
+        return state + self.dt * statedot + np.random.normal(scale=0.05, size=4)
+
+    def pred_rk4(self, state, ctrl):
+        return dt_cartpole_dynamics(state, ctrl, self.dt)
 
     def pred_parallel(self, state, ctrl, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
         theta, omega, x, dx = state.T  # TODO: implement parallel version of RK4...
@@ -146,6 +167,8 @@ def test_pendulum():
     task1.set_quad_cost(Q, R, F)
     path_cost, term_cost = lqr_task_to_mppi_cost(task1, model.dt)
     nmpc = MPPI(model.pred_parallel, path_cost, term_cost, model, H=15, sigma=10, num_path=100)
+    # the first step is to use existing code to collect enough state-transitions and learn the model
+
     # just give a random initial state
     sim_traj = ampc.zeros(pendulum, 1)
     x = np.array([np.pi, 0])
@@ -156,7 +179,6 @@ def test_pendulum():
         x = model.traj_to_state(sim_traj)
         x = model.pred(x, u)
         print('x = ', x, 'u = ', u)
-        # x = dt_pendulum_dynamics(x, u, dt)
         sim_traj[-1, "torque"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
     print(sim_traj.obs)
@@ -168,6 +190,46 @@ def test_pendulum():
     ax.set_ylim([-1.1, 1.1])
     ani = animate_pendulum(fig, ax, model.dt, sim_traj)
     plt.show()
+
+
+def test_adaptive_pendulum():
+    """Just test the adaptive mppi on the pendulum problem.
+    Now it supports model re-training so hopefully a few iterations sovle the problem.
+    """
+    model = Pendulum(choice='RK4')
+    model.system = pendulum
+
+    import torch
+    network = torch.nn.Sequential(
+        torch.nn.Linear(3, 32),
+        torch.nn.ReLU(),
+        torch.nn.Linear(32, 32),
+        torch.nn.ReLU(),
+        torch.nn.Linear(32, 2)
+    ).double()
+
+    # Now it's time to apply the controller
+    task1 = Task(pendulum)
+    Q = np.diag([100.0, 1.0])
+    R = np.diag([1.0]) 
+    F = 100 * np.eye(2)
+    task1.set_quad_cost(Q, R, F)
+    path_cost, term_cost = lqr_task_to_mppi_cost(task1, model.dt)
+
+    mppi = MPPIAdaptive(network, path_cost, term_cost, model, H=15, sigma=10, num_path=100)
+    TRAIN_EPOCH = 50
+    # the first step is to collect some initial trajectories and train the network...
+    trajs = collect_pendulum_trajs(model.dt, -2, 2)
+    mppi.init_network(trajs, niter=TRAIN_EPOCH)
+
+    init_state = np.array([-np.pi, 0])
+    # now we can run a few iterations, each iteration is one episode
+    num_iter = 50
+    num_step = 200
+    for itr in range(num_iter):
+        traj = mppi.run_episode(init_state, num_step, update_config={'niter': TRAIN_EPOCH})
+        print('itr = ', itr, 'final states = ', traj.obs[-10:])
+
 
 def test_cartpole():
     # Now it's time to apply the controller
@@ -204,10 +266,6 @@ def test_cartpole():
     ani = animate_cartpole(fig, ax, dt, sim_traj)
     #plt.show()
     ani.save("out/nmpc_test/aug05_04.mp4")
-
-
-pendulum = ampc.System(["ang", "angvel"], ["torque"])
-cartpole = ampc.System(["theta", "omega", "x", "dx"], ["u"])
 
 def pendulum_dynamics(y,u,g=9.8,m=1,L=1,b=0.1):
     theta, omega = y
@@ -273,12 +331,47 @@ def collect_cartpole_trajs(dt, umin, umax):
     return trajs
 
 
+@memory.cache
+def gen_pendulum_trajs(dt, num_trajs, umin, umax):
+    rng = np.random.default_rng(42)
+    trajs = []
+    for _ in range(num_trajs):
+        y = [-np.pi, 0.0]
+        traj = ampc.zeros(pendulum, 400)
+        for i in range(400):
+            traj[i].obs[:] = y
+            u = rng.uniform(umin, umax, 1)
+            y = dt_pendulum_dynamics(y, u, dt)
+            traj[i].ctrl[:] = u
+        trajs.append(traj)
+    return trajs
+
+
+@memory.cache
+def gen_cartpole_trajs(dt, num_trajs, umin, umax):
+    rng = np.random.default_rng(49)
+    trajs = []
+    for _ in range(num_trajs):
+        theta0 = rng.uniform(-0.002, 0.002, 1)[0]
+        y = [theta0, 0.0, 0.0, 0.0]
+        traj = ampc.zeros(cartpole, 4)
+        for i in range(4):
+            traj[i].obs[:] = y
+            u  = rng.uniform(umin, umax, 1)
+            y = dt_cartpole_dynamics(y, u, dt)
+            traj[i].ctrl[:] = u
+        trajs.append(traj)
+    return trajs
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, choices=['pendulum', 
+    parser.add_argument("--model", type=str, choices=['pendulum', 'adaptive_pendulum',
         "cartpole"], default='pendulum', help='Specify which system id to test')
     args = parser.parse_args()
     if args.model == 'pendulum':
         test_pendulum()
+    if args.model == 'adaptive_pendulum':
+        test_adaptive_pendulum()
     if args.model == 'cartpole':
         test_cartpole()

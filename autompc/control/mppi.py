@@ -2,7 +2,7 @@
 Implement the model predictive path integral control methods.
 The implementation is based on paper Information theoretic MPC for model-based reinforcement learning
 from https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7989202
-It directly modifies code from https://github.com/aravindr93/trajopt
+It directly modifies code from github repository called pytorch_mppi but now uses numpy
 """
 import numpy as np
 import multiprocessing as mp
