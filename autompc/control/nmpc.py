@@ -3,6 +3,7 @@ from ..controller import Controller
 from ..constraint import Constraint
 from ..hyper import IntRangeHyperparam
 from ..cost import Cost
+from pdb import set_trace
 
 import cvxpy as cp
 import numpy as np
@@ -337,7 +338,7 @@ class NonLinearMPC(Controller):
 
     @property
     def state_dim(self):
-        return self.model.state_dim
+        return self.model.state_dim+self.model.ctrl_dim
 
     @staticmethod
     def get_configuration_space(system, task, model):
@@ -353,10 +354,12 @@ class NonLinearMPC(Controller):
         return True  # this should be universal...
  
     def traj_to_state(self, traj):
-        return self.model.traj_to_state(traj)
+        return np.concatenate([self.model.traj_to_state(traj),
+                traj[-1].ctrl])
 
-    def run(self, traj, latent=None):
-        x = self.model.traj_to_state(traj)
+    def run(self, state, new_obs):
+        x = self.model.update_state(state[:-self.system.ctrl_dim],
+                state[-self.system.ctrl_dim:], new_obs)
         self._x_cache = x
         print('state is ', x)
         rst = self._update_problem_and_solve(x)
@@ -368,4 +371,6 @@ class NonLinearMPC(Controller):
         dimu = self.problem.ctrl_dim
         idx0 = dims * (self.horizon + 1)
         # print('path is ', sol[:idx0].reshape((-1, dims)))
-        return sol[idx0: idx0 + dimu], None
+        u = sol[idx0: idx0 + dimu]
+        statenew = np.concatenate([x, u])
+        return u, statenew

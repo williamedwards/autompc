@@ -1,5 +1,7 @@
 # Created by William Edwards
 
+from pdb import set_trace
+
 import numpy as np
 import numpy.linalg as la
 
@@ -25,6 +27,7 @@ class KstepGraph(Graph):
         self.evalstep = evalstep
         self.ks = list(range(1, kmax, kstep))
         self.sumsqes = np.zeros((len(self.ks),))
+        self.sumsqes_baseline = np.zeros((len(self.ks),))
         self.nevals = np.zeros((len(self.ks),))
 
     def add_traj(self, predictor, traj, training=False):
@@ -33,6 +36,7 @@ class KstepGraph(Graph):
                 pred_obs = predictor(j, k)
                 actual_obs = traj[j+k].obs
                 self.sumsqes[i] += la.norm(pred_obs - actual_obs)**2
+                self.sumsqes_baseline[i] += la.norm(traj[j].obs - actual_obs)**2
                 self.nevals[i] += 1
 
             
@@ -41,6 +45,12 @@ class KstepGraph(Graph):
         ax.set_xlabel("Prediction Horizon")
         ax.set_ylabel("Prediction Error (RMSE)")
         rmses = []
-        for sumsqe, n in zip(self.sumsqes, self.nevals):
+        rmses_baseline = []
+        for sumsqe, sumsqe_baseline, n in zip(self.sumsqes, 
+                self.sumsqes_baseline, self.nevals):
             rmses.append(np.sqrt(sumsqe / n))
-        ax.plot(self.ks, rmses)
+            rmses_baseline.append(np.sqrt(sumsqe_baseline / n))
+        horizs = np.array(self.ks) * self.system.dt
+        ax.plot(horizs, rmses, "b-")
+        ax.plot(horizs, rmses_baseline, "r-")
+        ax.legend(["Model", "Baseline"])
