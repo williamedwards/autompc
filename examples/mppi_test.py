@@ -91,18 +91,20 @@ class Pendulum:
 
     def pred_euler(self, state, ctrl):
         theta, omega = state
+        theta += np.pi
         g, m, L, b = self.g, self.m, self.L, self.b
         x0 = np.array([theta + omega * self.dt, omega + self.dt * ((ctrl[0] - b * omega) / (m * L ** 2) - g * np.sin(theta) / L)])
-        # x1 = dt_pendulum_dynamics(state, ctrl, self.dt)
-        return x0 + np.random.normal(scale=0.05, size=2)
+        x0[0] -= np.pi
+        return x0
 
     def pred_rk4(self, state, ctrl):
         return dt_pendulum_dynamics(state, ctrl, self.dt)
 
     def pred_parallel(self, state, ctrl):
         theta, omega = state.T
+        theta += np.pi
         g, m, L, b = self.g, self.m, self.L, self.b
-        return np.c_[theta + omega * self.dt, omega + self.dt * ((ctrl[:, 0] - b * omega) / (m * L ** 2) - g * np.sin(theta) / L)]
+        return np.c_[state[:, 0] + omega * self.dt, omega + self.dt * ((ctrl[:, 0] - b * omega) / (m * L ** 2) - g * np.sin(theta) / L)]
 
     def traj_to_state(self, traj):
         return traj.obs[-1]
@@ -128,6 +130,7 @@ class CartPole:
 
     def pred_euler(self, state, ctrl, g = GRAVITY, m_c = M_C, m_p = M_P, L = LEN, b = BB):
         theta, omega, x, dx = state
+        theta = theta + np.pi
         u = ctrl[0]
         statedot = np.array([omega,
                 1.0/(L*(m_c+m_p+m_p*np.sin(theta)**2))*(-u*np.cos(theta) 
@@ -137,22 +140,25 @@ class CartPole:
                 dx,
                 1.0/(m_c + m_p*np.sin(theta)**2)*(u + m_p*np.sin(theta)*
                     (L*omega**2 + g*np.cos(theta)))])
-        return state + self.dt * statedot + np.random.normal(scale=0.05, size=4)
+        return state + self.dt * statedot
 
     def pred_rk4(self, state, ctrl):
         return dt_cartpole_dynamics(state, ctrl, self.dt)
 
     def pred_parallel(self, state, ctrl, g = GRAVITY, m_c = M_C, m_p = M_P, L = LEN, b = BB):
         theta, omega, x, dx = state.T 
+        theta = theta + np.pi
         u = ctrl[:, 0]
+        sth = np.sin(theta)
+        cth = np.cos(theta)
         statedot = np.c_[omega,
-                1.0/(L*(m_c+m_p+m_p*np.sin(theta)**2))*(-u*np.cos(theta) 
-                    - m_p*L*omega**2*np.cos(theta)*np.sin(theta)
-                    - (m_c+m_p+m_p)*g*np.sin(theta)
+                1.0/(L*(m_c+m_p+m_p*sth**2))*(-u*cth
+                    - m_p*L*omega**2*cth*sth
+                    - (m_c+m_p+m_p)*g*sth
                     - b*omega),
                 dx,
-                1.0/(m_c + m_p*np.sin(theta)**2)*(u + m_p*np.sin(theta)*
-                    (L*omega**2 + g*np.cos(theta)))]
+                1.0/(m_c + m_p*sth**2)*(u + m_p*sth*
+                    (L*omega**2 + g*cth))]
         return state + self.dt * statedot
 
     def traj_to_state(self, traj):
@@ -165,17 +171,17 @@ def test_pendulum():
     model.system = pendulum
     # Now it's time to apply the controller
     task1 = Task(pendulum)
-    Q = np.diag([100.0, 1.0])
+    Q = np.diag([10.0, 1.0])
     R = np.diag([1.0]) 
     F = 100 * np.eye(2)
     task1.set_quad_cost(Q, R, F)
     path_cost, term_cost = lqr_task_to_mppi_cost(task1, model.dt)
-    nmpc = MPPI(model.pred_parallel, path_cost, term_cost, model, H=15, sigma=10, num_path=100)
+    nmpc = MPPI(model.pred_parallel, path_cost, term_cost, model, H=15, sigma=10, num_path=200)
     # the first step is to use existing code to collect enough state-transitions and learn the model
 
     # just give a random initial state
     sim_traj = ampc.zeros(pendulum, 1)
-    x = np.array([np.pi, 0])
+    x = np.array([-np.pi, 0])
     sim_traj[0].obs[:] = x
 
     for _ in range(200):
@@ -186,6 +192,13 @@ def test_pendulum():
         sim_traj[-1, "torque"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
     print(sim_traj.obs)
+    fig, ax = plt.subplots(1, 2)
+    ynames = ['theta', 'omega']
+    for i in range(2):
+        ax[i].plot(sim_traj.obs[:, i])
+        ax[i].set(xlabel='Step', ylabel=ynames[i])
+    plt.show()
+    fig = plt.figure()
     raise
     fig = plt.figure()
     ax = fig.gca()
@@ -238,21 +251,21 @@ def test_adaptive_pendulum():
 def test_cartpole():
     # Now it's time to apply the controller
     task1 = Task(cartpole)
-    Q = np.diag([500.0, 15.0, 10.0, 1.0])
-    R = np.diag([0.1]) 
-    F = np.diag([10., 10., 2., 10.])
+    Q = np.diag([10.0, 5.0, 50.0, 50.0])
+    R = np.diag([0.3]) 
+    F = np.diag([10., 10., 10., 10.]) * 10
     task1.set_quad_cost(Q, R, F)
-    model = CartPole('RK4')
+    model = CartPole('Euler')
     model.system = cartpole
     path_cost, term_cost = lqr_task_to_mppi_cost(task1, model.dt)
-    nmpc = MPPI(model.pred_parallel, path_cost, term_cost, model, H=20, sigma=5, num_path=100)
+    nmpc = MPPI(model.pred_parallel, path_cost, term_cost, model, H=30, sigma=5, num_path=1500)
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
-    x = np.array([0.2, 0., 0, 0])
+    x = np.array([np.pi, 0., 0, 0])
     sim_traj[0].obs[:] = x
     us = []
 
-    for step in range(100):
+    for step in range(300):
         u, _ = nmpc.run(sim_traj)
         #u = -np.zeros((1,))
         x = model.pred(x, u)
@@ -260,15 +273,20 @@ def test_cartpole():
         sim_traj.ctrls[-1] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
         us.append(u)
-    print('states = ', sim_traj.obs)
-    raise
+    fig, ax = plt.subplots(2, 2)
+    ax = ax.reshape(-1)
+    ynames = ['theta', 'omega', 'x', 'vx']
+    for i in range(4):
+        ax[i].plot(sim_traj.obs[:, i])
+        ax[i].set(xlabel='Step', ylabel=ynames[i])
+    plt.show()
     fig = plt.figure()
     ax = fig.gca()
     ax.set_aspect("equal")
     ax.set_xlim([-1.1, 1.1])
     ax.set_ylim([-1.1, 1.1])
-    ani = animate_cartpole(fig, ax, dt, sim_traj)
     #plt.show()
+    ani = animate_cartpole(fig, ax, model.dt, sim_traj)
     ani.save("out/nmpc_test/aug05_04.mp4")
 
 
@@ -293,25 +311,26 @@ def test_adaptive_cartpole():
     Q = np.diag([5, 5.0, 5.0, 5.0])
     R = np.diag([0.1]) 
     F = np.diag([10., 10., 10., 10.]) * 10
-    task1.set_quad_cost(Q, R, F)
+    task1.set_quad_cost(Q, R, F=None)
     path_cost, term_cost = lqr_task_to_mppi_cost(task1, model.dt)
 
-    mppi = MPPIAdaptive(network, path_cost, term_cost, model, H=20, sigma=5, num_path=1000, umin=-5, umax=5)
+    mppi = MPPIAdaptive(network, path_cost, term_cost, model, H=30, sigma=10, num_path=1500, umin=-10, umax=10)
     TRAIN_EPOCH = 50
     # the first step is to collect some initial trajectories and train the network...
     trajs = collect_cartpole_trajs(model.dt, -2, 2)
     mppi.init_network(trajs, niter=TRAIN_EPOCH, lr=5e-4)
 
-    init_state = np.array([0.2, 0, 0, 0])
+    init_state = np.array([1, 0, 0, 0])
     # now we can run a few iterations, each iteration is one episode
     num_iter = 500
     num_step = 100
     # the same network run 10 times and see if there is any difference in results we get...
     update_config = {'niter': TRAIN_EPOCH * 2, 'lr': 5e-4}
     for itr in range(num_iter):
+        print('Iteratiton = %d' % itr)
         best_traj = None
         best_cost = np.inf
-        for _ in range(10):
+        for _ in range(5):
             traj = mppi.run_episode(init_state, num_step)
             # compute the cost...
             costi = np.sum(path_cost(traj.obs[:-1], traj.ctrls[:-1])) + np.sum(term_cost(traj.obs[-1:]))
@@ -320,9 +339,10 @@ def test_adaptive_cartpole():
                 best_cost = costi
                 best_traj = traj
         print(best_traj.obs[-1])
-        if np.linalg.norm(best_traj.obs[-1], np.inf) < 0.2:
+        if np.amin(np.linalg.norm(best_traj.obs, np.inf, axis=1)) < 0.2:
             break
         mppi.update_network(mppi.network, best_traj, **update_config)
+    
 
 
 def pendulum_dynamics(y,u,g=9.8,m=1,L=1,b=0.1):
