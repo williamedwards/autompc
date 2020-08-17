@@ -30,6 +30,7 @@ class SINDy(Model):
             trig_basis = True if trig_basis == "true" else False
         self.trig_basis = trig_basis
         self.trig_freq = trig_freq
+        self.trig_interaction = True
 
     @staticmethod
     def get_configuration_space(system):
@@ -80,6 +81,7 @@ class SINDy(Model):
         function_gradients = [
                 lambda x : 1
         ]
+        function_gradients2 = []
         function_names = [
                 lambda x : x
         ]
@@ -109,10 +111,30 @@ class SINDy(Model):
                 function_names += [
                     (lambda d: lambda x, d=d : "{}^{}".format(x, d))(deg)
                 ]
+        if self.trig_interaction:
+            library_functions += [
+                    lambda x,y : x * np.sin(y),
+                    lambda x,y : x * np.cos(y),
+                    lambda x,y : y * np.sin(x),
+                    lambda x,y : y * np.cos(x)
+                    ]
+            function_gradients2 += [
+                    lambda x,y : (np.sin(y), x * np.cos(y)),
+                    lambda x,y : (np.cos(y), -x * np.sin(y)),
+                    lambda x,y : (y * np.cos(x), np.sin(x)),
+                    lambda x,y : (-y * np.sin(x), np.cos(x))
+                    ]
+            function_names += [
+                    lambda x,y : "{} sin({})".format(x,y),
+                    lambda x,y : "{} cos({})".format(x,y),
+                    lambda x,y : "{} sin({})".format(y,x),
+                    lambda x,y : "{} cos({})".format(y,x)
+                    ]
 
         library = ps.CustomLibrary(library_functions=library_functions,
                 function_names=function_names)
         self.function_gradients = function_gradients
+        self.function_gradients2 = function_gradients2
 
         sindy_model = ps.SINDy(feature_library=library, discrete_time=True,
                 optimizer=ps.STLSQ(threshold=0.000))
@@ -140,6 +162,27 @@ class SINDy(Model):
                 for j in range(self.system.ctrl_dim):
                     ctrl_jac[i, j] += coeff[i,coeff_idx] * gr(ctrl[j])
                     coeff_idx += 1
+            for gr in self.function_gradients2:
+                for j in range(self.state_dim+self.system.ctrl_dim):
+                    for k in range(j+1, self.state_dim+self.system.ctrl_dim):
+                        if j < self.state_dim:
+                            val1 = state[j]
+                        else:
+                            val1 = ctrl[j-self.state_dim]
+                        if k < self.state_dim:
+                            val2 = state[k]
+                        else:
+                            val2 = ctrl[k-self.state_dim]
+                        gr1, gr2 = gr(val1, val2)
+                        if j < self.state_dim:
+                            state_jac[i, j] += coeff[i,coeff_idx] * gr1
+                        else:
+                            ctrl_jac[i, j-self.state_dim] += coeff[i,coeff_idx] * gr1
+                        if k < self.state_dim:
+                            state_jac[i, k] += coeff[i,coeff_idx] * gr2
+                        else:
+                            ctrl_jac[i, k-self.state_dim] += coeff[i,coeff_idx] * gr2
+                        coeff_idx += 1
 
         return xpred, state_jac, ctrl_jac
 

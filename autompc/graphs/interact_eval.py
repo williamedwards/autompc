@@ -54,6 +54,8 @@ class InteractiveEvalGraph(Graph):
     def _tabulate(self, preds_and_trajs, obs_lower_bounds, obs_upper_bounds):
         overall_sumsqe = 0.0
         obs_sumsqe = np.zeros((self.system.obs_dim),)
+        overall_sumsqe_baseline = 0.0
+        obs_sumsqe_baseline = np.zeros((self.system.obs_dim),)
         npoints = 0
         for predictor, traj in preds_and_trajs:
             for i in range(len(traj)-1):
@@ -64,9 +66,13 @@ class InteractiveEvalGraph(Graph):
                 predobs = predictor(i, 1)
                 overall_sumsqe += la.norm(predobs - traj[i+1].obs[:])**2
                 obs_sumsqe += (predobs - traj[i+1].obs[:])**2
+                overall_sumsqe_baseline += la.norm(traj[i].obs[:] - traj[i+1].obs[:])**2
+                obs_sumsqe_baseline += (traj[i].obs[:] - traj[i+1].obs[:])**2
                 npoints += 1
         return (np.sqrt(np.concatenate([[overall_sumsqe], 
-            obs_sumsqe]) / npoints), npoints)
+            obs_sumsqe]) / npoints), np.sqrt(np.concatenate([[overall_sumsqe_baseline], 
+            obs_sumsqe_baseline]) / npoints),
+            npoints)
 
     def __call__(self, fig):
         obs_lower_bounds = np.zeros((self.system.obs_dim,))
@@ -81,37 +87,43 @@ class InteractiveEvalGraph(Graph):
             else:
                 obs_upper_bounds[i] = self.obs_maxs[i]
 
-        testing_res, testing_npoints = self._tabulate(self.testing_trajs,
-            obs_lower_bounds, obs_upper_bounds)
-        training_res, training_npoints = self._tabulate(self.training_trajs,
-            obs_lower_bounds, obs_upper_bounds)
+        testing_res, testing_res_baseline, testing_npoints = self._tabulate(
+                self.testing_trajs, obs_lower_bounds, obs_upper_bounds)
+        training_res, training_res_baseline, training_npoints = self._tabulate(
+                self.training_trajs, obs_lower_bounds, obs_upper_bounds)
 
-        testing_all_res, testing_all_npoints = self._tabulate(self.testing_trajs,
-            self.obs_mins, self.obs_maxs)
-        training_all_res, training_all_npoints = self._tabulate(self.training_trajs,
-            self.obs_mins, self.obs_maxs)
+        testing_all_res, testing_all_res_baseline, testing_all_npoints = self._tabulate(
+                self.testing_trajs, self.obs_mins, self.obs_maxs)
+        training_all_res, training_all_res_baseline, training_all_npoints = self._tabulate(
+                self.training_trajs, self.obs_mins, self.obs_maxs)
 
         n = self.system.obs_dim + 1
         labels = ["Overall"] + self.system.observations
         for i in range(n):
             ax = fig.add_subplot(4, n, i+1)
-            ax.set_xlabel("Test " + labels[i])
+            #ax.set_xlabel("Test " + labels[i])
             ax.set_ylabel("RMSE")
             ax.yaxis.set_major_formatter(FormatStrFormatter("%.2e"))
-            ax.set_xticks([])
-            ax.bar([1], testing_res[i:i+1])
+            #ax.set_xticks([])
+            ax.set_xticklabels(["", "Test " + labels[i], "" , "In Range"])
+            ax.bar([0.5,1.5], [testing_all_res[i], testing_res[i]],color="b")
             ax.set_xlim([0.0, 2.0])
-            ax.plot([0.0, 2.0], [testing_all_res[i], testing_all_res[i]], "r-")
+            ax.plot([0.0, 1.0], [testing_all_res_baseline[i], 
+                testing_all_res_baseline[i]], "r-")
+            ax.plot([1.0, 2.0], [testing_res_baseline[i], testing_res_baseline[i]], "r-")
 
         for i in range(n):
             ax = fig.add_subplot(4, n, n+i+1)
-            ax.set_xlabel("Train " + labels[i])
+            #ax.set_xlabel("Test " + labels[i])
             ax.set_ylabel("RMSE")
             ax.yaxis.set_major_formatter(FormatStrFormatter("%.2e"))
-            ax.set_xticks([])
-            ax.bar([1], training_res[i:i+1], color = "g")
+            #ax.set_xticks([])
+            ax.set_xticklabels(["", "Train " + labels[i], "" , "In Range"])
+            ax.bar([0.5,1.5], [training_all_res[i], training_res[i]],color="g")
             ax.set_xlim([0.0, 2.0])
-            ax.plot([0.0, 2.0], [training_all_res[i], training_all_res[i]], "r-")
+            ax.plot([0.0, 1.0], [training_all_res_baseline[i], 
+                training_all_res_baseline[i]], "r-")
+            ax.plot([1.0, 2.0], [training_res_baseline[i], training_res_baseline[i]], "r-")
 
         ax = fig.add_subplot(4, n, 2*n+1)
         ax.set_xlabel("Testing points in range")

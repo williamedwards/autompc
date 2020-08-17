@@ -3,8 +3,6 @@
 from abc import ABC, abstractmethod
 from pdb import set_trace
 
-from .hyper import Hyperparam
-
 class Model(ABC):
     def __init__(self, system):
         self.system = system
