@@ -4,8 +4,6 @@ from autompc.tasks.quad_cost import QuadCost
 
 pendulum = ampc.System(["ang", "angvel"], ["torque"])
 
-task = ampc.Task(pendulum)
-
 Q = np.eye(2)
 R = np.eye(1)
 
@@ -18,7 +16,7 @@ assert((Q2 == Q).all())
 assert((R2 == R).all())
 assert((F2 == np.zeros((2,1))).all())
 
-from autompc.tasks.constraint import *
+from autompc.tasks.constraints import *
 
 
 def func(state):
@@ -53,6 +51,44 @@ assert(not cons3.is_convex())
 cons4 = EqConstraints(pendulum, [conv1, aff1, diff1, num1])
 assert(not cons4.is_diff())
 val = cons4.eval([2, 2])
+assert((val == np.array([4, 6, 4, 4])).all())
+
+
+from autompc.tasks.task import Task
+
+task = Task(pendulum)
+
+task.set_cost(cost)
+
+task.add_eq_constraint(conv1)
+task.add_eq_constraint(aff1)
+task.add_init_ineq_constraint(conv1)
+task.add_init_ineq_constraint(aff1)
+task.add_init_ineq_constraint(diff1)
+task.add_init_ineq_constraint(num1)
+
+costb = task.get_cost()
+cons2b = task.get_eq_constraints()
+cons4b = task.get_init_ineq_constraints()
+
+assert(costb.is_quad)
+assert(costb.is_convex)
+assert(costb.is_diff)
+Q2, R2, F2 = costb.get_costb_matrices()
+assert((Q2 == Q).all())
+assert((R2 == R).all())
+assert((F2 == np.zeros((2,1))).all())
+
+assert(not cons2b.is_affine())
+assert(cons2b.is_convex())
+assert(cons2b.is_diff())
+val, jac = cons2b.eval_diff([2, 2])
+print(val)
+assert((val == np.array([4, 6])).all())
+assert((jac == np.array([[4,0], [2,1]])).all())
+
+assert(not cons4b.is_diff())
+val = cons4b.eval([2, 2])
 assert((val == np.array([4, 6, 4, 4])).all())
 
 print("All checks passed!")
