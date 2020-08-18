@@ -23,7 +23,7 @@ linsys.dt = 0.1
 pendulum = ampc.System(["ang", "angvel"], ["torque"])
 pendulum.dt = 0.05
 cartpole = ampc.System(["theta", "omega", "x", "dx"], ["u"])
-cartpole.dt = 0.1
+cartpole.dt = 0.05
 planar_drone = ampc.System(["x", "dx", "y", "dy", "theta", "omega"], ["u1", "u2"])
 planar_drone = 0.05
 
@@ -31,7 +31,7 @@ planar_drone = 0.05
 class CartPole(ampc.Model):
     def __init__(self):
         super().__init__(cartpole)
-        g = 9.8; m_c = 1; m_p = 0.100; L = 1; b = 1.00; dt = 0.05
+        g = 9.8; m_c = 1; m_p = 0.1; L = 1; b = 1.00; dt = cartpole.dt
 
         import autograd.numpy as np
         from autograd import jacobian
@@ -111,10 +111,10 @@ def test_cartpole():
     F = np.diag([10.0, 10.0, 10., 10.]) * 10
     task1.set_quad_cost(Q, R, F)
     # construct ilqr instance
-    init_state = np.array([1, 0.0, 0., 0.])
-    horizon_int = 20
-    ilqr = IterativeLQR(cartpole, task1, model, horizon_int)
-    nmpc = NonLinearMPC(cartpole, model, task1, horizon_int * cartpole.dt)
+    init_state = np.array([1., 0.0, 0., 0.])
+    horizon_int = 40
+    ilqr = IterativeLQR(cartpole, task1, model, horizon_int, reuse_feedback=4)  # change to 0/None if want to reoptimize at every step
+    # nmpc = NonLinearMPC(cartpole, model, task1, horizon_int * cartpole.dt)
     # start simulation
     sim_traj = ampc.zeros(cartpole, 1)
     sim_traj[0].obs[:] = init_state
@@ -124,11 +124,10 @@ def test_cartpole():
         u, _ = ilqr.run(state, state)
         # u, _ = nmpc.run(state, state)
         # print(np.linalg.norm(ilqr._states[:horizon_int] - nmpc._guess[:horizon_int * 4].reshape((horizon_int, 4))))
-        # import pdb; pdb.set_trace()
         print('u = ', u)
-        # x = model.pred(x, u)
         newx = model.pred(state, u)
-        newx += 0.02 * np.random.uniform(-np.ones(4), np.ones(4))
+        # newx = dt_cartpole_dynamics(state, dt)
+        # newx += 0.01 * np.random.uniform(-np.ones(4), np.ones(4))
         sim_traj[-1].ctrl[:] = u
         sim_traj = ampc.extend(sim_traj, [newx], [[0.0]])
 
@@ -158,8 +157,8 @@ def test_sindy_cartpole():
     F = np.diag([10., 10., 10., 10.])
     task1.set_quad_cost(Q, R, F)
 
-    hori = 20  # hori means integer horizon... how many steps...
-    ilqr = IterativeLQR(cartpole, task1, model, hori)
+    hori = 40  # hori means integer horizon... how many steps...
+    ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=None)
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
     x = np.array([1.0, 0, 0, 0])
@@ -170,8 +169,8 @@ def test_sindy_cartpole():
     for step in range(200):
         u, constate = ilqr.run(constate, sim_traj[-1].obs)
         print('u = ', u, 'state = ', sim_traj[-1].obs)
-        # x = dt_cartpole_dynamics(x, u, dt)
-        x = model.pred(sim_traj[-1].obs, u)
+        x = dt_cartpole_dynamics(sim_traj[-1].obs, u, dt)
+        # x = model.pred(sim_traj[-1].obs, u)
         sim_traj[-1, "u"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
         us.append(u)
@@ -189,7 +188,7 @@ def check_ilqr_different_feedback():
     # construct ilqr instance
     init_state = np.array([1, 0.0, 0., 0.])
     horizon_int = 20
-    ilqr = IterativeLQR(cartpole, task1, model, horizon_int)
+    ilqr = IterativeLQR(cartpole, task1, model, horizon_int, reuse_feedback=1)
     converged, states, ctrls, Ks, ks = ilqr.compute_ilqr(init_state, np.zeros((horizon_int, cartpole.ctrl_dim)))
     # so I can linearize around those stuff and get As and Bs
     As, Bs = [], []
@@ -222,5 +221,5 @@ if __name__ == '__main__':
         default='sindy-cartpole', help='Specify which system id to test')
     args = parser.parse_args()
     # test_dummy_linear()
-    # test_cartpole()
-    test_sindy_cartpole()
+    test_cartpole()
+    # test_sindy_cartpole()

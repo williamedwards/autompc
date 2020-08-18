@@ -20,10 +20,10 @@ class IterativeLQR(Controller):
         self.dt = system.dt
         self._need_recompute = True  # this indicates a new iteration is required...
         self._step_count = 0
-        if reuse_feedback == -1 or reuse_feedback > horizon:
-            self.reuse_feedback = horizon // 2
-        elif reuse_feedback is None:
-            self.reuse_feedback = 1
+        if reuse_feedback is None or reuse_feedback <= 0:
+            self.reuse_feedback = 0
+        elif reuse_feedback > horizon:
+            self.reuse_feedback = horizon
         else:
             self.reuse_feedback = reuse_feedback
         self._guess = None
@@ -51,7 +51,7 @@ class IterativeLQR(Controller):
     def traj_to_state(self, traj):
         return self.model.traj_to_state(traj)
 
-    def compute_ilqr(self, state, uguess, u_threshold=1e-4, ls_max_iter=5, ls_discount=0.2, ls_cost_threshold=0.3):
+    def compute_ilqr(self, state, uguess, u_threshold=1e-3, ls_max_iter=5, ls_discount=0.2, ls_cost_threshold=0.3):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         """
@@ -135,10 +135,10 @@ class IterativeLQR(Controller):
                     best_obj = new_obj
                     best_alpha = ls_alpha
                 ls_alpha *= ls_discount
-                if ks_norm < 1e-3:
+                if ks_norm < u_threshold:
                     break
             # print('line search obj %f to %f at alpha = %f' % (obj, new_obj, ls_alpha))
-            if best_obj < obj or ks_norm < 1e-3:
+            if best_obj < obj or ks_norm < u_threshold:
                 ls_success = True
                 for i in range(H):
                     new_ctrls[i] = best_alpha * ks[i] + ctrls[i] + Ks[i] @ (new_states[i] - states[i])
@@ -154,7 +154,8 @@ class IterativeLQR(Controller):
                 # print('alpha is successful at %f with cost from %f to %f' % (best_alpha, obj, new_obj))
             # return since update of action is small
             # print('u update', np.linalg.norm(new_ctrls - ctrls))
-            if np.linalg.norm(new_ctrls - ctrls) < u_threshold:
+            du_norm = np.linalg.norm(new_ctrls - ctrls)
+            if du_norm < u_threshold:
                 # print('Break since update of control is small at %f' % (np.linalg.norm(new_ctrls - ctrls)))
                 converged = True
             # ready to swap...
@@ -167,7 +168,7 @@ class IterativeLQR(Controller):
                 print('Final state is ', states[-1])
                 break
         if not converged:
-            print('ilqr fails to converge, try a new guess?')
+            print('ilqr fails to converge, try a new guess? Last u update is %f ks norm is %f' % (du_norm, ks_norm))
         # print('ilqr converges to trajectory', states, 'ctrls', ctrls)
         if not converged:
             print('ilqr is not converging...')
@@ -175,12 +176,13 @@ class IterativeLQR(Controller):
 
     def run(self, info, new_obs):
         """Here I am assuming I reuse the controller for half horizon"""
-        # if self._guess is None:
-        #     self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
-        # converged, states, ctrls, Ks, ks = self._compute_ilqr(state, self._guess)
-        # self._states = states
-        # self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
-        # return ctrls[0], None
+        if self.reuse_feedback == 0:
+            if self._guess is None:
+                self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
+            converged, states, ctrls, Ks, ks = self.compute_ilqr(new_obs, self._guess)
+            self._states = states
+            self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
+            return ctrls[0], None
         # Implement control logic here
         state = new_obs
         if self._need_recompute:
