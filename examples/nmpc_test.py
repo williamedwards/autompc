@@ -236,7 +236,7 @@ def test_sindy_planar_drone():
     horizon = 0.25  # this is indeed too short for a frequency of 100 Hz model
     hh = 10
     nmpc = NonLinearMPC(planar_drone, model, task1, horizon)
-    nmpc._guess = np.zeros(hh + (hh + 1) * 6) + 1e-5
+    nmpc._guess = np.zeros(hh * 2 + (hh + 1) * 6) + 1e-5
     # just give a random initial state
     sim_traj = ampc.zeros(planar_drone, 1)
     x = np.array([0.0, 0, 1.0, 0, 0.5, 0])
@@ -293,7 +293,7 @@ def test_true_dyn_planar_drone():
     horizon = 0.25  # this is indeed too short for a frequency of 100 Hz model
     hh = 10
     nmpc = NonLinearMPC(planar_drone, model, task1, horizon)
-    nmpc._guess = np.zeros(hh + (hh + 1) * 6) + 1e-5
+    nmpc._guess = np.zeros(hh * 2 + (hh + 1) * 6) + 1e-5
     # just give a random initial state
     sim_traj = ampc.zeros(planar_drone, 1)
     x = np.array([0.0, 0, 1.0, 0, 0.5, 0])

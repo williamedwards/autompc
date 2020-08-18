@@ -315,6 +315,12 @@ class NonLinearMPC(Controller):
         self.horizon = int(np.ceil(horizon / system.dt))
         self._built = False
         self._guess = None
+        self._x_dim = (self.horizon + 1) * system.obs_dim + self.horizon * system.ctrl_dim
+
+    def set_guess(self, guess):
+        if guess.size != self._xdim:
+            raise Exception("Guess dimension should be %d" % self._x_dim)
+        self._guess = guess
 
     def _build_problem(self):
         """Use cvxpy to construct the problem"""
