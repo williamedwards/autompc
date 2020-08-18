@@ -117,7 +117,8 @@ class FiniteHorizonLQR(Controller):
         N = np.zeros((A.shape[0], B.shape[1]))
         self.horizon = horizon
         state_dim = model.state_dim
-        Q, R, F = task.get_quad_cost()
+        #Q, R, F = task.get_quad_cost()
+        Q, R, F = task.get_cost().get_cost_matrices()
         Qp = np.zeros((state_dim, state_dim))
         Qp[:Q.shape[0], :Q.shape[1]] = Q
         Fp = np.zeros((state_dim, state_dim))
@@ -156,9 +157,9 @@ class FiniteHorizonLQR(Controller):
         modelstate = self.model.update_state(state[:-self.system.ctrl_dim],
                 state[-self.system.ctrl_dim:], new_obs)
         u = self.K @ modelstate
-        print("state={}".format(state))
-        print("u={}".format(u))
-        print("state_cost={}".format(modelstate.T @ self.Qp @ modelstate))
+        #print("state={}".format(state))
+        #print("u={}".format(u))
+        #print("state_cost={}".format(modelstate.T @ self.Qp @ modelstate))
         statenew = np.concatenate([modelstate, u])
 
         return u, statenew
