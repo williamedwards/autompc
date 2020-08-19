@@ -74,7 +74,7 @@ class Koopman(Model):
         return cs
 
 
-    def _transform_state(self, state):
+    def _apply_basis(self, state):
         tr_state = [b(x) for b in self.basis_funcs for x in state]
         if self.product_terms:
             pr_terms = []
@@ -86,21 +86,23 @@ class Koopman(Model):
 
         return np.array(tr_state)
 
+    def _transform_observations(self, observations):
+        return np.apply_along_axis(self._apply_basis, 1, observations)
+
     def traj_to_state(self, traj):
-        return self._transform_state(traj[-1].obs[:])
+        return self._transform_observations(traj.obs[:])[-1,:]
     
     def update_state(self, state, new_ctrl, new_obs):
-        return self._transform_state(new_obs)
+        return self._apply_basis(new_obs)
 
     @property
     def state_dim(self):
         return len(self.basis_funcs) * self.system.obs_dim
 
     def train(self, trajs):
-        X = np.concatenate([np.apply_along_axis(self._transform_state, 1, 
-            traj.obs[:-1,:]) for traj in trajs]).T
-        Y = np.concatenate([np.apply_along_axis(self._transform_state, 1, 
-            traj.obs[1:,:]) for traj in trajs]).T
+        trans_obs = [self._transform_observations(traj.obs[:]) for traj in trajs]
+        X = np.concatenate([obs[:-1,:] for obs in trans_obs]).T
+        Y = np.concatenate([obs[1:,:] for obs in trans_obs]).T
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs]).T
         
         n = X.shape[0] # state dimension

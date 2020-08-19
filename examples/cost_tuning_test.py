@@ -222,8 +222,8 @@ ax.set_xlim([-1.1, 1.1])
 ax.set_ylim([-1.1, 1.1])
 #set_trace()
 ani = animate_cartpole(fig, ax, dt, sim_traj)
-ani.save("out/cartpole_test/aug18_02.mp4")
-##plt.show()
+#ani.save("out/cartpole_test/aug18_02.mp4")
+plt.show()
 
 
 

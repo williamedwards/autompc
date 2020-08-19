@@ -136,7 +136,7 @@ def train_arx(k=2):
 def train_koop():
     cs = Koopman.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["trig_basis"] = "false"
+    cfg["trig_basis"] = "true"
     cfg["poly_basis"] = "false"
     cfg["method"] = "lstsq"
     koop = ampc.make_model(cartpole, Koopman, cfg)
@@ -157,43 +157,6 @@ arx = train_arx(k=4)
 koop = train_koop()
 sindy = train_sindy()
 
-# Test prediction
-
-#traj = trajs[0]
-#predobs, _ = koop.pred(traj[:10])
-
-#koop_A, koop_B, state_func, cost_func = koop.to_linear()
-
-#state = state_func(traj[:10])
-#
-#state = koop_A @ state + koop_B @ traj[10].ctrl
-#state = koop_A @ state + koop_B @ traj[11].ctrl
-
-#assert(np.allclose(state[-3:-1], traj[11].obs))
-
-from autompc.sysid.dummy_linear import DummyLinear
-A = np.array([[1.   , 0.01 , 0.   , 0.   ],
-       [0.147, 0.995, 0.   , 0.   ],
-       [0.   , 0.   , 1.   , 0.01 ],
-       [0.098, 0.   , 0.   , 1.   ]])
-B = np.array([[0.   ],
-       [0.005],
-       [0.   ],
-       [0.01 ]])
-#A =np.array([[ 0.9998053 ,  0.02499673,  0.        ,  0.        ],
-#       [ 0.30379558,  0.98433411,  0.        , -0.01052765],
-#       [ 0.        ,  0.        ,  0.99988456,  0.02499332],
-#       [-0.18344387,  0.02941821,  0.01390835,  1.04997096]])
-#B = np.array([[0.        ],
-#       [0.        ],
-#       [0.        ],
-#       [0.02041931]])
-class MyLinear(DummyLinear):
-    def __init__(self, system):
-        super().__init__(system, A, B)
-#model = MyLinear(cartpole)
-#set_trace()
-
 if True:
     from autompc.evaluators import HoldoutEvaluator, FixedSetEvaluator
     from autompc.metrics import RmseKstepMetric
@@ -204,30 +167,30 @@ if True:
     grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10)
 
     rng = np.random.default_rng(42)
-    evaluator = FixedSetEvaluator(cartpole, trajs2, metric, rng, 
-            training_trajs=trajs) 
+    evaluator = FixedSetEvaluator(cartpole, trajs2[:50], metric, rng, 
+            training_trajs=trajs2[50:]) 
     evaluator.add_grapher(grapher)
     evaluator.add_grapher(grapher2)
-    #cs = Koopman.get_configuration_space(cartpole)
-    #cfg = cs.get_default_configuration()
-    #cfg["trig_basis"] = "false"
-    #cfg["poly_basis"] = "false"
-    #cfg["poly_degree"] = 3
-    cs = MyLinear.get_configuration_space(cartpole)
+    cs = Koopman.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    eval_score, _, graphs = evaluator(MyLinear, cfg)
+    cfg["trig_basis"] = "true"
+    cfg["poly_basis"] = "false"
+    #cfg["poly_degree"] = 3
+    #cs = MyLinear.get_configuration_space(cartpole)
+    #cfg = cs.get_default_configuration()
+    eval_score, _, graphs = evaluator(Koopman, cfg)
     print("eval_score = {}".format(eval_score))
     fig = plt.figure()
-    #graph = graphs[0]
-    #graph.set_obs_lower_bound("theta", -0.2)
-    #graph.set_obs_upper_bound("theta", 0.2)
-    #graph.set_obs_lower_bound("omega", -0.2)
-    #graph.set_obs_upper_bound("omega", 0.2)
-    #graph.set_obs_lower_bound("dx", -0.2)
-    #graph.set_obs_upper_bound("dx", 0.2)
-    #graph.set_obs_lower_bound("x", -0.2)
-    #graph.set_obs_upper_bound("x", 0.2)
-    graphs[1](fig)
+    graph = graphs[0]
+    graph.set_obs_lower_bound("theta", -0.2)
+    graph.set_obs_upper_bound("theta", 0.2)
+    graph.set_obs_lower_bound("omega", -0.2)
+    graph.set_obs_upper_bound("omega", 0.2)
+    graph.set_obs_lower_bound("dx", -0.2)
+    graph.set_obs_upper_bound("dx", 0.2)
+    graph.set_obs_lower_bound("x", -0.2)
+    graph.set_obs_upper_bound("x", 0.2)
+    graphs[0](fig)
     #plt.tight_layout()
     plt.show()
     sys.exit(0)
@@ -236,69 +199,61 @@ if True:
 from autompc.control import InfiniteHorizonLQR, FiniteHorizonLQR, NonLinearMPC
 #from autompc.control.mpc import LQRCost, LinearMPC
 from cartpole_model import CartpoleModel
+from autompc.tasks.task import Task
+from autompc.tasks.quad_cost import QuadCost
 
-task = ampc.Task(cartpole)
+task = Task(cartpole)
 Q = np.diag([1.0, 1.0, 1.0, 1.0])
 R = np.diag([1.0])
 #F = np.diag([10.0, 1.0, 1.0, 1.0])
-task.set_quad_cost(Q, R)
+task.set_cost(QuadCost(cartpole, Q, R))
 
+model = koop
+cs = FiniteHorizonLQR.get_configuration_space(cartpole, task, model)
+cfg = cs.get_default_configuration()
+cfg["horizon"] = 1000
+con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
 
-if True:
-    model = koop
-    cs = FiniteHorizonLQR.get_configuration_space(cartpole, task, model)
-    cfg = cs.get_default_configuration()
-    cfg["horizon"] = 1000
-    con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
-else:
-    model = CartpoleModel(cartpole)
-    horizon = 0.8  # this is indeed too short for a frequency of 100 Hz model
-    hh = 80
-    con = NonLinearMPC(cartpole, model, task, horizon)
-    con._guess = np.zeros(hh + (hh + 1) * 6) + 1e-5
-
-@memory.cache
 def run_sim(theta0):
     sim_traj = ampc.zeros(cartpole, 1)
     x = np.array([theta0,0.0,0.0,0.0])
     sim_traj[0].obs[:] = x
 
     constate = con.traj_to_state(sim_traj[:1])
+    Q, _, _ = task.get_cost().get_cost_matrices()
     for _ in range(1000):
         u, constate = con.run(constate, sim_traj[-1].obs)
         #u = np.zeros(1)
         x = dt_cartpole_dynamics(x, u, dt)
         sim_traj[-1, "u"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-    return sim_traj[-1].obs
+        state_cost = x.T @ Q @ x
+        if state_cost > 10000.0:
+            break
+    return sim_traj
 
-theta0s = np.arange(-3, 3, 0.05)
-data = np.zeros((25, len(theta0s)))
-successes = []
-for i, theta0 in enumerate(theta0s):
-    final_obs = run_sim(theta0)
-    if abs(final_obs[0]) < 0.01:
-        print("Theta0 {} is success!".format(theta0))
-        successes.append(1)
-        data[:,i] = 1
+theta0_lower = 0.0
+theta0_upper = 3.0
+while theta0_upper - theta0_lower > 0.01:
+    theta0 = (theta0_upper + theta0_lower) / 2
+    print(f"{theta0=}")
+    sim_traj = run_sim(theta0)
+    success = (abs(sim_traj[-1, "theta"]) < 0.01
+            and abs(sim_traj[-1, "x"])  < 0.01)
+    if success:
+        theta0_lower = theta0
     else:
-        print("Theta0 {} is a failure!".format(theta0))
-        successes.append(0)
-print(len(theta0s))
+        theta0_upper = theta0
+
+print(f"Max Theta = {theta0_lower}")
+sim_traj = run_sim(theta0_lower)
+
 fig = plt.figure()
 ax = fig.gca()
 ax.set_aspect("equal")
-ax.imshow(data, extent=[theta0s[0], theta0s[-1], 0.0, 1.0], cmap="RdYlGn")
-ax.set_xlabel("Starting Angle")
-plt.show()
-
-
-#fig = plt.figure()
-#ax = fig.gca()
-#ax.set_aspect("equal")
-#ax.set_xlim([-1.1, 1.1])
-#ax.set_ylim([-1.1, 1.1])
-##set_trace()
-#ani = animate_cartpole(fig, ax, dt, sim_traj)
+ax.set_xlim([-1.1, 1.1])
+ax.set_ylim([-1.1, 1.1])
+#set_trace()
+ani = animate_cartpole(fig, ax, dt, sim_traj)
 #ani.save("out/cartpole_test/aug11_01.mp4")
-##plt.show()
+plt.show()
