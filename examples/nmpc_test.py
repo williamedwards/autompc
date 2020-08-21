@@ -435,104 +435,58 @@ def test_sindy_cartpole():
     #ani.save("out/nmpc_test/aug05_04.mp4")
 
 def test_true_dyn_cartpole():
-    from autompc.sysid import SINDy
-    from cartpole_model import CartpoleModel
-    cs = CartpoleModel.get_configuration_space(cartpole)
-    s = cs.get_default_configuration()
-    dt = 0.01
-    umin, umax = -2, 2
-    trajs = collect_cartpole_trajs(dt, umin, umax)
-    cartpole.dt = dt
-    model = ampc.make_model(cartpole, CartpoleModel, s)
-    model.train(trajs)
-
-    # Evaluate model
-    if False:
-        from autompc.evaluators import HoldoutEvaluator
-        from autompc.metrics import RmseKstepMetric
-        from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
-
-        metric = RmseKstepMetric(cartpole, k=50)
-        #grapher = KstepGrapher(pendulum, kmax=50, kstep=5, evalstep=10)
-        grapher = InteractiveEvalGrapher(cartpole)
-
-        rng = np.random.default_rng(42)
-        evaluator = HoldoutEvaluator(cartpole, trajs, metric, rng, holdout_prop=0.25) 
-        evaluator.add_grapher(grapher)
-        eval_score, _, graphs = evaluator(CartpoleModel, s)
-        print("eval_score = {}".format(eval_score))
-        fig = plt.figure()
-        graph = graphs[0]
-        graph.set_obs_lower_bound("theta", -0.2)
-        graph.set_obs_upper_bound("theta", 0.2)
-        graph.set_obs_lower_bound("omega", -0.2)
-        graph.set_obs_upper_bound("omega", 0.2)
-        graph.set_obs_lower_bound("dx", -0.2)
-        graph.set_obs_upper_bound("dx", 0.2)
-        graphs[0](fig)
-        #plt.tight_layout()
-        plt.show()
-
+    from ilqr_test import CartPole, cartpole
+    dt = cartpole.dt
+    umin, umax = -15, 15
+    model = CartPole()
 
     # Now it's time to apply the controller
     task1 = Task(cartpole)
-    Q = np.diag([10.0, 1.0, 10.0, 1.0])
-    R = np.diag([1.0]) 
-    F = np.diag([10., 10., 2., 10.])
+    Q = np.diag([1., 1., 1., 1.])
+    R = np.diag([0.1]) 
+    F = np.diag([10.0, 10.0, 10., 10.]) * 10
     task1.set_quad_cost(Q, R, F)
+    task1.set_ctrl_bounds(umin, umax)
 
-    horizon = 0.1  # this is indeed too short for a frequency of 100 Hz model
-    hh = 10
+    init_state = np.array([np.pi, 0.0, 0., 0.])
+    horizon_int = 40
+
+    horizon = 2.0  # this is indeed too short for a frequency of 100 Hz model
+    hh = 40
     nmpc = NonLinearMPC(cartpole, model, task1, horizon)
-    nmpc._guess = np.zeros(hh + (hh + 1) * 4) + 1e-5
+    nmpc._guess = np.random.normal(size=hh + (hh + 1) * 4)
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
-    x = np.array([0.01, 0, 0, 0])
-    sim_traj[0].obs[:] = x
+    sim_traj[0].obs[:] = init_state
     us = []
 
     constate = nmpc.traj_to_state(sim_traj[:1])
     for step in range(400):
+        state = sim_traj[-1].obs
         u, constate = nmpc.run(constate, sim_traj[-1].obs)
+        if np.linalg.norm(state) < 1e-3:
+            break
         #u = -np.zeros((1,))
         print('u = ', u)
         # x = model.pred(x, u)
-        x = dt_cartpole_dynamics(x, u, dt)
+        x = model.pred(state, u)
         sim_traj[-1, "u"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
         # compare what happens if zero control for 80 steps
-        if False and np.abs(u) > 1e-2:
-            states = [saved_state]
-            for _ in range(nmpc.horizon):
-                states.append(dt_cartpole_dynamics(states[-1].copy(), 0, dt))
-            fig, ax = plt.subplots(2, 2)
-            ax = ax.reshape(-1)
-            pred = nmpc._guess[:4 * (hh + 1)].reshape((-1, 4))
-            states = np.array(states)
-            for j in range(4):
-                ax[j].plot(states[:, j], label='zero control')
-                ax[j].plot(pred[:, j], label='nmpc')
-                ax[j].legend()
-            plt.show()
-
         us.append(u)
-    # print(np.array(us))
-    # raise
-
-    #print(sim_traj[:, "ang"], sim_traj[:, 'angvel'])
-    #fig = plt.figure()
-    #ax = fig.gca()
-    #ax.set_aspect("equal")
-    #ax.plot(sim_traj[:, 'ang'], sim_traj[:, 'angvel'])
-    #plt.show()
-    fig = plt.figure()
-    ax = fig.gca()
-    ax.set_aspect("equal")
-    ax.set_xlim([-1.1, 1.1])
-    ax.set_ylim([-1.1, 1.1])
-    ani = animate_cartpole(fig, ax, dt, sim_traj)
-    plt.show()
-    #ani.save("out/nmpc_test/aug05_04.mp4")
+    
+    fig, ax = plt.subplots(3, 2)
+    ax = ax.reshape(-1)
+    state_names = ['theta', 'omega', 'x', 'dx']
+    times = np.arange(sim_traj.obs.shape[0]) * cartpole.dt
+    for i in range(4):
+        ax[i].plot(times, sim_traj.obs[:, i])
+        ax[i].set_ylabel(state_names[i])
+        ax[i].set_xlabel('Time [s]')
+    ax[4].plot(times[:-1], sim_traj.ctrls[:-1])
+    ax[4].set(xlabel='Time [s]', ylabel='u')
+    fig.tight_layout()
+    fig.savefig('cartpole_nmpc_state_bound_control.png')
 
 def test_linear_cartpole():
     from autompc.sysid.dummy_linear import DummyLinear

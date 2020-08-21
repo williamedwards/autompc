@@ -111,9 +111,13 @@ def test_cartpole():
     F = np.diag([10.0, 10.0, 10., 10.]) * 10
     task1.set_quad_cost(Q, R, F)
     # construct ilqr instance
-    init_state = np.array([1., 0.0, 0., 0.])
-    horizon_int = 40
-    ilqr = IterativeLQR(cartpole, task1, model, horizon_int, reuse_feedback=4)  # change to 0/None if want to reoptimize at every step
+    init_state = np.array([np.pi, 0.0, 0., 0.])
+    # horizon_int = 40  # this works well with bound = 15
+    horizon_int = 60
+    ubound = np.array([[-5], [5]])
+    ilqr = IterativeLQR(cartpole, task1, model, horizon_int, reuse_feedback=0, ubounds=ubound, mode='barrier')  # change to 0/None if want to reoptimize at every step
+    # np.random.seed(42)
+    ilqr._guess = np.random.uniform(-5, 5, horizon_int)[:, None]
     # nmpc = NonLinearMPC(cartpole, model, task1, horizon_int * cartpole.dt)
     # start simulation
     sim_traj = ampc.zeros(cartpole, 1)
@@ -121,6 +125,8 @@ def test_cartpole():
     us = []
     for step in range(200):
         state = model.traj_to_state(sim_traj)
+        if np.linalg.norm(state) < 1e-3:
+            break
         u, _ = ilqr.run(state, state)
         # u, _ = nmpc.run(state, state)
         # print(np.linalg.norm(ilqr._states[:horizon_int] - nmpc._guess[:horizon_int * 4].reshape((horizon_int, 4))))
@@ -134,6 +140,21 @@ def test_cartpole():
         us.append(u)
     print('states are ', sim_traj.obs)
     print('control is ', sim_traj.ctrls)
+    fig, ax = plt.subplots(3, 2)
+    ax = ax.reshape(-1)
+    state_names = ['theta', 'omega', 'x', 'dx']
+    times = np.arange(sim_traj.obs.shape[0]) * cartpole.dt
+    for i in range(4):
+        ax[i].plot(times, sim_traj.obs[:, i])
+        ax[i].set_ylabel(state_names[i])
+        ax[i].set_xlabel('Time [s]')
+    ax[4].plot(times[:-1], sim_traj.ctrls[:-1])
+    ax[4].set(xlabel='Time [s]', ylabel='u')
+    fig.tight_layout()
+    if ubound is None:
+        fig.savefig('cartpole_ilqr_state.png')
+    else:
+        fig.savefig('cartpole_ilqr_state_bound_control_%f.png' % ubound[1, 0])
 
 
 def test_sindy_cartpole():
