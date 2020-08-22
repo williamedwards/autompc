@@ -5,3 +5,4 @@ from .ilqr import IterativeLQR
 from .nmpc import NonLinearMPC
 from .mppi import MPPI
 from .mppi_adaptive import MPPIAdaptive
+from .cem import CEM

@@ -9,37 +9,35 @@ import matplotlib.animation as animation
 
 from autompc.sysid.dummy_nonlinear import DummyNonlinear
 from autompc.sysid.dummy_linear import DummyLinear
-from autompc.control import IterativeLQR, NonLinearMPC
+from autompc.control import IterativeLQR, NonLinearMPC, CEM
 from autompc import Task
 
 from joblib import Memory
 from scipy.integrate import solve_ivp
 
 from test_shared import *
+from mppi_test import CartPole, lqr_task_to_mppi_cost
 
 
-linsys = ampc.System(['x', 'v'], ['a'])
-linsys.dt = 0.1
 pendulum = ampc.System(["ang", "angvel"], ["torque"])
 pendulum.dt = 0.05
 cartpole = ampc.System(["theta", "omega", "x", "dx"], ["u"])
 cartpole.dt = 0.05
-planar_drone = ampc.System(["x", "dx", "y", "dy", "theta", "omega"], ["u1", "u2"])
-planar_drone = 0.05
 
 
-class CartPole(ampc.Model):
-    def __init__(self):
-        super().__init__(cartpole)
-        g = 9.8; m_c = 1; m_p = 0.1; L = 1; b = 1.00; dt = cartpole.dt
+class CartPole:
+    def __init__(self, choice='Euler'):
+        self.dt = cartpole.dt
+        if choice == 'Euler':
+            self.pred = self.pred_euler
+        else:
+            self.pred = self.pred_rk4
 
-        import autograd.numpy as np
-        from autograd import jacobian
-
-        def dynamics(xin):
-            theta0, omega, x, dx, u = xin
-            theta = theta0 + np.pi
-            xdot = np.array([omega,
+    def pred_euler(self, state, ctrl, g = 9.8, m_c = 1., m_p = 0.1, L = 1., b = 0.2):
+        theta, omega, x, dx = state
+        theta = theta + np.pi
+        u = ctrl[0]
+        statedot = np.array([omega,
                 1.0/(L*(m_c+m_p+m_p*np.sin(theta)**2))*(-u*np.cos(theta) 
                     - m_p*L*omega**2*np.cos(theta)*np.sin(theta)
                     - (m_c+m_p+m_p)*g*np.sin(theta)
@@ -47,64 +45,35 @@ class CartPole(ampc.Model):
                 dx,
                 1.0/(m_c + m_p*np.sin(theta)**2)*(u + m_p*np.sin(theta)*
                     (L*omega**2 + g*np.cos(theta)))])
-            return xin[:4] + xdot * dt
+        return state + self.dt * statedot
 
-        self._dyn_fun = dynamics
-        self._dyn_jac = jacobian(dynamics)
+    def pred_rk4(self, state, ctrl):
+        return dt_cartpole_dynamics(state, ctrl, self.dt)
+
+    def pred_parallel(self, state, ctrl, g = 9.8, m_c = 1., m_p = 0.1, L = 1., b = 0.2):
+        theta, omega, x, dx = state.T 
+        theta = theta + np.pi
+        u = ctrl[:, 0]
+        sth = np.sin(theta)
+        cth = np.cos(theta)
+        statedot = np.c_[omega,
+                1.0/(L*(m_c+m_p+m_p*sth**2))*(-u*cth
+                    - m_p*L*omega**2*cth*sth
+                    - (m_c+m_p+m_p)*g*sth
+                    - b*omega),
+                dx,
+                1.0/(m_c + m_p*sth**2)*(u + m_p*sth*
+                    (L*omega**2 + g*cth))]
+        return state + self.dt * statedot
 
     def traj_to_state(self, traj):
         return traj.obs[-1]
-
-    def pred(self, state, ctrl):
-        xin = np.concatenate((state, ctrl))
-        return self._dyn_fun(xin)
-    
-    def pred_diff(self, state, ctrl):
-        xin = np.concatenate((state, ctrl))
-        x = self._dyn_fun(xin)
-        jac = self._dyn_jac(xin)
-        return x, jac[:, :4], jac[:, 4:]
-
-    def get_configuration_space(self):
-        pass
-    
-    def state_dim(self):
-        pass
-    
-    def update_state(self, x, u, obs):
-        return obs
-
-
-def test_dummy_linear():
-    model = DummyLinear(linsys, np.array([[1., linsys.dt], [0, 1.]]), np.array([[0.], [linsys.dt]]))
-    task1 = Task(linsys)
-    Q = np.diag([1., 1.])
-    R = np.diag([0.01]) 
-    F = np.diag([10.0, 10.0])
-    task1.set_quad_cost(Q, R, F)
-    # construct ilqr instance
-    init_state = np.array([0.5, 0.5])
-    ilqr = IterativeLQR(linsys, task1, model, 10)
-    # start simulation
-    sim_traj = ampc.zeros(linsys, 1)
-    sim_traj[0].obs[:] = init_state
-    us = []
-    for step in range(400):
-        state = ilqr.traj_to_state(sim_traj)
-        u, _ = ilqr.run(state, None)
-        print('u = ', u)
-        # x = model.pred(x, u)
-        newx = model.pred(state, u)
-        sim_traj[-1].ctrl[:] = u
-        sim_traj = ampc.extend(sim_traj, [newx], [[0.0]])
-
-        us.append(u)
-    print('states are ', sim_traj.obs)
 
 
 def test_cartpole():
     """Do cartpole with true dynamics"""
     model = CartPole()
+    model.system = cartpole
     task1 = Task(cartpole)
     Q = np.diag([1., 1., 1., 1.])
     R = np.diag([0.1]) 
@@ -115,11 +84,8 @@ def test_cartpole():
     horizon_int = 40  # this works well with bound = 15
     # horizon_int = 60
     ubound = np.array([[-15], [15]])
-    mode = 'auglag'
-    ilqr = IterativeLQR(cartpole, task1, model, horizon_int, reuse_feedback=0, ubounds=ubound, mode=mode)  # change to 0/None if want to reoptimize at every step
-    # np.random.seed(42)
-    ilqr._guess = np.random.uniform(-5, 5, horizon_int)[:, None]
-    # nmpc = NonLinearMPC(cartpole, model, task1, horizon_int * cartpole.dt)
+    path_cost, term_cost = lqr_task_to_mppi_cost(task1, model.dt)
+    cem = CEM(model.pred_parallel, path_cost, term_cost, model, H=horizon_int, sigma=1., num_path=1500, ubounds=ubound)
     # start simulation
     sim_traj = ampc.zeros(cartpole, 1)
     sim_traj[0].obs[:] = init_state
@@ -128,17 +94,13 @@ def test_cartpole():
         state = model.traj_to_state(sim_traj)
         if np.linalg.norm(state) < 1e-3:
             break
-        u, _ = ilqr.run(state, state)
-        # u, _ = nmpc.run(state, state)
-        # print(np.linalg.norm(ilqr._states[:horizon_int] - nmpc._guess[:horizon_int * 4].reshape((horizon_int, 4))))
+        u, _ = cem.run(sim_traj)
         print('u = ', u)
         newx = model.pred(state, u)
-        # newx = dt_cartpole_dynamics(state, dt)
-        # newx += 0.01 * np.random.uniform(-np.ones(4), np.ones(4))
         sim_traj[-1].ctrl[:] = u
         sim_traj = ampc.extend(sim_traj, [newx], [[0.0]])
-
         us.append(u)
+
     print('states are ', sim_traj.obs)
     print('control is ', sim_traj.ctrls)
     fig, ax = plt.subplots(3, 2)
@@ -153,9 +115,9 @@ def test_cartpole():
     ax[4].set(xlabel='Time [s]', ylabel='u')
     fig.tight_layout()
     if ubound is None:
-        fig.savefig('cartpole_ilqr_state.png')
+        fig.savefig('cartpole_cem_state.png')
     else:
-        fig.savefig('cartpole_ilqr_state_bound_control_%.2f_%s.png' % (ubound[1, 0], mode))
+        fig.savefig('cartpole_cem_state_bound_control_%.2f.png' % (ubound[1, 0]))
 
 
 def test_sindy_cartpole():
