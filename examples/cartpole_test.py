@@ -140,7 +140,7 @@ def train_koop():
     cfg["poly_basis"] = "false"
     cfg["method"] = "lstsq"
     koop = ampc.make_model(cartpole, Koopman, cfg)
-    koop.train(trajs)
+    koop.train(trajs2[:50])
     return koop
 
 def train_sindy():
@@ -157,7 +157,7 @@ arx = train_arx(k=4)
 koop = train_koop()
 sindy = train_sindy()
 
-if True:
+if False:
     from autompc.evaluators import HoldoutEvaluator, FixedSetEvaluator
     from autompc.metrics import RmseKstepMetric
     from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
@@ -214,7 +214,7 @@ cfg = cs.get_default_configuration()
 cfg["horizon"] = 1000
 con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
 
-def run_sim(theta0):
+def run_sim(theta0, break_sim=True):
     sim_traj = ampc.zeros(cartpole, 1)
     x = np.array([theta0,0.0,0.0,0.0])
     sim_traj[0].obs[:] = x
@@ -228,7 +228,7 @@ def run_sim(theta0):
         sim_traj[-1, "u"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
         state_cost = x.T @ Q @ x
-        if state_cost > 10000.0:
+        if break_sim and state_cost > 10000.0:
             break
     return sim_traj
 
@@ -246,7 +246,7 @@ while theta0_upper - theta0_lower > 0.01:
         theta0_upper = theta0
 
 print(f"Max Theta = {theta0_lower}")
-sim_traj = run_sim(theta0_lower)
+sim_traj = run_sim(theta0_lower, break_sim=True)
 
 fig = plt.figure()
 ax = fig.gca()

@@ -1,71 +1,139 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+from pdb import set_trace
+import copy
+
 import numpy as np
 import numpy.linalg as la
 
+import jax
+import jax.numpy as np
+
+from ConfigSpace import ConfigurationSpace
+from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
+
+from sklearn import gaussian_process
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+from .gp_utils.kernels import RBF as RBF2
+from .gp_utils.kernels import WhiteKernel as WhiteKernel2
 
-from ..model import Model, Hyper
 
-class GP(Model):
-    def __init__(self):
-        # Initialize hyperparameters and parameters to default values
-        pass
+from ..model import Model
+#from ..hyper import IntRangeHyperparam
 
-    def _get_predict_array(self, xs, us):
-        #TODO
-        pass
+def gp_predict(gp, kern, X):
+    if len(X.shape) < 2:
+        X = X[:,jnp.newaxis]
+    set_trace()
+    K_trans = kern(X, gp.X_train_)
+    set_trace()
+    y_mean = K_trans.dot(gp.alpha_)  # Line 4 (y_mean = f_star)
 
-    def _get_training_arrays(self, trajs):
-        #TODO
-        pass
+    # undo normalisation
+    set_trace()
+    y_mean = gp._y_train_std * y_mean + gp._y_train_mean
+    return y_mean
 
-    def trains(self, trajs):
-        X, y = self._get_training_arrays(trajs)
+def transform_input(xu_means, xu_std, XU):
+    XUt = []
+    for i in range(XU.shape[1]):
+        XUt.append((XU[:,i] - xu_means[i]) / xu_std[i])
+    return np.vstack(XUt).T
 
-        if self.kernel == "rbf":
-            kernel = RBF()
-        elif self.kernel == "white":
-            kernel = WhiteKernel()
-        else:
-            raise ValueError("Kernel {} not supported".format(self.kernel))
+class GaussianProcess(Model):
+    def __init__(self, system):
+        super().__init__(system)
 
-        self.gp = GaussianProcessRegressor(kernel=kernel,
-                alpha=0.0).fit(X, y)
+    @staticmethod
+    def get_configuration_space(system):
+        cs = ConfigurationSpace()
+        return cs
 
-    def __call__(self, xs, us, latent=None, ret_grad=False):
-        X = self._get_predict_array(xs)
-        xnew = self.gp.predict(X)
-        
-        if ret_grad:
-            #TODO compute xgrad, ugrad
-            return xnew, (xgrad, ugrad)
-        else:
-            return xnew
+    def update_state(self, state, new_ctrl, new_obs):
+        return np.copy(new_obs)
 
-    def get_hyper_options(self):
-        return {"kernel" : (Hyper.choice, set(["rbf", "kenel"]))}
+    def traj_to_state(self, traj):
+        return traj[-1].obs[:]
 
-    def get_hypers(self):
-        return {"kernel" : self.kernel} 
+    def state_to_obs(self, state):
+        return state[:]
 
-    def set_hypers(self, hypers):
-        self.kernel = hypers["kernel"]
+    def train(self, trajs):
+        # Initialize kernels
+        kernel1 = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
+            + WhiteKernel(noise_level=1e-5, noise_level_bounds=(1e-10, 1e+1))
+
+        rbf2 = RBF2(length_scale=1.0, length_scale_bounds=(1e-2, 1e3))
+        white2 = WhiteKernel2(noise_level=1e-5, noise_level_bounds=(1e-10, 1e+1)) 
+        kernel2 = 1.0 * rbf2 +  white2
+
+        # Prepare data
+        X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
+        Y = np.concatenate([traj.obs[1:,:] for traj in trajs])
+        U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
+        XU = np.concatenate((X, U), axis = 1) # stack X and U together
+        self.xu_means = np.mean(XU, axis=0)
+        self.xu_std = np.std(XU, axis=0)
+        XUt = transform_input(self.xu_means, self.xu_std, XU)
+
+        # Train gp
+        self.gps = []
+        self.kernels = []
+        self.gp_predicts = []
+        self.gp_jacs = []
+        for i in range(Y.shape[1]):
+            # Normalize
+            y_train_mean = np.mean(Y[:,i])
+            y_train_std = np.std(Y[:,i])
+            norm_Y = (Y[:,i] - y_train_mean) / y_train_std
+            gp = GaussianProcessRegressor(kernel=kernel1,
+                    alpha=0.0).fit(XUt, norm_Y)
+            gp._y_train_mean = y_train_mean
+            gp._y_train_std = y_train_std
+            kernel3 = copy.deepcopy(kernel2)
+            kernel3.k1.k1.set_params(**gp.kernel_.k1.k1.get_params())
+            kernel3.k1.k2.set_params(**gp.kernel_.k1.k2.get_params())
+            kernel3.k2.set_params(**gp.kernel_.k2.get_params())
+            self.gps.append(gp)
+            self.kernels.append(kernel3)
+            #self.gp_predict = jax.jit(lambda X: gp_predict(gp, kernel2, X))
+            self.gp_predicts.append(lambda X, kern=kernel3, gp=gp: gp_predict(gp, kern, X))
+            #self.gp_jacs.append(jax.jacobian(gp_predict))
+
+    def pred(self, state, ctrl):
+        X = np.concatenate([state, ctrl])
+        X = X[np.newaxis,:]
+        Y = []
+        Y2 = []
+        Xt = transform_input(self.xu_means, self.xu_std, X)
+        set_trace()
+        for gp in self.gps:
+            Y2.append(gp.predict(Xt)[0])
+        for gp_predict in self.gp_predicts:
+            Y.append(gp_predict(Xt)[0])
+        set_trace()
+        return np.array(Y)
+
+    def pred_diff(self, state, ctrl):
+        X = np.concatenate([state, ctrl])
+        X = X[np.newaxis,:]
+        Y = self.gp_predict(X)
+        jac = self.gp_jac(Y)
+        n = self.system.state_dim
+        state_jac = jac[:, :n]
+        ctrl_jac = jac[:, n:]
+
+        return Y.flatten(), state_jac, ctrl_jac
+
+    @property
+    def state_dim(self):
+        return self.system.state_dim
 
     def get_parameters(self):
-        return {"gp_params" : self.gp.get_params(True)}
+        return {"coeffs" : np.copy(self.coeffs)}
 
     def set_parameters(self, params):
-        if self.kernel == "rbf":
-            kernel = RBF()
-        elif self.kernel == "white":
-            kernel = WhiteKernel()
-        else:
-            raise ValueError("Kernel {} not supported".format(self.kernel))
-
-        self.gp = GaussianProcessRegressor(kernel=kernel,
-                alpha=0.0)
-        self.gp.set_params(**params["gp_params"])
+        self.coeffs = np.copy(params["coeffs"])
 
 
