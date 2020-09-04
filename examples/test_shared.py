@@ -85,9 +85,8 @@ def dt_cartpole_dynamics(y,u,dt):
     y[0] -= np.pi
     return y
 
-def collect_cartpole_trajs(dt, umin, umax):
+def collect_cartpole_trajs(dt, umin, umax, num_trajs=100):
     # Generate trajectories for training
-    num_trajs = 100
     trajs = gen_cartpole_trajs(dt, num_trajs, umin, umax)
     return trajs
 
