@@ -543,4 +543,3 @@ class IterativeLQR(Controller):
         print('inside ilqr u0 = ', u0, 'u = ', u)
         self._step_count += 1
         return u, None
-

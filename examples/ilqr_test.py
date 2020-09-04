@@ -6,6 +6,7 @@ import numpy as np
 import autompc as ampc
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from pdb import set_trace
 
 from autompc.sysid.dummy_nonlinear import DummyNonlinear
 from autompc.sysid.dummy_linear import DummyLinear
@@ -16,6 +17,8 @@ from joblib import Memory
 from scipy.integrate import solve_ivp
 
 from test_shared import *
+
+memory = Memory("cache")
 
 
 linsys = ampc.System(['x', 'v'], ['a'])
@@ -112,6 +115,7 @@ def test_cartpole():
     task1.set_quad_cost(Q, R, F)
     # construct ilqr instance
     init_state = np.array([np.pi, 0.0, 0., 0.])
+    set_trace()
     horizon_int = 40  # this works well with bound = 15
     # horizon_int = 60
     ubound = np.array([[-15], [15]])
@@ -139,64 +143,92 @@ def test_cartpole():
         sim_traj = ampc.extend(sim_traj, [newx], [[0.0]])
 
         us.append(u)
-    print('states are ', sim_traj.obs)
-    print('control is ', sim_traj.ctrls)
-    fig, ax = plt.subplots(3, 2)
-    ax = ax.reshape(-1)
-    state_names = ['theta', 'omega', 'x', 'dx']
-    times = np.arange(sim_traj.obs.shape[0]) * cartpole.dt
-    for i in range(4):
-        ax[i].plot(times, sim_traj.obs[:, i])
-        ax[i].set_ylabel(state_names[i])
-        ax[i].set_xlabel('Time [s]')
-    ax[4].plot(times[:-1], sim_traj.ctrls[:-1])
-    ax[4].set(xlabel='Time [s]', ylabel='u')
-    fig.tight_layout()
-    if ubound is None:
-        fig.savefig('cartpole_ilqr_state.png')
-    else:
-        fig.savefig('cartpole_ilqr_state_bound_control_%.2f_%s.png' % (ubound[1, 0], mode))
+    #print('states are ', sim_traj.obs)
+    #print('control is ', sim_traj.ctrls)
+    #fig, ax = plt.subplots(3, 2)
+    #ax = ax.reshape(-1)
+    #state_names = ['theta', 'omega', 'x', 'dx']
+    #times = np.arange(sim_traj.obs.shape[0]) * cartpole.dt
+    #for i in range(4):
+    #    ax[i].plot(times, sim_traj.obs[:, i])
+    #    ax[i].set_ylabel(state_names[i])
+    #    ax[i].set_xlabel('Time [s]')
+    #ax[4].plot(times[:-1], sim_traj.ctrls[:-1])
+    #ax[4].set(xlabel='Time [s]', ylabel='u')
+    #fig.tight_layout()
+    #if ubound is None:
+    #    fig.savefig('cartpole_ilqr_state.png')
+    #else:
+    #    fig.savefig('cartpole_ilqr_state_bound_control_%.2f_%s.png' % (ubound[1, 0], mode))
+    dt = 0.05
+    cartpole.dt = dt
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.set_aspect("equal")
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ani = animate_cartpole(fig, ax, dt, sim_traj)
+    ani.save("out/cartpole_test/aug31_01.mp4")
+    #plt.show()
 
 
 def test_sindy_cartpole():
     from autompc.sysid import SINDy
-    cs = SINDy.get_configuration_space(cartpole)
-    s = cs.get_default_configuration()
-    s["trig_basis"] = "true"
-    s["poly_basis"] = "false"
+    @memory.cache
+    def run_experiment():
+        cs = SINDy.get_configuration_space(cartpole)
+        s = cs.get_default_configuration()
+        s["trig_basis"] = "true"
+        s["trig_freq"] = 3
+        s["poly_basis"] = "false"
+        dt = 0.05
+        umin, umax = -2, 2
+        trajs = collect_cartpole_trajs(dt, umin, umax)
+        cartpole.dt = dt
+        model = ampc.make_model(cartpole, SINDy, s)
+        model.trig_interaction = True
+        model.train(trajs)
+
+        # Now it's time to apply the controller
+        task1 = Task(cartpole)
+        Q = np.diag([1.0, 1.0, 1.0, 1.0])
+        R = np.diag([1.0]) 
+        F = np.diag([10., 10., 10., 10.])*10.0
+        task1.set_quad_cost(Q, R, F)
+
+        hori = 40  # hori means integer horizon... how many steps...
+        ubound = np.array([[-15], [15]])
+        mode = 'auglag'
+        ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=None)
+        # just give a random initial state
+        sim_traj = ampc.zeros(cartpole, 1)
+        x = np.array([np.pi, 0, 0, 0])
+        set_trace()
+        sim_traj[0].obs[:] = x
+        us = []
+
+        constate = ilqr.traj_to_state(sim_traj[:1])
+        for step in range(200):
+            u, constate = ilqr.run(constate, sim_traj[-1].obs)
+            print('u = ', u, 'state = ', sim_traj[-1].obs)
+            x = dt_cartpole_dynamics(sim_traj[-1].obs, u, dt)
+            # x = model.pred(sim_traj[-1].obs, u)
+            sim_traj[-1, "u"] = u
+            sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
+            us.append(u)
+        return sim_traj
     dt = 0.05
-    umin, umax = -2, 2
-    trajs = collect_cartpole_trajs(dt, umin, umax)
     cartpole.dt = dt
-    model = ampc.make_model(cartpole, SINDy, s)
-    model.trig_interaction = True
-    model.train(trajs)
-
-    # Now it's time to apply the controller
-    task1 = Task(cartpole)
-    Q = np.diag([10.0, 1.0, 10.0, 1.0])
-    R = np.diag([1.0]) 
-    F = np.diag([10., 10., 10., 10.])
-    task1.set_quad_cost(Q, R, F)
-
-    hori = 40  # hori means integer horizon... how many steps...
-    ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=None)
-    # just give a random initial state
-    sim_traj = ampc.zeros(cartpole, 1)
-    x = np.array([1.0, 0, 0, 0])
-    sim_traj[0].obs[:] = x
-    us = []
-
-    constate = ilqr.traj_to_state(sim_traj[:1])
-    for step in range(200):
-        u, constate = ilqr.run(constate, sim_traj[-1].obs)
-        print('u = ', u, 'state = ', sim_traj[-1].obs)
-        x = dt_cartpole_dynamics(sim_traj[-1].obs, u, dt)
-        # x = model.pred(sim_traj[-1].obs, u)
-        sim_traj[-1, "u"] = u
-        sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-        us.append(u)
+    sim_traj = run_experiment()
     print(sim_traj.obs)
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.set_aspect("equal")
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ani = animate_cartpole(fig, ax, dt, sim_traj)
+    #ani.save("out/cartpole_test/aug31_02.mp4")
+    plt.show()
 
 
 def check_ilqr_different_feedback():
@@ -243,5 +275,7 @@ if __name__ == '__main__':
         default='sindy-cartpole', help='Specify which system id to test')
     args = parser.parse_args()
     # test_dummy_linear()
-    test_cartpole()
+    #test_cartpole()
+    test_sindy_cartpole()
     # test_sindy_cartpole()
+

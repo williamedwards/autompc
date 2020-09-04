@@ -53,14 +53,14 @@ def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
             u])
 
 def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
-    #y = np.copy(y)
-    #y[0] += np.pi
-    #sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
-    #if not sol.success:
-    #    raise Exception("Integration failed due to {}".format(sol.message))
-    #y = sol.y.reshape((4,))
-    y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
-    #y[0] -= np.pi
+    y = np.copy(y)
+    y[0] += np.pi
+    sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
+    if not sol.success:
+        raise Exception("Integration failed due to {}".format(sol.message))
+    y = sol.y.reshape((4,))
+    #y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
+    y[0] -= np.pi
     return y
 
 def animate_cartpole(fig, ax, dt, traj):
@@ -121,7 +121,15 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt):
 trajs = gen_trajs(4)
 trajs2 = gen_trajs(200)
 
-from autompc.sysid import ARX, Koopman, SINDy
+from autompc.sysid import ARX, Koopman, SINDy, GaussianProcess
+
+def train_gp(datasize=50, num_trajs=1):
+    cs = GaussianProcess.get_configuration_space(cartpole)
+    cfg = cs.get_default_configuration()
+    gp = ampc.make_model(cartpole, GaussianProcess, cfg)
+    mytrajs = [trajs2[i][:datasize] for i in range(num_trajs)]
+    gp.train(mytrajs)
+    return gp
 
 @memory.cache
 def train_arx(k=2):
@@ -157,28 +165,49 @@ arx = train_arx(k=4)
 koop = train_koop()
 sindy = train_sindy()
 
-if False:
+## Training GP model
+#import timeit
+#sizes = []
+#times = []
+#for datasize in range(10, 200, 10):
+#    num_trajs = 10
+#    gp = train_gp(datasize=datasize, num_trajs=num_trajs)
+#    t = timeit.Timer(lambda: gp.pred(np.zeros(4,), np.ones(1,)))
+#    print(t.timeit(number=1))
+#    rep = t.repeat(number=3)
+#    print(rep)
+#    sizes.append(datasize*num_trajs)
+#    times.append(rep[-1]*1000.0)
+#plt.figure()
+#ax = plt.gca()
+#ax.plot(sizes, times)
+#ax.set_xlabel("Training data points.")
+#ax.set_ylabel("Inference time (ms)")
+#plt.show()
+#sys.exit(0)
+
+if True:
     from autompc.evaluators import HoldoutEvaluator, FixedSetEvaluator
     from autompc.metrics import RmseKstepMetric
     from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
 
-    metric = RmseKstepMetric(cartpole, k=50)
+    metric = RmseKstepMetric(cartpole, k=10)
     grapher = InteractiveEvalGrapher(cartpole)
     grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10)
 
     rng = np.random.default_rng(42)
-    evaluator = FixedSetEvaluator(cartpole, trajs2[:50], metric, rng, 
-            training_trajs=trajs2[50:]) 
+    evaluator = FixedSetEvaluator(cartpole, trajs2[1:0], metric, rng, 
+            training_trajs=[trajs2[0][:100], trajs2[3][150:200]]) 
     evaluator.add_grapher(grapher)
-    evaluator.add_grapher(grapher2)
-    cs = Koopman.get_configuration_space(cartpole)
+    #evaluator.add_grapher(grapher2)
+    cs = GaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["trig_basis"] = "true"
-    cfg["poly_basis"] = "false"
+    #cfg["trig_basis"] = "true"
+    #cfg["poly_basis"] = "false"
     #cfg["poly_degree"] = 3
     #cs = MyLinear.get_configuration_space(cartpole)
     #cfg = cs.get_default_configuration()
-    eval_score, _, graphs = evaluator(Koopman, cfg)
+    eval_score, _, graphs = evaluator(GaussianProcess, cfg)
     print("eval_score = {}".format(eval_score))
     fig = plt.figure()
     graph = graphs[0]

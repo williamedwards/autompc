@@ -348,7 +348,7 @@ def test_sindy_cartpole():
 
     # Evaluate model
     if True:
-        from autompc.evaluators import HoldoutEvaluator
+        from autompc.evaluators import HoldoutEvaluator, FixedSetEvaluator
         from autompc.metrics import RmseKstepMetric
         from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
 
@@ -357,7 +357,9 @@ def test_sindy_cartpole():
         grapher = InteractiveEvalGrapher(cartpole)
 
         rng = np.random.default_rng(42)
-        evaluator = HoldoutEvaluator(cartpole, trajs, metric, rng, holdout_prop=0.25) 
+        #evaluator = HoldoutEvaluator(cartpole, trajs, metric, rng, holdout_prop=0.25) 
+        evaluator = FixedSetEvaluator(cartpole, trajs[:10], metric, rng,
+                training_trajs=[trajs[0][:100], trajs[3][150:200]]) 
         evaluator.add_grapher(grapher)
         eval_score, _, graphs = evaluator(SINDy, s)
         print("eval_score = {}".format(eval_score))
@@ -605,28 +607,29 @@ def cartpole_dynamics(y, u, g = 9.8, m_c = 1, m_p = 1.00, L = 1, b = 1.00):
         A list describing the dynamics of the cart cart pole
     """
     theta, omega, x, dx = y
-    #return [omega,
-    #        g * np.sin(theta)/L - b * omega / (m*L**2) + u * np.sin(theta)/L,
-    #        dx,
-    #        u]
+    m = m_c
     return np.array([omega,
-            1.0/(L*(m_c+m_p+m_p*np.sin(theta)**2))*(-u*np.cos(theta) 
-                - m_p*L*omega**2*np.cos(theta)*np.sin(theta)
-                - (m_c+m_p+m_p)*g*np.sin(theta)
-                - b*omega),
+            g * np.sin(theta)/L - b * omega / (m*L**2) + u * np.cos(theta)/L,
             dx,
-            1.0/(m_c + m_p*np.sin(theta)**2)*(u + m_p*np.sin(theta)*
-                (L*omega**2 + g*np.cos(theta)))])
+            u])
+    #return np.array([omega,
+    #        1.0/(L*(m_c+m_p+m_p*np.sin(theta)**2))*(-u*np.cos(theta) 
+    #            - m_p*L*omega**2*np.cos(theta)*np.sin(theta)
+    #            - (m_c+m_p+m_p)*g*np.sin(theta)
+    #            - b*omega),
+    #        dx,
+    #        1.0/(m_c + m_p*np.sin(theta)**2)*(u + m_p*np.sin(theta)*
+    #            (L*omega**2 + g*np.cos(theta)))])
 
 def dt_cartpole_dynamics(y,u,dt):
     y = np.copy(np.array(y))
-    y[0] += np.pi
+    #y[0] += np.pi
     #sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
     #if not sol.success:
     #    raise Exception("Integration failed due to {}".format(sol.message))
     #y = sol.y.reshape((4,))
     y = y + dt * cartpole_dynamics(y, u[0])
-    y[0] -= np.pi
+    #y[0] -= np.pi
     return y
 
 def collect_cartpole_trajs(dt, umin, umax):
