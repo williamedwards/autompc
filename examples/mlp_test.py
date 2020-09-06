@@ -47,7 +47,7 @@ def test_cartpole():
 
 if __name__ == '__main__':
     test_cartpole()
-    return
+    raise
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, choices=['pendulum', 'adaptive_pendulum',
         "cartpole", 'adaptive_cartpole'], default='pendulum', help='Specify which system id to test')
