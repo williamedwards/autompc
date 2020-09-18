@@ -7,6 +7,7 @@ import numpy as np
 import numpy.linalg as la
 
 import jax
+from jax.config import config; config.update("jax_enable_x64", True)
 import jax.numpy as np
 
 from ConfigSpace import ConfigurationSpace
@@ -25,13 +26,9 @@ from ..model import Model
 def gp_predict(gp, kern, X):
     if len(X.shape) < 2:
         X = X[:,jnp.newaxis]
-    set_trace()
     K_trans = kern(X, gp.X_train_)
-    set_trace()
     y_mean = K_trans.dot(gp.alpha_)  # Line 4 (y_mean = f_star)
-
     # undo normalisation
-    set_trace()
     y_mean = gp._y_train_std * y_mean + gp._y_train_mean
     return y_mean
 
@@ -107,12 +104,12 @@ class GaussianProcess(Model):
         Y = []
         Y2 = []
         Xt = transform_input(self.xu_means, self.xu_std, X)
-        set_trace()
         for gp in self.gps:
             Y2.append(gp.predict(Xt)[0])
         for gp_predict in self.gp_predicts:
             Y.append(gp_predict(Xt)[0])
-        set_trace()
+        if np.amax(np.abs(np.array(Y) - np.array(Y2))) > 0.01:
+            set_trace()
         return np.array(Y)
 
     def pred_diff(self, state, ctrl):

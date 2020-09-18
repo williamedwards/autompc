@@ -11,6 +11,14 @@ class BaseCost(ABC):
         self._is_convex = False
         self._is_diff = False
 
+    def __call__(self, traj):
+        cost = 0.0
+        for i in range(len(traj)):
+            cost += self.eval_obs_cost(traj[i].obs)
+            cost += self.eval_ctrl_cost(traj[i].ctrl)
+        cost += self.eval_term_obs_cost(traj[-1].obs)
+        return cost
+
     def get_cost_matrices(self):
         """
         Return quadratic cost matrices. Q,
