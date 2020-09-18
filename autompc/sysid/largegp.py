@@ -69,23 +69,17 @@ class LargeGaussianProcess(Model):
     def state_to_obs(self, state):
         return state[:]
 
-    def train(self, trajs):
-        # Initialize kernels
+    def train_with_data(self, XU, Y):
+        """Train the model with pure data, no traj wrapper within"""
         self.gpmodel.train()
         self.gpmodel.likelihood.train()
+        self.xu_means = np.mean(XU, axis=0)
+        self.xu_std = np.std(XU, axis=0)
+        XUt = transform_input(self.xu_means, self.xu_std, XU)
 
         optimizer = torch.optim.Adam(self.gpmodel.parameters(), lr=self.lr)  # Includes GaussianLikelihood parameters
         # "Loss" for GPs - the marginal log likelihood
         mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.gpmodel.likelihood, self.gpmodel)
-
-        # prepare data
-        X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
-        Y = np.concatenate([traj.obs[1:,:] for traj in trajs])
-        U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
-        XU = np.concatenate((X, U), axis = 1) # stack X and U together
-        self.xu_means = np.mean(XU, axis=0)
-        self.xu_std = np.std(XU, axis=0)
-        XUt = transform_input(self.xu_means, self.xu_std, XU)
 
         # convert into desired tensor
         train_x = torch.from_numpy(XUt)
@@ -104,6 +98,15 @@ class LargeGaussianProcess(Model):
         # training is finished, now go to eval mode
         self.gpmodel.eval()
         self.gpmodel.likelihood.eval()
+
+    def train(self, trajs):
+        """Train the model given trajectories"""
+        # prepare data
+        X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
+        Y = np.concatenate([traj.obs[1:,:] for traj in trajs])
+        U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
+        XU = np.concatenate((X, U), axis = 1) # stack X and U together
+        self.train_with_data(XU, Y)
 
     def pred(self, state, ctrl):
         X = np.concatenate([state, ctrl])
