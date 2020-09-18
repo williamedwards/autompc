@@ -1505,7 +1505,6 @@ class RBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
             dists = np.sum((Xs - Ys) ** 2, axis=2)
                     
             K = np.exp(-.5 * dists)
-            set_trace()
 
         if eval_gradient:
             if self.hyperparameter_length_scale.fixed:
@@ -1522,7 +1521,6 @@ class RBF(StationaryKernelMixin, NormalizedKernelMixin, Kernel):
                 K_gradient *= K[..., np.newaxis]
                 return K, K_gradient
         else:
-            set_trace()
             return K
 
     def __repr__(self):

@@ -3,5 +3,8 @@
 def make_model(system, model, configuration):
     return model(system, **configuration.get_dictionary())
 
+def make_transformer(system, transformer, configuration):
+    return transformer(system, **configuration.get_dictionary())
+
 def make_controller(system, task, model, controller, configuration):
     return controller(system, task, model, **configuration.get_dictionary())

@@ -196,7 +196,7 @@ if True:
     grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10)
 
     rng = np.random.default_rng(42)
-    evaluator = FixedSetEvaluator(cartpole, trajs2[1:0], metric, rng, 
+    evaluator = FixedSetEvaluator(cartpole, trajs2[1:2], metric, rng, 
             training_trajs=[trajs2[0][:100], trajs2[3][150:200]]) 
     evaluator.add_grapher(grapher)
     #evaluator.add_grapher(grapher2)
@@ -223,66 +223,3 @@ if True:
     #plt.tight_layout()
     plt.show()
     sys.exit(0)
-
-
-from autompc.control import InfiniteHorizonLQR, FiniteHorizonLQR, NonLinearMPC
-#from autompc.control.mpc import LQRCost, LinearMPC
-from cartpole_model import CartpoleModel
-from autompc.tasks.task import Task
-from autompc.tasks.quad_cost import QuadCost
-
-task = Task(cartpole)
-Q = np.diag([1.0, 1.0, 1.0, 1.0])
-R = np.diag([1.0])
-#F = np.diag([10.0, 1.0, 1.0, 1.0])
-task.set_cost(QuadCost(cartpole, Q, R))
-
-model = koop
-cs = FiniteHorizonLQR.get_configuration_space(cartpole, task, model)
-cfg = cs.get_default_configuration()
-cfg["horizon"] = 1000
-con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
-
-def run_sim(theta0, break_sim=True):
-    sim_traj = ampc.zeros(cartpole, 1)
-    x = np.array([theta0,0.0,0.0,0.0])
-    sim_traj[0].obs[:] = x
-
-    constate = con.traj_to_state(sim_traj[:1])
-    Q, _, _ = task.get_cost().get_cost_matrices()
-    for _ in range(1000):
-        u, constate = con.run(constate, sim_traj[-1].obs)
-        #u = np.zeros(1)
-        x = dt_cartpole_dynamics(x, u, dt)
-        sim_traj[-1, "u"] = u
-        sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-        state_cost = x.T @ Q @ x
-        if break_sim and state_cost > 10000.0:
-            break
-    return sim_traj
-
-theta0_lower = 0.0
-theta0_upper = 3.0
-while theta0_upper - theta0_lower > 0.01:
-    theta0 = (theta0_upper + theta0_lower) / 2
-    print(f"{theta0=}")
-    sim_traj = run_sim(theta0)
-    success = (abs(sim_traj[-1, "theta"]) < 0.01
-            and abs(sim_traj[-1, "x"])  < 0.01)
-    if success:
-        theta0_lower = theta0
-    else:
-        theta0_upper = theta0
-
-print(f"Max Theta = {theta0_lower}")
-sim_traj = run_sim(theta0_lower, break_sim=True)
-
-fig = plt.figure()
-ax = fig.gca()
-ax.set_aspect("equal")
-ax.set_xlim([-1.1, 1.1])
-ax.set_ylim([-1.1, 1.1])
-#set_trace()
-ani = animate_cartpole(fig, ax, dt, sim_traj)
-#ani.save("out/cartpole_test/aug11_01.mp4")
-plt.show()
