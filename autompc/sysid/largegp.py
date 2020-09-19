@@ -113,7 +113,7 @@ class LargeGaussianProcess(Model):
         TsrXt = torch.from_numpy(Xt).to(self.device)
         predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
         y = predy.mean.cpu().data.numpy()
-        return y
+        return y.flatten()
 
     def pred_parallel(self, state, ctrl):
         """The batch mode"""
@@ -122,7 +122,7 @@ class LargeGaussianProcess(Model):
         TsrXt = torch.from_numpy(Xt).to(self.device)
         predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
         y = predy.mean.cpu().data.numpy()  # TODO: check shape
-        return y
+        return y.flatten()
 
     def pred_diff(self, state, ctrl):
         """Prediction, but with gradient information"""
@@ -144,7 +144,7 @@ class LargeGaussianProcess(Model):
         n = self.system.obs_dim
         state_jac = jac[:, :n]
         ctrl_jac = jac[:, n:]
-        return y, state_jac, ctrl_jac
+        return y.flatten(), state_jac, ctrl_jac
 
     @property
     def state_dim(self):

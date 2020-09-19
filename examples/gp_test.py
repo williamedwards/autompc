@@ -121,12 +121,20 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt):
 trajs = gen_trajs(4)
 trajs2 = gen_trajs(200)
 
-from autompc.sysid import ARX, Koopman, SINDy, GaussianProcess
+from autompc.sysid import ARX, Koopman, SINDy, GaussianProcess, LargeGaussianProcess
 
 def train_gp(datasize=50, num_trajs=1):
     cs = GaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     gp = ampc.make_model(cartpole, GaussianProcess, cfg)
+    mytrajs = [trajs2[i][:datasize] for i in range(num_trajs)]
+    gp.train(mytrajs)
+    return gp
+
+def train_large_gp(datasize=50, num_trajs=1):
+    cs = LargeGaussianProcess.get_configuration_space(cartpole)
+    cfg = cs.get_default_configuration()
+    gp = ampc.make_model(cartpole, LargeGaussianProcess, cfg)
     mytrajs = [trajs2[i][:datasize] for i in range(num_trajs)]
     gp.train(mytrajs)
     return gp
@@ -161,6 +169,16 @@ def train_sindy():
     sindy.train(trajs2)
     return sindy
 
+def fd_jac(func, x, dt=1e-4):
+    res = func(x)
+    jac = np.empty((res.size, x.size))
+    for i in range(x.size):
+        xp = np.copy(x)
+        xp[i] += dt
+        resp = func(xp)
+        jac[:,i] = (resp - res) / dt
+    return jac
+
 arx = train_arx(k=4)
 koop = train_koop()
 sindy = train_sindy()
@@ -169,9 +187,22 @@ sindy = train_sindy()
 #import timeit
 #sizes = []
 #times = []
-#for datasize in range(10, 200, 10):
+#for datasize in range(10, 60, 10):
 #    num_trajs = 10
-#    gp = train_gp(datasize=datasize, num_trajs=num_trajs)
+#    #gp = train_large_gp(datasize=datasize, num_trajs=num_trajs)
+#    cs = LargeGaussianProcess.get_configuration_space(cartpole)
+#    cfg = cs.get_default_configuration()
+#    gp = ampc.make_model(cartpole, LargeGaussianProcess, cfg)
+#    gp.train(trajs2[-5:])
+#    state = np.zeros(4,)
+#    state[0] = 0.5
+#    x, state_jac, ctrl_jac = gp.pred_diff(state, np.ones(1,))
+#    state_jac2 = fd_jac(lambda y: gp.pred(y, np.ones(1,)), state, dt=1e-2)
+#    state_jac3 = fd_jac(lambda y: gp.pred(y, np.ones(1,)), state, dt=1e-3)
+#    state_jac4 = fd_jac(lambda y: gp.pred(y, np.ones(1,)), state, dt=1e-4)
+#    state_jac5 = fd_jac(lambda y: gp.pred(y, np.ones(1,)), state, dt=1e-5)
+#    ctrl_jac2 = fd_jac(lambda y: gp.pred(state, y), np.ones(1,))
+#    set_trace()
 #    t = timeit.Timer(lambda: gp.pred(np.zeros(4,), np.ones(1,)))
 #    print(t.timeit(number=1))
 #    rep = t.repeat(number=3)
@@ -193,21 +224,21 @@ if True:
 
     metric = RmseKstepMetric(cartpole, k=10)
     grapher = InteractiveEvalGrapher(cartpole)
-    grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10)
+    #grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10)
 
     rng = np.random.default_rng(42)
     evaluator = FixedSetEvaluator(cartpole, trajs2[1:2], metric, rng, 
-            training_trajs=[trajs2[0][:100], trajs2[3][150:200]]) 
+            training_trajs=trajs2[-5:]) 
     evaluator.add_grapher(grapher)
     #evaluator.add_grapher(grapher2)
-    cs = GaussianProcess.get_configuration_space(cartpole)
+    cs = LargeGaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     #cfg["trig_basis"] = "true"
     #cfg["poly_basis"] = "false"
     #cfg["poly_degree"] = 3
     #cs = MyLinear.get_configuration_space(cartpole)
     #cfg = cs.get_default_configuration()
-    eval_score, _, graphs = evaluator(GaussianProcess, cfg)
+    eval_score, _, graphs = evaluator(LargeGaussianProcess, cfg)
     print("eval_score = {}".format(eval_score))
     fig = plt.figure()
     graph = graphs[0]

@@ -3,7 +3,7 @@
 from pdb import set_trace
 import copy
 
-import numpy as np
+import numpy as onp
 import numpy.linalg as la
 
 import jax
@@ -95,8 +95,9 @@ class GaussianProcess(Model):
             self.gps.append(gp)
             self.kernels.append(kernel3)
             #self.gp_predict = jax.jit(lambda X: gp_predict(gp, kernel2, X))
-            self.gp_predicts.append(lambda X, kern=kernel3, gp=gp: gp_predict(gp, kern, X))
-            #self.gp_jacs.append(jax.jacobian(gp_predict))
+            gp_pred = lambda X, kern=kernel3, gp=gp: gp_predict(gp, kern, X)
+            self.gp_predicts.append(gp_pred)
+            self.gp_jacs.append(jax.jacobian(gp_pred))
 
     def pred(self, state, ctrl):
         X = np.concatenate([state, ctrl])
@@ -104,24 +105,28 @@ class GaussianProcess(Model):
         Y = []
         Y2 = []
         Xt = transform_input(self.xu_means, self.xu_std, X)
-        for gp in self.gps:
-            Y2.append(gp.predict(Xt)[0])
         for gp_predict in self.gp_predicts:
             Y.append(gp_predict(Xt)[0])
-        if np.amax(np.abs(np.array(Y) - np.array(Y2))) > 0.01:
-            set_trace()
-        return np.array(Y)
+        return onp.array(Y)
 
     def pred_diff(self, state, ctrl):
         X = np.concatenate([state, ctrl])
         X = X[np.newaxis,:]
-        Y = self.gp_predict(X)
-        jac = self.gp_jac(Y)
-        n = self.system.state_dim
-        state_jac = jac[:, :n]
-        ctrl_jac = jac[:, n:]
+        Y = []
+        Y2 = []
+        Xt = transform_input(self.xu_means, self.xu_std, X)
+        for gp_predict in self.gp_predicts:
+            Y.append(gp_predict(Xt)[0])
+        n = self.system.obs_dim
+        m = self.system.ctrl_dim
+        state_jac = onp.zeros((n,n))
+        ctrl_jac = onp.zeros((n,m))
+        for i, gp_jac in enumerate(self.gp_jacs):
+            jac = gp_jac(Xt)
+            state_jac[i, :n] = jac[0, 0, :n]
+            ctrl_jac[i, n:] = jac[0, 0, n:]
 
-        return Y.flatten(), state_jac, ctrl_jac
+        return onp.array(Y), state_jac, ctrl_jac
 
     @property
     def state_dim(self):
