@@ -56,7 +56,7 @@ class SimpleDataset(Dataset):
 
 
 class MLP(Model):
-    def __init__(self, system, n_hidden, hidden_size, nonlintype, n_iter, n_batch, lr):
+    def __init__(self, system, n_hidden=2, hidden_size=32, nonlintype='relu', n_iter=10, n_batch=64, lr=1e-3):
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
         self.net = ForwardNet(nx + nu, nx, n_hidden, hidden_size, nonlintype)
@@ -182,4 +182,5 @@ class MLP(Model):
     @staticmethod
     def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
+        cs.add_configuration_space
         return cs
