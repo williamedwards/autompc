@@ -1,3 +1,4 @@
+import time
 from pdb import set_trace
 import sys, os
 sys.path.append(os.getcwd() + "/..")
@@ -126,14 +127,31 @@ from autompc.control import IterativeLQR
 
 #@memory.cache
 def run_experiment():
-    #cs = LargeGaussianProcess.get_configuration_space(cartpole)
-    #cfg = cs.get_default_configuration()
-    #model = ampc.make_model(cartpole, LargeGaussianProcess, cfg)
-    #model.train(trajs[-2:])
-    cs = GaussianProcess.get_configuration_space(cartpole)
+    cs = LargeGaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    model = ampc.make_model(cartpole, GaussianProcess, cfg)
-    model.train([trajs2[0][:100], trajs2[3][150:200]])
+    model = ampc.make_model(cartpole, LargeGaussianProcess, cfg)
+    model.train(trajs2[:3])
+
+    test_n = 100
+    x = np.array([0.1, 0, 0, 0])
+    u = np.array([0.])
+    t0 = time.time()
+    for i in range(test_n):
+        xn = model.pred(x, u)
+    print(time.time() - t0)
+
+    t0 = time.time()
+    for i in range(test_n):
+        xn, _, _ = model.pred_diff(x, u)
+    print(time.time() - t0)
+
+    raise
+
+
+    # cs = GaussianProcess.get_configuration_space(cartpole)
+    # cfg = cs.get_default_configuration()
+    # model = ampc.make_model(cartpole, GaussianProcess, cfg)
+    # model.train([trajs2[0][:100], trajs2[3][150:200]])
 
     # Now it's time to apply the controller
     task1 = ampc.Task(cartpole)
@@ -145,12 +163,13 @@ def run_experiment():
     hori = 40  # hori means integer horizon... how many steps...
     ubound = np.array([[-15], [15]])
     mode = 'auglag'
-    ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=None)
+    ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=None, verbose=True)
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
     x = np.array([0.1, 0, 0, 0])
     sim_traj[0].obs[:] = x
     us = []
+
 
     constate = ilqr.traj_to_state(sim_traj[:1])
     for step in range(200):

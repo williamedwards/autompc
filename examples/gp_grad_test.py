@@ -141,8 +141,8 @@ state = np.zeros(4,)
 state[0] = 0.5
 ctrl = np.ones(1,)
 x, state_jac, ctrl_jac = gp.pred_diff(state, ctrl)
-state_jac2 = fd_jac(lambda y: gp.pred(y, ctrl), state)
-ctrl_jac2 = fd_jac(lambda y: gp.pred(state, y), ctrl)
+state_jac2 = fd_jac(lambda y: gp.pred(y, ctrl), state, dt=1e-6)
+ctrl_jac2 = fd_jac(lambda y: gp.pred(state, y), ctrl, dt=1e-6)
 
 print("state_jac=")
 print(state_jac)

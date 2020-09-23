@@ -199,7 +199,7 @@ def test_sindy_cartpole():
         hori = 40  # hori means integer horizon... how many steps...
         ubound = np.array([[-15], [15]])
         mode = 'auglag'
-        ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=None)
+        ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=None, verbose=True)
         # just give a random initial state
         sim_traj = ampc.zeros(cartpole, 1)
         x = np.array([np.pi, 0, 0, 0])

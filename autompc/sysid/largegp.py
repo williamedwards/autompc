@@ -47,12 +47,14 @@ class BatchIndependentMultitaskGPModel(gpytorch.models.ExactGP):
 
 
 class LargeGaussianProcess(Model):
-    def __init__(self, system, mean='constant', kernel='RBF', niter=100, lr=0.1):
+    def __init__(self, system, mean='constant', kernel='RBF', niter=40, lr=0.1):
         super().__init__(system)
         self.gpmodel = BatchIndependentMultitaskGPModel(self.system.obs_dim, mean, kernel).double()
         self.niter = niter
         self.lr = lr
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        if torch.cuda.is_available():
+            print("Cuda is used for LargeGaussianProcess")
         self.gpmodel = self.gpmodel.to(self.device)
 
     @staticmethod
@@ -138,7 +140,7 @@ class LargeGaussianProcess(Model):
         predy.backward(torch.eye(obs_dim).to(self.device))
         jac = TsrXt.grad.cpu().data.numpy()
         # properly scale back...
-        jac = jac * self.xu_std[None]  # a row one for broadcasting
+        jac = jac / self.xu_std[None]  # a row one for broadcasting
         # since repeat, y value is the first one...
         y = predy[0].cpu().data.numpy()
         n = self.system.obs_dim
