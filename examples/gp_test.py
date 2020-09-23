@@ -54,13 +54,13 @@ def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
 
 def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     y = np.copy(y)
-    y[0] += np.pi
-    sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
-    if not sol.success:
-        raise Exception("Integration failed due to {}".format(sol.message))
-    y = sol.y.reshape((4,))
-    #y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
-    y[0] -= np.pi
+    #y[0] += np.pi
+    #sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
+    #if not sol.success:
+    #    raise Exception("Integration failed due to {}".format(sol.message))
+    #y = sol.y.reshape((4,))
+    y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
+    #y[0] -= np.pi
     return y
 
 def animate_cartpole(fig, ax, dt, traj):
@@ -118,7 +118,7 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt):
             traj[i].ctrl[:] = u
         trajs.append(traj)
     return trajs
-trajs = gen_trajs(4)
+trajs = gen_trajs(10)
 trajs2 = gen_trajs(200)
 
 from autompc.sysid import ARX, Koopman, SINDy, GaussianProcess, LargeGaussianProcess
@@ -228,6 +228,8 @@ if True:
 
     rng = np.random.default_rng(42)
     evaluator = FixedSetEvaluator(cartpole, trajs2[1:2], metric, rng, 
+            #training_trajs=trajs2[-5:]) 
+            #training_trajs=[trajs2[0][:100], trajs2[3][150:200]]) 
             training_trajs=trajs2[-5:]) 
     evaluator.add_grapher(grapher)
     #evaluator.add_grapher(grapher2)

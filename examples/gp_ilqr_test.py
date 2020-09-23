@@ -55,13 +55,13 @@ def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
 
 def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     y = np.copy(y)
-    y[0] += np.pi
-    sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
-    if not sol.success:
-        raise Exception("Integration failed due to {}".format(sol.message))
-    y = sol.y.reshape((4,))
-    #y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
-    y[0] -= np.pi
+    #y[0] += np.pi
+    #sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
+    #if not sol.success:
+    #    raise Exception("Integration failed due to {}".format(sol.message))
+    #y = sol.y.reshape((4,))
+    y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
+    #y[0] -= np.pi
     return y
 
 def animate_cartpole(fig, ax, dt, traj):
@@ -125,12 +125,13 @@ trajs2 = gen_trajs(200)
 from autompc.sysid import GaussianProcess, LargeGaussianProcess
 from autompc.control import IterativeLQR
 
-#@memory.cache
+@memory.cache
 def run_experiment():
     cs = LargeGaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     model = ampc.make_model(cartpole, LargeGaussianProcess, cfg)
-    model.train(trajs2[:3])
+    model.train(trajs2[-1:])
+    #model.train([trajs2[0][:100], trajs2[3][150:200]])
 
     test_n = 100
     x = np.array([0.1, 0, 0, 0])
@@ -144,9 +145,6 @@ def run_experiment():
     for i in range(test_n):
         xn, _, _ = model.pred_diff(x, u)
     print(time.time() - t0)
-
-    raise
-
 
     # cs = GaussianProcess.get_configuration_space(cartpole)
     # cfg = cs.get_default_configuration()
@@ -163,10 +161,10 @@ def run_experiment():
     hori = 40  # hori means integer horizon... how many steps...
     ubound = np.array([[-15], [15]])
     mode = 'auglag'
-    ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=None, verbose=True)
+    ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=20, verbose=True)
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
-    x = np.array([0.1, 0, 0, 0])
+    x = np.array([0.01, 0, 0, 0])
     sim_traj[0].obs[:] = x
     us = []
 

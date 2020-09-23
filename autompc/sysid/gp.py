@@ -123,8 +123,8 @@ class GaussianProcess(Model):
         ctrl_jac = onp.zeros((n,m))
         for i, gp_jac in enumerate(self.gp_jacs):
             jac = gp_jac(Xt)
-            state_jac[i, :n] = jac[0, 0, :n]
-            ctrl_jac[i, n:] = jac[0, 0, n:]
+            state_jac[i, :] = jac[0, 0, :n]
+            ctrl_jac[i, :] = jac[0, 0, n:]
 
         return onp.array(Y), state_jac, ctrl_jac
 

@@ -54,13 +54,13 @@ def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
 
 def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     y = np.copy(y)
-    y[0] += np.pi
-    sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
-    if not sol.success:
-        raise Exception("Integration failed due to {}".format(sol.message))
-    y = sol.y.reshape((4,))
-    #y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
-    y[0] -= np.pi
+    #y[0] += np.pi
+    #sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
+    #if not sol.success:
+    #    raise Exception("Integration failed due to {}".format(sol.message))
+    #y = sol.y.reshape((4,))
+    y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
+    #y[0] -= np.pi
     return y
 
 def animate_cartpole(fig, ax, dt, traj):
@@ -136,13 +136,15 @@ def fd_jac(func, x, dt=1e-4):
 cs = LargeGaussianProcess.get_configuration_space(cartpole)
 cfg = cs.get_default_configuration()
 gp = ampc.make_model(cartpole, LargeGaussianProcess, cfg)
-gp.train(trajs2[-5:])
+gp.train(trajs2[-1:])
+#gp.train([trajs2[0][:100], trajs2[3][150:200]])
 state = np.zeros(4,)
-state[0] = 0.5
-ctrl = np.ones(1,)
+#state[0] = 0.5
+#ctrl = np.ones(1,)
+ctrl = np.zeros(1,)
 x, state_jac, ctrl_jac = gp.pred_diff(state, ctrl)
-state_jac2 = fd_jac(lambda y: gp.pred(y, ctrl), state, dt=1e-6)
-ctrl_jac2 = fd_jac(lambda y: gp.pred(state, y), ctrl, dt=1e-6)
+state_jac2 = fd_jac(lambda y: gp.pred(y, ctrl), state, dt=1e-2)
+ctrl_jac2 = fd_jac(lambda y: gp.pred(state, y), ctrl, dt=1e-2)
 
 print("state_jac=")
 print(state_jac)
@@ -152,3 +154,4 @@ print("ctrl_jac=")
 print(ctrl_jac)
 print("ctrl_jac2=")
 print(ctrl_jac2)
+set_trace()
