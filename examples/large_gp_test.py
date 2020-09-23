@@ -2,6 +2,7 @@
 Test the gpytorch version of Gaussian process.
 Test batch mode, normal mode, and grad mode.
 """
+import time
 import numpy as np
 import autompc as ampc
 import matplotlib.pyplot as plt
@@ -9,7 +10,7 @@ import matplotlib.animation as animation
 from joblib import Memory
 
 from scipy.integrate import solve_ivp
-from autompc.sysid import LargeGaussianProcess
+from autompc.sysid import LargeGaussianProcess, ApproximateGaussianProcess
 
 memory = Memory("cache")
 
@@ -124,19 +125,35 @@ trajs2 = gen_trajs(200)
 
 
 datasize = 200
-num_trajs = 20  # so I have 1000 points....
-gp = LargeGaussianProcess(cartpole, niter=40)
+num_trajs = 500  # so I have 20000 points....
+# gp = LargeGaussianProcess(cartpole, niter=40)
+gp = ApproximateGaussianProcess(cartpole, niter=4, batch_size=1024, induce_count=500)  # parameter like
 mytrajs = [trajs2[i][:datasize] for i in range(num_trajs)]
+tm1 = time.time()
 gp.train(mytrajs)
 
 # test some predictions
-state = np.zeros(4)
-ctrl = np.random.normal(size=1)
-ybase = gp.pred(state, ctrl)
-yp, jacx, jacu = gp.pred_diff(state, ctrl)
+t0 = time.time()
+print('training cost ', t0 - tm1)
+for i in range(100):
+    state = np.random.normal(size=4)
+    ctrl = np.random.normal(size=1)
+    ybase = gp.pred(state, ctrl)
+t1 = time.time()
+print('pred cost ', t1 - t0)
+for i in range(100):
+    state = np.zeros(4)
+    ctrl = np.random.normal(size=1)
+    yp, jacx, jacu = gp.pred_diff(state, ctrl)
+t2 = time.time()
+print('pred_diff cost', t2 - t1)
 # batch mode
-y_batch = gp.pred_parallel(np.tile(state[None], (10, 1)), np.tile(ctrl[None], (10, 1)))
+for i in range(100):
+    y_batch = gp.pred_parallel(np.tile(state[None], (10, 1)), np.tile(ctrl[None], (10, 1)))
+t3 = time.time()
+print('pred_parallel cost', t3 - t2)
 
+raise
 # test the model by generating one trajectory...
 rng = np.random.default_rng(49)
 theta0 = rng.uniform(-0.002, 0.002, 1)[0]
