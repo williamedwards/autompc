@@ -5,6 +5,7 @@ I start questioning myself whether this is gonna work, but anyway... It won't hu
 """
 import numpy as np
 import numpy.linalg as la
+from pdb import set_trace
 from control.matlab import dare
 
 from ConfigSpace import ConfigurationSpace
@@ -14,7 +15,7 @@ from ..controller import Controller
 
 
 class IterativeLQR(Controller):
-    def __init__(self, system, task, model, horizon, reuse_feedback=-1, ubounds=None, mode=None):
+    def __init__(self, system, task, model, horizon, reuse_feedback=-1, ubounds=None, mode=None, verbose=False):
         """Reuse_feedback determines how many steps of K are used as feedback.
         ubounds is a tuple of minimum and maximum control bounds
         mode specifies mode, 'barrier' use barrier method for control bounds; 'auglag' use augmented Lagrangian; None use default one, clip
@@ -33,6 +34,7 @@ class IterativeLQR(Controller):
         self._guess = None
         self.ubounds = ubounds
         self.mode = mode
+        self.verbose = verbose
         if mode is None:
             self.compute_ilqr = self.compute_ilqr_default
         elif mode == 'barrier':
@@ -430,6 +432,8 @@ class IterativeLQR(Controller):
         converged = False
         du_norm = np.inf
         for itr in range(max_iter):
+            if self.verbose:
+                print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
             Vn = F
             vn = F @ states[H]
@@ -480,7 +484,8 @@ class IterativeLQR(Controller):
                 ls_alpha *= ls_discount
                 if ks_norm < u_threshold:
                     break
-            # print('line search obj %f to %f at alpha = %f' % (obj, new_obj, ls_alpha))
+            if self.verbose:
+                print('line search obj %f to %f at alpha = %f' % (obj, new_obj, ls_alpha))
             if best_obj < obj or ks_norm < u_threshold:
                 ls_success = True
                 for i in range(H):
@@ -495,13 +500,16 @@ class IterativeLQR(Controller):
                 print('Line search fails...')
                 break
             else:
+                if self.verbose:
+                    print('alpha is successful at %f with cost from %f to %f' % (best_alpha, obj, new_obj))
                 pass
-                # print('alpha is successful at %f with cost from %f to %f' % (best_alpha, obj, new_obj))
             # return since update of action is small
-            # print('u update', np.linalg.norm(new_ctrls - ctrls))
+            if self.verbose:
+                print('u update', np.linalg.norm(new_ctrls - ctrls))
             du_norm = np.linalg.norm(new_ctrls - ctrls)
             if du_norm < u_threshold:
-                # print('Break since update of control is small at %f' % (np.linalg.norm(new_ctrls - ctrls)))
+                if self.verbose:
+                    print('Break since update of control is small at %f' % (np.linalg.norm(new_ctrls - ctrls)))
                 converged = True
             # ready to swap...
             states, new_states = new_states, states
@@ -514,8 +522,6 @@ class IterativeLQR(Controller):
                 break
         if not converged:
             print('ilqr fails to converge, try a new guess? Last u update is %f ks norm is %f' % (du_norm, ks_norm))
-        # print('ilqr converges to trajectory', states, 'ctrls', ctrls)
-        if not converged:
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks, ks
 

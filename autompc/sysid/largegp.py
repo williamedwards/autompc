@@ -32,6 +32,12 @@ def transform_input(xu_means, xu_std, XU):
         XUt.append((XU[:,i] - xu_means[i]) / xu_std[i])
     return np.vstack(XUt).T
 
+def transform_output(xu_means, xu_std, XU):
+    XUt = []
+    for i in range(XU.shape[1]):
+        XUt.append((XU[:,i] * xu_std[i]) + xu_means[i])
+    return np.vstack(XUt).T
+
 
 class GPytorchGP(Model):
     """Define a base class that can be extended to both scalable and un-scalable case"""
@@ -67,8 +73,9 @@ class GPytorchGP(Model):
         # for this one, make a prediction is easy...
         TsrXt = torch.from_numpy(Xt).to(self.device)
         predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
-        y = predy.mean.cpu().data.numpy()
-        return y.flatten()
+        out = predy.mean.cpu().data.numpy()
+        dy = transform_output(self.dy_means, self.dy_std, out).flatten()
+        return state + dy
 
     def pred_parallel(self, state, ctrl):
         """The batch mode"""
@@ -76,8 +83,9 @@ class GPytorchGP(Model):
         Xt = transform_input(self.xu_means, self.xu_std, X)
         TsrXt = torch.from_numpy(Xt).to(self.device)
         predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
-        y = predy.mean.cpu().data.numpy()  # TODO: check shape
-        return y.flatten()
+        out = predy.mean.cpu().data.numpy()
+        dy = transform_output(self.dy_means, self.dy_std, out).flatten()
+        return state + dy
 
     def pred_diff(self, state, ctrl):
         """Prediction, but with gradient information"""
@@ -95,11 +103,12 @@ class GPytorchGP(Model):
         # properly scale back...
         jac = jac / self.xu_std[None]  # a row one for broadcasting
         # since repeat, y value is the first one...
-        y = predy[0].cpu().data.numpy()
+        out = predy[:1,:].cpu().data.numpy()
+        dy = transform_output(self.dy_means, self.dy_std, out).flatten()
         n = self.system.obs_dim
-        state_jac = jac[:, :n]
+        state_jac = jac[:, :n] + np.eye(n)
         ctrl_jac = jac[:, n:]
-        return y.flatten(), state_jac, ctrl_jac
+        return state + dy, state_jac, ctrl_jac
 
     @property
     def state_dim(self):
@@ -182,16 +191,20 @@ class LargeGaussianProcess(GPytorchGP):
 
         # prepare data
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
-        Y = np.concatenate([traj.obs[1:,:] for traj in trajs])
+        dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
         XU = np.concatenate((X, U), axis = 1) # stack X and U together
         self.xu_means = np.mean(XU, axis=0)
         self.xu_std = np.std(XU, axis=0)
         XUt = transform_input(self.xu_means, self.xu_std, XU)
 
+        self.dy_means = np.mean(dY, axis=0)
+        self.dy_std = np.std(dY, axis=0)
+        dYt = transform_input(self.dy_means, self.dy_std, dY)
+
         # convert into desired tensor
         train_x = torch.from_numpy(XUt)
-        train_y = torch.from_numpy(Y)
+        train_y = torch.from_numpy(dYt)
         train_x = train_x.to(self.device)
         train_y = train_y.to(self.device)
         self.gpmodel.set_train_data(train_x, train_y, False)
@@ -219,16 +232,21 @@ class ApproximateGaussianProcess(GPytorchGP):
         """Given collected trajectories, train the GP to approximate the actual dynamics"""
         # extract transfer pairs from data
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
-        Y = np.concatenate([traj.obs[1:,:] for traj in trajs])
+        dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
         num_task = Y.shape[1]
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
         XU = np.concatenate((X, U), axis = 1) # stack X and U together
         self.xu_means = np.mean(XU, axis=0)
         self.xu_std = np.std(XU, axis=0)
         XUt = transform_input(self.xu_means, self.xu_std, XU)
+
+        self.dy_means = np.mean(dY, axis=0)
+        self.dy_std = np.std(dY, axis=0)
+        dYt = transform_input(self.dy_means, self.dy_std, dY)
+
         # convert into desired tensor data loader
         train_x = torch.from_numpy(XUt)
-        train_y = torch.from_numpy(Y)
+        train_y = torch.from_numpy(dYt)
         train_x = train_x.to(self.device)
         train_y = train_y.to(self.device)
         train_dataset = TensorDataset(train_x, train_y)

@@ -25,8 +25,10 @@ import math
 from inspect import signature
 from pdb import set_trace
 
-import numpy as np
-#import jax.numpy as np
+#import numpy as np
+import jax
+from jax.config import config; config.update("jax_enable_x64", True)
+import jax.numpy as np
 from scipy.special import kv, gamma
 from scipy.spatial.distance import pdist, cdist, squareform
 
