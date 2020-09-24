@@ -121,7 +121,9 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt):
 trajs = gen_trajs(10)
 trajs2 = gen_trajs(200)
 
-from autompc.sysid import ARX, Koopman, SINDy, GaussianProcess, LargeGaussianProcess
+from autompc.sysid import (ARX, Koopman, SINDy, 
+        GaussianProcess, LargeGaussianProcess, 
+        ApproximateGaussianProcess)
 
 def train_gp(datasize=50, num_trajs=1):
     cs = GaussianProcess.get_configuration_space(cartpole)
@@ -230,17 +232,18 @@ if True:
     evaluator = FixedSetEvaluator(cartpole, trajs2[1:2], metric, rng, 
             #training_trajs=trajs2[-5:]) 
             #training_trajs=[trajs2[0][:100], trajs2[3][150:200]]) 
-            training_trajs=trajs2[-5:]) 
+            training_trajs=trajs2[-25:]) 
     evaluator.add_grapher(grapher)
     #evaluator.add_grapher(grapher2)
-    cs = LargeGaussianProcess.get_configuration_space(cartpole)
+    #cs = LargeGaussianProcess.get_configuration_space(cartpole)
+    cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     #cfg["trig_basis"] = "true"
     #cfg["poly_basis"] = "false"
     #cfg["poly_degree"] = 3
     #cs = MyLinear.get_configuration_space(cartpole)
     #cfg = cs.get_default_configuration()
-    eval_score, _, graphs = evaluator(LargeGaussianProcess, cfg)
+    eval_score, _, graphs = evaluator(ApproximateGaussianProcess, cfg)
     print("eval_score = {}".format(eval_score))
     fig = plt.figure()
     graph = graphs[0]

@@ -101,7 +101,7 @@ class GPytorchGP(Model):
         predy.backward(torch.eye(obs_dim).to(self.device), retain_graph=True)
         jac = TsrXt.grad.cpu().data.numpy()
         # properly scale back...
-        jac = jac / self.xu_std[None]  # a row one for broadcasting
+        jac = jac / self.xu_std[None] * self.dy_std[:, np.newaxis]
         # since repeat, y value is the first one...
         out = predy[:1,:].cpu().data.numpy()
         dy = transform_output(self.dy_means, self.dy_std, out).flatten()
@@ -150,7 +150,7 @@ class ApproximateGPModel(gpytorch.models.ApproximateGP):
 
         # We have to wrap the VariationalStrategy in a MultitaskVariationalStrategy
         # so that the output will be a MultitaskMultivariateNormal rather than a batch output
-        variational_strategy = gpytorch.variational.MultitaskVariationalStrategy(
+        variational_strategy = gpytorch.variational.IndependentMultitaskVariationalStrategy(
             gpytorch.variational.VariationalStrategy(
                 self, inducing_points, variational_distribution, learn_inducing_locations=True
             ), num_tasks=num_task
@@ -206,7 +206,7 @@ class LargeGaussianProcess(GPytorchGP):
         train_x = torch.from_numpy(XUt)
         train_y = torch.from_numpy(dYt)
         train_x = train_x.to(self.device)
-        train_y = train_y.to(self.device)
+        train_y = train_y.to(self.device).contiguous()
         self.gpmodel.set_train_data(train_x, train_y, False)
 
         for i in range(self.niter):
@@ -233,7 +233,7 @@ class ApproximateGaussianProcess(GPytorchGP):
         # extract transfer pairs from data
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
-        num_task = Y.shape[1]
+        num_task = dY.shape[1]
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
         XU = np.concatenate((X, U), axis = 1) # stack X and U together
         self.xu_means = np.mean(XU, axis=0)
