@@ -2,6 +2,7 @@
 """
 import argparse
 import numpy as np
+import matplotlib.pyplot as plt
 from joblib import Memory
 
 import autompc as ampc
@@ -45,8 +46,59 @@ def test_cartpole():
         us.append(u)
 
 
+def test_mlp_accuracy():
+    from autompc.evaluators import HoldoutEvaluator, FixedSetEvaluator
+    from autompc.metrics import RmseKstepMetric
+    from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
+    from autompc.sysid import MLP
+
+    metric = RmseKstepMetric(cartpole, k=10)
+    grapher = InteractiveEvalGrapher(cartpole)
+    grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10)
+
+    rng = np.random.default_rng(42)
+
+    dt = 0.05
+    umin, umax = -2, 2
+    trajs2 = collect_cartpole_trajs(dt, umin, umax, num_trajs=500)
+
+    evaluator = FixedSetEvaluator(cartpole, trajs2[:10], metric, rng, 
+            training_trajs=trajs2[10:]) 
+    evaluator.add_grapher(grapher)
+    evaluator.add_grapher(grapher2)
+    cs = MLP.get_configuration_space(cartpole)
+    cfg = cs.get_default_configuration()
+    eval_score, _, graphs = evaluator(MLP, cfg)
+    print("eval_score = {}".format(eval_score))
+    fig = plt.figure()
+    graph = graphs[0]
+    graph.set_obs_lower_bound("theta", -0.2)
+    graph.set_obs_upper_bound("theta", 0.2)
+    graph.set_obs_lower_bound("omega", -0.2)
+    graph.set_obs_upper_bound("omega", 0.2)
+    graph.set_obs_lower_bound("dx", -0.2)
+    graph.set_obs_upper_bound("dx", 0.2)
+    graph.set_obs_lower_bound("x", -0.2)
+    graph.set_obs_upper_bound("x", 0.2)
+    graphs[0](fig)
+    fig2 = plt.figure()
+    graph = graphs[1]
+    # graph.set_obs_lower_bound("theta", -0.2)
+    # graph.set_obs_upper_bound("theta", 0.2)
+    # graph.set_obs_lower_bound("omega", -0.2)
+    # graph.set_obs_upper_bound("omega", 0.2)
+    # graph.set_obs_lower_bound("dx", -0.2)
+    # graph.set_obs_upper_bound("dx", 0.2)
+    # graph.set_obs_lower_bound("x", -0.2)
+    # graph.set_obs_upper_bound("x", 0.2)
+    graphs[1](fig2)
+    plt.show()
+
+    sys.exit(0)
+
 if __name__ == '__main__':
-    test_cartpole()
+    # test_cartpole()
+    test_mlp_accuracy()
     raise
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, choices=['pendulum', 'adaptive_pendulum',
