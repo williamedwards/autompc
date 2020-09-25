@@ -28,6 +28,7 @@ class FixedInitialMetric(ControlMetric):
                     cost = self.cost_limit
                 costs.append(cost)
             except FunctionTimedOut:
+                print("Simulation time out")
                 costs.append(self.cost_limit)
 
         if ret_detailed:

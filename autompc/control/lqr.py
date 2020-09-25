@@ -126,6 +126,8 @@ class FiniteHorizonLQR(Controller):
         self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, Fp, horizon)
         self.Qp, self.Rp = Qp, R
         self.model = model
+        self.umin = task.get_ctrl_bounds()[:,0]
+        self.umax = task.get_ctrl_bounds()[:,1]
 
     @property
     def state_dim(self):
@@ -144,7 +146,7 @@ class FiniteHorizonLQR(Controller):
         return (model.is_linear 
                 and task.is_cost_quad()
                 and not task.are_obs_bounded()
-                and not task.are_ctrl_bounded()
+                #and not task.are_ctrl_bounded()
                 and not task.eq_cons_present()
                 and not task.ineq_cons_present())
  
@@ -157,6 +159,8 @@ class FiniteHorizonLQR(Controller):
         modelstate = self.model.update_state(state[:-self.system.ctrl_dim],
                 state[-self.system.ctrl_dim:], new_obs)
         u = self.K @ modelstate
+        u = np.minimum(u, self.umax)
+        u = np.maximum(u, self.umin)
         #print("state={}".format(state))
         #print("u={}".format(u))
         #print("state_cost={}".format(modelstate.T @ self.Qp @ modelstate))

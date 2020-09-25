@@ -234,6 +234,7 @@ class ApproximateGaussianProcess(GPytorchGP):
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
         num_task = dY.shape[1]
+        self.num_task = num_task
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
         XU = np.concatenate((X, U), axis = 1) # stack X and U together
         self.xu_means = np.mean(XU, axis=0)
@@ -253,6 +254,7 @@ class ApproximateGaussianProcess(GPytorchGP):
         train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
         # construct the approximate GP instance
         induce = torch.stack([train_x[:self.induce_count] for _ in range(num_task)], dim=0)
+        self.induce = induce
         self.gpmodel = ApproximateGPModel(induce, num_task, self.gp_mean, self.gp_kernel).double()
         self.gpmodel = self.gpmodel.to(self.device)
         likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=num_task)
@@ -283,3 +285,28 @@ class ApproximateGaussianProcess(GPytorchGP):
         self.gpmodel.eval()
         likelihood.eval()
         self.gpmodel.likelihood = likelihood
+
+    def get_parameters(self):
+        return {"gpmodel_state" : self.gpmodel.state_dict(),
+                "induce" : self.induce,
+                "xu_means" : self.xu_means,
+                "xu_std" : self.xu_std,
+                "dy_means" : self.dy_means,
+                "dy_std" : self.dy_std,
+                "num_task" : self.num_task}
+
+    def set_parameters(self, params):
+        self.xu_means = params["xu_means"]
+        self.xu_std = params["xu_std"]
+        self.dy_means = params["dy_means"]
+        self.dy_std = params["dy_std"]
+        self.induce = params["induce"]
+        self.num_task = params["num_task"]
+        self.gpmodel = ApproximateGPModel(self.induce, self.num_task, self.gp_mean, 
+                self.gp_kernel).double()
+        self.gpmodel = self.gpmodel.to(self.device)
+        likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(
+                num_tasks=self.num_task)
+        likelihood = likelihood.to(self.device)
+        self.gpmodel.likelihood = likelihood
+        self.gpmodel.load_state_dict(params["gpmodel_state"])

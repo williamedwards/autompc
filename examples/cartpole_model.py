@@ -7,62 +7,62 @@ import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
-def cartpole_dynamics(yu, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
-    """
-    Parameters
-    ----------
-        y : states
-        u : control
-    Returns
-    -------
-        A list describing the dynamics of the cart cart pole
-    """
-    theta, omega, x, dx, u = yu
-    return np.array([omega,
-            1.0/(L*(m_c+m_p+m_p*np.sin(theta)**2))*(-u*np.cos(theta) 
-                - m_p*L*omega**2*np.cos(theta)*np.sin(theta)
-                - (m_c+m_p+m_p)*g*np.sin(theta)
-                - b*omega),
-            dx,
-            1.0/(m_c + m_p*np.sin(theta)**2)*(u + m_p*np.sin(theta)*
-                (L*omega**2 + g*np.cos(theta)))])
-
-
-def dt_cartpole_dynamics(y, u, dt, g=9.8,m=1,L=1,b=1.0):
-    y[0] += np.pi
-    yu = np.concatenate((y, u))
-    dstate = cartpole_dynamics(yu, g=g)
-    y[0] -= np.pi  # recover it...
-    sol = y + dstate * dt
-    return sol
-#def cartpole_simp_dynamics(yu, g = 9.8, m = 1, L = 1, b = 0.1):
+#def cartpole_dynamics(yu, g = 9.8, m_c = 1, m_p = 1, L = 1, b = 1.0):
 #    """
 #    Parameters
 #    ----------
 #        y : states
 #        u : control
-#
 #    Returns
 #    -------
 #        A list describing the dynamics of the cart cart pole
 #    """
-#    theta, omega, x, dx,u = yu
+#    theta, omega, x, dx, u = yu
 #    return np.array([omega,
-#            g * np.sin(theta)/L - b * omega / (m*L**2) + u * np.cos(theta)/L,
+#            1.0/(L*(m_c+m_p+m_p*np.sin(theta)**2))*(-u*np.cos(theta) 
+#                - m_p*L*omega**2*np.cos(theta)*np.sin(theta)
+#                - (m_c+m_p+m_p)*g*np.sin(theta)
+#                - b*omega),
 #            dx,
-#            u])
+#            1.0/(m_c + m_p*np.sin(theta)**2)*(u + m_p*np.sin(theta)*
+#                (L*omega**2 + g*np.cos(theta)))])
 #
-#def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
-#    yu = np.concatenate([y,u])
-#    y += dt * cartpole_simp_dynamics(yu,g,m,L,b)
-#    return y
+#
+#def dt_cartpole_dynamics(y, u, dt, g=9.8,m=1,L=1,b=1.0):
+#    y[0] += np.pi
+#    yu = np.concatenate((y, u))
+#    dstate = cartpole_dynamics(yu, g=g)
+#    y[0] -= np.pi  # recover it...
+#    sol = y + dstate * dt
+#    return sol
+def cartpole_simp_dynamics(yu, g = 9.8, m = 1, L = 1, b = 0.1):
+    """
+    Parameters
+    ----------
+        y : states
+        u : control
+
+    Returns
+    -------
+        A list describing the dynamics of the cart cart pole
+    """
+    theta, omega, x, dx,u = yu
+    return np.array([omega,
+            g * np.sin(theta)/L - b * omega / (m*L**2) + u * np.cos(theta)/L,
+            dx,
+            u])
+
+def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
+    yu = np.concatenate([y,u])
+    y += dt * cartpole_simp_dynamics(yu,g,m,L,b)
+    return y
 
 
 class CartpoleModel(Model):
     def __init__(self, system):
         super().__init__(system)
         self.dt = system.dt
-        self.gfun = autograd.jacobian(cartpole_dynamics)
+        self.gfun = autograd.jacobian(cartpole_simp_dynamics)
 
     @staticmethod
     def get_configuration_space(system):
@@ -89,7 +89,7 @@ class CartpoleModel(Model):
     def pred_diff(self, state, ctrl):
         xpred = dt_cartpole_dynamics(state, ctrl, self.dt)
         x = np.concatenate([state, ctrl])
-        x[0] += np.pi
+        #x[0] += np.pi
         jac = self.gfun(x)
         # so I get system dynamics
         A = jac[:, :4]

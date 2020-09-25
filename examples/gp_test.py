@@ -91,9 +91,8 @@ def animate_cartpole(fig, ax, dt, traj):
 dt = 0.01
 cartpole.dt = dt
 
-umin = -2.0
-umax = 2.0
-udmax = 0.25
+umin = -20.0
+umax = 20.0
 
 # Generate trajectories for training
 num_trajs = 500
@@ -226,7 +225,8 @@ if True:
 
     metric = RmseKstepMetric(cartpole, k=10)
     grapher = InteractiveEvalGrapher(cartpole)
-    #grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10)
+    grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10,
+            logscale=True)
 
     rng = np.random.default_rng(42)
     evaluator = FixedSetEvaluator(cartpole, trajs2[1:2], metric, rng, 
@@ -234,7 +234,7 @@ if True:
             #training_trajs=[trajs2[0][:100], trajs2[3][150:200]]) 
             training_trajs=trajs2[-25:]) 
     evaluator.add_grapher(grapher)
-    #evaluator.add_grapher(grapher2)
+    evaluator.add_grapher(grapher2)
     #cs = LargeGaussianProcess.get_configuration_space(cartpole)
     cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
@@ -256,6 +256,7 @@ if True:
     graph.set_obs_lower_bound("x", -0.2)
     graph.set_obs_upper_bound("x", 0.2)
     graphs[0](fig)
+    graphs[1](fig)
     #plt.tight_layout()
     plt.show()
     sys.exit(0)

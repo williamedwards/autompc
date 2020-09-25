@@ -132,6 +132,7 @@ class IterativeLQR(Controller):
         # first loop on mu
         while cur_mu <= muf:
             # set imu by value of c_val and lmd
+            print("cur_mu={}, muf={}".format(cur_mu, muf))
             cur_imu[:] = cur_mu
             cur_imu[(cur_lmd == 0) & (c_val < -1e-6)] = 0  # NOTE: it's important to use &, otherwise it won't converge...
             obj = eval_obj(states, ctrls, cur_lmd, cur_imu)
@@ -144,6 +145,7 @@ class IterativeLQR(Controller):
             du_norm = np.inf
             for itr in range(max_iter):
                 # compute at the last step, Vn and vn, just hessian and gradient at the last state
+                print("Iteration {}/{}".format(itr, max_iter))
                 Vn = F
                 vn = F @ states[H]
                 lin_cost_reduce = quad_cost_reduce = 0
@@ -290,6 +292,7 @@ class IterativeLQR(Controller):
             Jacs[i, :, dimx:] = ju
         # first loop on mu
         while cur_mu >= muf:
+            print("cur_mu={}, muf={}".format(cur_mu, muf))
             obj = eval_obj(states, ctrls, cur_mu)
             initcost = obj
             # start iteration from here
@@ -300,6 +303,7 @@ class IterativeLQR(Controller):
             du_norm = np.inf
             for itr in range(max_iter):
                 # compute at the last step, Vn and vn, just hessian and gradient at the last state
+                print("Iteration {} / {}".format(itr, max_iter))
                 Vn = F
                 vn = F @ states[H]
                 lin_cost_reduce = quad_cost_reduce = 0

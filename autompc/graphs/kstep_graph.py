@@ -9,18 +9,19 @@ from ..grapher import Grapher
 from ..graph import Graph
 
 class KstepGrapher(Grapher):
-    def __init__(self, system, kmax, kstep=1, evalstep=1):
+    def __init__(self, system, kmax, kstep=1, evalstep=1, logscale=False):
         super().__init__(system)
         self.kmax = kmax
         self.kstep = kstep
         self.evalstep = evalstep
+        self.logscale = logscale
 
     def __call__(self, model, configuration):
         return KstepGraph(self.system, model, configuration, 
-                self.kmax, self.kstep, self.evalstep)
+                self.kmax, self.kstep, self.evalstep, self.logscale)
 
 class KstepGraph(Graph):
-    def __init__(self, system, model, configuration, kmax, kstep, evalstep):
+    def __init__(self, system, model, configuration, kmax, kstep, evalstep, logscale):
         super().__init__(system, model, configuration)
         self.kmax = kmax
         self.kstep = kstep
@@ -29,6 +30,7 @@ class KstepGraph(Graph):
         self.sumsqes = np.zeros((len(self.ks),))
         self.sumsqes_baseline = np.zeros((len(self.ks),))
         self.nevals = np.zeros((len(self.ks),))
+        self.logscale = logscale
 
     def add_traj(self, predictor, traj, training=False):
         for i, k in enumerate(self.ks):
@@ -44,6 +46,8 @@ class KstepGraph(Graph):
         ax = fig.gca()
         ax.set_xlabel("Prediction Horizon")
         ax.set_ylabel("Prediction Error (RMSE)")
+        if self.logscale:
+            ax.set_yscale("log")
         rmses = []
         rmses_baseline = []
         for sumsqe, sumsqe_baseline, n in zip(self.sumsqes, 

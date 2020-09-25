@@ -1,13 +1,16 @@
 import time
 from pdb import set_trace
-import sys, os
+import sys, os, io
 sys.path.append(os.getcwd() + "/..")
 
 import numpy as np
 import autompc as ampc
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import argparse
+import pickle
 from joblib import Memory
+import torch
 
 from scipy.integrate import solve_ivp
 
@@ -92,8 +95,8 @@ def animate_cartpole(fig, ax, dt, traj):
 dt = 0.05
 cartpole.dt = dt
 
-umin = -2.0
-umax = 2.0
+umin = -20.0
+umax = 20.0
 udmax = 0.25
 
 # Generate trajectories for training
@@ -128,39 +131,34 @@ from autompc.sysid import (GaussianProcess,
 from autompc.control import IterativeLQR
 
 @memory.cache
-def train_approx_gp(num_trajs):
+def train_approx_gp_inner(num_trajs):
     cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     model = ampc.make_model(cartpole, ApproximateGaussianProcess, cfg)
     model.train(trajs2[-num_trajs:])
+    return model.get_parameters()
+
+def train_approx_gp(num_trajs):
+    cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
+    cfg = cs.get_default_configuration()
+    model = ampc.make_model(cartpole, ApproximateGaussianProcess, cfg)
+    params = train_approx_gp_inner(num_trajs)
+    model.set_parameters(params)
     return model
 
+def init_ilqr(model, task):
+    hori = 21  # hori means integer horizon... how many steps...
+    ubound = np.array([[-15], [15]])
+    mode = 'auglag'
+    ilqr = IterativeLQR(cartpole, task, model, hori, reuse_feedback=20, 
+            verbose=True)
+    return ilqr
+
 @memory.cache
-def run_experiment():
-    #cs = LargeGaussianProcess.get_configuration_space(cartpole)
-    #cfg = cs.get_default_configuration()
-    #model = ampc.make_model(cartpole, LargeGaussianProcess, cfg)
-    #model.train(trajs2[-1:])
-    ##model.train([trajs2[0][:100], trajs2[3][150:200]])
-    model = train_approx_gp(100)
+def run_experiment(model_name, controller_name, init_state):
+    if model_name == "approx_gp":
+        model = train_approx_gp(25)
 
-    test_n = 100
-    x = np.array([0.1, 0, 0, 0])
-    u = np.array([0.])
-    t0 = time.time()
-    for i in range(test_n):
-        xn = model.pred(x, u)
-    print(time.time() - t0)
-
-    t0 = time.time()
-    for i in range(test_n):
-        xn, _, _ = model.pred_diff(x, u)
-    print(time.time() - t0)
-
-    # cs = GaussianProcess.get_configuration_space(cartpole)
-    # cfg = cs.get_default_configuration()
-    # model = ampc.make_model(cartpole, GaussianProcess, cfg)
-    # model.train([trajs2[0][:100], trajs2[3][150:200]])
 
     # Now it's time to apply the controller
     task1 = ampc.Task(cartpole)
@@ -169,10 +167,9 @@ def run_experiment():
     F = np.diag([10., 10., 10., 10.])*10.0
     task1.set_quad_cost(Q, R, F)
 
-    hori = 40  # hori means integer horizon... how many steps...
-    ubound = np.array([[-15], [15]])
-    mode = 'auglag'
-    ilqr = IterativeLQR(cartpole, task1, model, hori, reuse_feedback=20, verbose=True)
+    if controller_name == "ilqr":
+        con = init_ilqr(model, task1)
+
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
     x = np.array([0.01, 0, 0, 0])
@@ -180,9 +177,9 @@ def run_experiment():
     us = []
 
 
-    constate = ilqr.traj_to_state(sim_traj[:1])
-    for step in range(201):
-        u, constate = ilqr.run(constate, sim_traj[-1].obs)
+    constate = con.traj_to_state(sim_traj[:1])
+    for step in range(200):
+        u, constate = con.run(constate, sim_traj[-1].obs)
         print('u = ', u, 'state = ', sim_traj[-1].obs)
         x = dt_cartpole_dynamics(sim_traj[-1].obs, u, dt)
         # x = model.pred(sim_traj[-1].obs, u)
@@ -191,15 +188,32 @@ def run_experiment():
         us.append(u)
     return sim_traj
 
-dt = 0.05
-cartpole.dt = dt
-sim_traj = run_experiment()
-print(sim_traj.obs)
-fig = plt.figure()
-ax = fig.gca()
-ax.set_aspect("equal")
-ax.set_xlim([-1.1, 1.1])
-ax.set_ylim([-1.1, 1.1])
-ani = animate_cartpole(fig, ax, dt, sim_traj)
-#ani.save("out/cartpole_test/aug31_02.mp4")
-plt.show()
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, choices=["approx_gp"], 
+            default = "approx_gp", help="Specify which system id model to use")
+    parser.add_argument("--controller", type=str, choices=["ilqr"], 
+            default = "ilqr", help="Specify which nonlinear controller to use")
+    parser.add_argument("--init_angle", type=float, default=0.1,
+            help="Specify the initial angle for the simulation.")
+    args = parser.parse_args()
+
+    dt = 0.05
+    cartpole.dt = dt
+
+    init_state = np.array([args.init_angle, 0.0, 0.0, 0.0])
+    sim_traj = run_experiment(args.model, args.controller, init_state)
+    set_trace()
+
+    print(sim_traj.obs)
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.set_aspect("equal")
+    ax.set_xlim([-1.1, 1.1])
+    ax.set_ylim([-1.1, 1.1])
+    ani = animate_cartpole(fig, ax, dt, sim_traj)
+    #ani.save("out/cartpole_test/aug31_02.mp4")
+    plt.show()
+
+if __name__ == "__main__":
+    main()

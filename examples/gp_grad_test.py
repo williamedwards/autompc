@@ -3,6 +3,7 @@ import sys, os
 sys.path.append(os.getcwd() + "/..")
 
 import numpy as np
+import pickle
 import autompc as ampc
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -121,7 +122,9 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt):
 trajs = gen_trajs(4)
 trajs2 = gen_trajs(200)
 
-from autompc.sysid import ARX, Koopman, SINDy, GaussianProcess, LargeGaussianProcess
+from autompc.sysid import (ARX, Koopman, SINDy, 
+        GaussianProcess, LargeGaussianProcess,
+        ApproximateGaussianProcess)
 
 def fd_jac(func, x, dt=1e-4):
     res = func(x)
@@ -133,18 +136,23 @@ def fd_jac(func, x, dt=1e-4):
         jac[:,i] = (resp - res) / dt
     return jac
 
-cs = LargeGaussianProcess.get_configuration_space(cartpole)
+cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
 cfg = cs.get_default_configuration()
-gp = ampc.make_model(cartpole, LargeGaussianProcess, cfg)
+gp = ampc.make_model(cartpole, ApproximateGaussianProcess, cfg)
 gp.train(trajs2[-1:])
+params = gp.get_parameters()
+with open("test.pickle", "wb") as f:
+    pickle.dump(params, f)
+gp2 = ampc.make_model(cartpole, ApproximateGaussianProcess, cfg)
+gp2.set_parameters(params)
 #gp.train([trajs2[0][:100], trajs2[3][150:200]])
 state = np.zeros(4,)
 #state[0] = 0.5
 #ctrl = np.ones(1,)
 ctrl = np.zeros(1,)
 x, state_jac, ctrl_jac = gp.pred_diff(state, ctrl)
-state_jac2 = fd_jac(lambda y: gp.pred(y, ctrl), state, dt=1e-2)
-ctrl_jac2 = fd_jac(lambda y: gp.pred(state, y), ctrl, dt=1e-2)
+state_jac2 = fd_jac(lambda y: gp2.pred(y, ctrl), state, dt=1e-3)
+ctrl_jac2 = fd_jac(lambda y: gp2.pred(state, y), ctrl, dt=1e-3)
 
 print("state_jac=")
 print(state_jac)
