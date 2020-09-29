@@ -496,9 +496,10 @@ class IterativeLQR(Controller):
                     new_ctrls[i] = best_alpha * ks[i] + ctrls[i] + Ks[i] @ (new_states[i] - states[i])
                     if self.ubounds is not None:
                         new_ctrls[i] = np.clip(new_ctrls[i], self.ubounds[0], self.ubounds[1])
-                    new_states[i + 1], jx, ju = self.model.pred_diff(new_states[i], new_ctrls[i])
-                    Jacs[i, :, :dimx] = jx
-                    Jacs[i, :, dimx:] = ju
+                    new_states[i + 1] = self.model.pred(new_states[i], new_ctrls[i])
+                _, jxs, jus = self.model.pred_diff_parallel(new_states[:-1,:], new_ctrls)
+                Jacs[:, :, :dimx] = jxs
+                Jacs[:, :, dimx:] = jus
                 new_obj = eval_obj(new_states, new_ctrls)
             if (not ls_success and new_obj > obj + 1e-3) or best_alpha is None:
                 print('Line search fails...')
@@ -551,5 +552,6 @@ class IterativeLQR(Controller):
         x0, u0, k0 = self._states[self._step_count], self._ctrls[self._step_count], self._gain[self._step_count]
         u = u0 + k0 @ (state - x0)
         print('inside ilqr u0 = ', u0, 'u = ', u)
+        #set_trace()
         self._step_count += 1
         return u, None

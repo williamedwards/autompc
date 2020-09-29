@@ -5,6 +5,7 @@ The gradient computation is a pain but eventually I was able to do it after some
 """
 import copy
 import tqdm
+from pdb import set_trace
 
 import numpy as np
 import numpy.linalg as la
@@ -77,6 +78,24 @@ class GPytorchGP(Model):
         dy = transform_output(self.dy_means, self.dy_std, out).flatten()
         return state + dy
 
+    def pred_timeit(self, state, ctrl):
+        import time
+        start = time.time()
+        X = np.concatenate([state, ctrl])
+        X = X[np.newaxis,:]
+        Xt = transform_input(self.xu_means, self.xu_std, X)
+        print("time1=", (time.time() - start)*1000, "ms")
+        # for this one, make a prediction is easy...
+        TsrXt = torch.from_numpy(Xt).to(self.device)
+        print("time2=", (time.time() - start)*1000, "ms")
+        predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
+        print("time3=", (time.time() - start)*1000, "ms")
+        out = predy.mean.cpu().data.numpy()
+        print("time4=", (time.time() - start)*1000, "ms")
+        dy = transform_output(self.dy_means, self.dy_std, out).flatten()
+        print("time5=", (time.time() - start)*1000, "ms")
+        return state + dy
+
     def pred_parallel(self, state, ctrl):
         """The batch mode"""
         X = np.concatenate([state, ctrl], axis=1)
@@ -85,7 +104,7 @@ class GPytorchGP(Model):
         predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
         out = predy.mean.cpu().data.numpy()
         dy = transform_output(self.dy_means, self.dy_std, out).flatten()
-        return state + dy
+        return state + dy.reshape((state.shape[0], self.state_dim))
 
     def pred_diff(self, state, ctrl):
         """Prediction, but with gradient information"""
@@ -110,9 +129,36 @@ class GPytorchGP(Model):
         ctrl_jac = jac[:, n:]
         return state + dy, state_jac, ctrl_jac
 
+    def pred_diff_parallel(self, state, ctrl):
+        """Prediction, but with gradient information"""
+        X = np.concatenate([state, ctrl], axis=1)
+        Xt = transform_input(self.xu_means, self.xu_std, X)
+        obs_dim = state.shape[1]
+        m = state.shape[0]
+        # get the Tensor
+        TsrXt = torch.from_numpy(Xt).to(self.device)
+        TsrXt = TsrXt.repeat(obs_dim, 1, 1).permute(1,0,2).flatten(0,1)
+        TsrXt.requires_grad_(True)
+        predy = self.gpmodel.likelihood(self.gpmodel(TsrXt)).mean
+        predy.backward(torch.eye(obs_dim).to(self.device).repeat(m,1), retain_graph=True)
+        predy = predy.reshape((m, obs_dim, obs_dim))
+        #predy.backward(retain_graph=True)
+        jac = TsrXt.grad.cpu().data.numpy()
+        jac = jac.reshape((m, obs_dim, TsrXt.shape[-1]))
+        # properly scale back...
+        jac = jac / np.tile(self.xu_std, (m,obs_dim,1)) * np.tile(self.dy_std, (m,1))[:,:,np.newaxis]
+        # since repeat, y value is the first one...
+        out = predy[:,0,:].cpu().data.numpy()
+        dy = transform_output(self.dy_means, self.dy_std, out)
+        n = self.system.obs_dim
+        state_jacs = jac[:, :, :n] + np.tile(np.eye(n), (m,1,1))
+        ctrl_jacs = jac[:, :, n:]
+        return state + dy, state_jacs, ctrl_jacs
+
+
     @property
     def state_dim(self):
-        return self.system.state_dim
+        return self.system.obs_dim
 
     def get_parameters(self):
         raise NotImplementedError

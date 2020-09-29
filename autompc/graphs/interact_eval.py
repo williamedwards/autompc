@@ -13,14 +13,16 @@ from ..graph import Graph
 
 
 class InteractiveEvalGrapher(Grapher):
-    def __init__(self, system):
+    def __init__(self, system, logscale=False):
         super().__init__(system)
+        self.logscale = logscale
 
     def __call__(self, model, configuration):
-        return InteractiveEvalGraph(self.system, model, configuration)
+        return InteractiveEvalGraph(self.system, model, configuration,
+                logscale=self.logscale)
 
 class InteractiveEvalGraph(Graph):
-    def __init__(self, system, model, configuration):
+    def __init__(self, system, model, configuration, logscale=False):
         super().__init__(system, model, configuration,
                 need_training_eval=True)
         self.testing_trajs = []
@@ -31,6 +33,7 @@ class InteractiveEvalGraph(Graph):
         training_trajs = 0.0
         self.obs_lower_bounds = dict() 
         self.obs_upper_bounds = dict()
+        self.logscale = logscale
 
     def set_obs_lower_bound(self, obsname, bound):
         self.obs_lower_bounds[obsname] = bound
@@ -104,6 +107,8 @@ class InteractiveEvalGraph(Graph):
             #ax.set_xlabel("Test " + labels[i])
             ax.set_ylabel("RMSE")
             ax.yaxis.set_major_formatter(FormatStrFormatter("%.2e"))
+            if self.logscale:
+                ax.set_yscale("log")
             #ax.set_xticks([])
             ax.set_xticklabels(["", "Test " + labels[i], "" , "In Range"])
             ax.bar([0.5,1.5], [testing_all_res[i], testing_res[i]],color="b")
@@ -117,6 +122,8 @@ class InteractiveEvalGraph(Graph):
             #ax.set_xlabel("Test " + labels[i])
             ax.set_ylabel("RMSE")
             ax.yaxis.set_major_formatter(FormatStrFormatter("%.2e"))
+            if self.logscale:
+                ax.set_yscale("log")
             #ax.set_xticks([])
             ax.set_xticklabels(["", "Train " + labels[i], "" , "In Range"])
             ax.bar([0.5,1.5], [training_all_res[i], training_res[i]],color="g")

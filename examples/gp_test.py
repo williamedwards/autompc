@@ -88,23 +88,55 @@ def animate_cartpole(fig, ax, dt, traj):
 
     return ani
 
-dt = 0.01
+dt = 0.05
 cartpole.dt = dt
 
 umin = -20.0
 umax = 20.0
 
+from cartpole_model import CartpoleModel
+from autompc.control import FiniteHorizonLQR
+from autompc.sysid.dummy_linear import DummyLinear
+
+def get_generation_controller():
+    truedyn = CartpoleModel(cartpole)
+    _, A, B = truedyn.pred_diff(np.zeros(4,), np.zeros(1))
+    model = DummyLinear(cartpole, A, B)
+    Q = np.eye(4)
+    R = 0.01 * np.eye(1)
+
+    from autompc.tasks.quad_cost import QuadCost
+    cost = QuadCost(cartpole, Q, R)
+
+    from autompc.tasks.task import Task
+
+    task = Task(cartpole)
+    task.set_cost(cost)
+    task.set_ctrl_bound("u", -20.0, 20.0)
+    cs = FiniteHorizonLQR.get_configuration_space(cartpole, task, model)
+    cfg = cs.get_default_configuration()
+    cfg["horizon"] = 1000
+    con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
+    return con
+
 # Generate trajectories for training
 num_trajs = 500
 
 @memory.cache
-def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt):
+def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt, rand_contr_prob=1.0):
     rng = np.random.default_rng(49)
     trajs = []
+    con = get_generation_controller()
     for _ in range(num_trajs):
-        theta0 = rng.uniform(-0.002, 0.002, 1)[0]
+        theta0 = rng.uniform(-1.0, 1.0, 1)[0]
         y = [theta0, 0.0, 0.0, 0.0]
         traj = ampc.zeros(cartpole, traj_len)
+        traj.obs[:] = y
+        if rng.random() < rand_contr_prob:
+            actuate = False
+        else:
+            actuate = True
+            constate = con.traj_to_state(traj[:1])
         for i in range(traj_len):
             traj[i].obs[:] = y
             #if u[0] > umax:
@@ -112,13 +144,17 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt):
             #if u[0] < umin:
             #    u[0] = umin
             #u += rng.uniform(-udmax, udmax, 1)
-            u  = rng.uniform(umin, umax, 1)
+            if not actuate:
+                u  = rng.uniform(umin, umax, 1)
+            else:
+                u, constate = con.run(constate, y)
             y = dt_cartpole_dynamics(y, u, dt)
             traj[i].ctrl[:] = u
         trajs.append(traj)
     return trajs
-trajs = gen_trajs(10)
-trajs2 = gen_trajs(200)
+#trajs = gen_trajs(10)
+#trajs2 = gen_trajs(200)
+trajs3 = gen_trajs(200, rand_contr_prob=0.5)
 
 from autompc.sysid import (ARX, Koopman, SINDy, 
         GaussianProcess, LargeGaussianProcess, 
@@ -180,10 +216,49 @@ def fd_jac(func, x, dt=1e-4):
         jac[:,i] = (resp - res) / dt
     return jac
 
-arx = train_arx(k=4)
-koop = train_koop()
-sindy = train_sindy()
+@memory.cache
+def train_approx_gp_inner(num_trajs):
+    cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
+    cfg = cs.get_default_configuration()
+    model = ampc.make_model(cartpole, ApproximateGaussianProcess, cfg)
+    model.train(trajs3[-num_trajs:])
+    return model.get_parameters()
 
+def train_approx_gp(num_trajs):
+    cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
+    cfg = cs.get_default_configuration()
+    model = ampc.make_model(cartpole, ApproximateGaussianProcess, cfg)
+    params = train_approx_gp_inner(num_trajs)
+    model.set_parameters(params)
+    return model
+
+gp = train_approx_gp(25)
+import timeit
+m = 50
+#t1 = timeit.Timer(lambda: gp.pred_parallel(np.zeros((m,4)), np.ones((m,1))))
+#res1 = gp.pred_diff_parallel(np.zeros((m,4)), np.ones((m,1)))
+#res2 = gp.pred_diff(np.zeros((4)), np.ones((1)))
+#set_trace()
+#gp.pred_timeit(np.zeros(4,), np.ones(1,))
+t1 = timeit.Timer(lambda: gp.pred(np.zeros(4,), np.ones(1,)))
+t2 = timeit.Timer(lambda: gp.pred_diff_parallel(np.zeros((m,4)), np.ones((m,1))))
+
+n = 100
+print(f"{t1.timeit(number=n)/n*1000=} ms")
+rep = t1.repeat(number=n)
+print("rep1=", [str(r/n*1000) + " ms" for r in rep])
+print(f"{t2.timeit(number=n)/n*1000=} ms")
+rep2 = t2.repeat(number=n)
+print("rep2=", [str(r/n*1000) + " ms" for r in rep2])
+
+sys.exit(0)
+
+
+#arx = train_arx(k=4)
+#koop = train_koop()
+#sindy = train_sindy()
+
+# Check inference time
 ## Training GP model
 #import timeit
 #sizes = []
@@ -224,15 +299,15 @@ if True:
     from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
 
     metric = RmseKstepMetric(cartpole, k=10)
-    grapher = InteractiveEvalGrapher(cartpole)
+    grapher = InteractiveEvalGrapher(cartpole, logscale=True)
     grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10,
             logscale=True)
 
     rng = np.random.default_rng(42)
-    evaluator = FixedSetEvaluator(cartpole, trajs2[1:2], metric, rng, 
+    evaluator = FixedSetEvaluator(cartpole, trajs3[:20], metric, rng, 
             #training_trajs=trajs2[-5:]) 
             #training_trajs=[trajs2[0][:100], trajs2[3][150:200]]) 
-            training_trajs=trajs2[-25:]) 
+            training_trajs=trajs3[-50:]) 
     evaluator.add_grapher(grapher)
     evaluator.add_grapher(grapher2)
     #cs = LargeGaussianProcess.get_configuration_space(cartpole)
