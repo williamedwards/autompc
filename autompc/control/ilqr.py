@@ -417,6 +417,8 @@ class IterativeLQR(Controller):
         # handy variables...
         states, new_states = np.zeros((2, H + 1, dimx))
         ctrls, new_ctrls = np.zeros((2, H, dimu))
+        ls_states = np.zeros((ls_max_iter, H + 1, dimx))
+        ls_ctrls = np.zeros((ls_max_iter, H, dimu))
         Ks = np.zeros((H, dimu, dimx))
         ks = np.zeros((H, dimu))
         Jacs = np.zeros((H, dimx, dimx + dimu))  # Jacobian from dynamics...
@@ -462,41 +464,49 @@ class IterativeLQR(Controller):
                 Vn = Qt[:dimx, :dimx] + Qt[:dimx, dimx:] @ Ks[t - 1] + Ks[t - 1].T @ Qt[dimx:, :dimx] + Ks[t - 1].T @ Qt[dimx:, dimx:] @ Ks[t - 1]
                 vn = qt[:dimx] + Qt[:dimx, dimx:] @ ks[t - 1] + Ks[t - 1].T @ (qt[dimx:] + Qt[dimx:, dimx:] @ ks[t - 1])
             # redo forward simulation and record actions...
-            new_states[0] = state
             ls_success = False
-            ls_alpha = 1
             best_alpha = None
             best_obj = np.inf
             best_obj_estimate_reduction = None
             ks_norm = np.linalg.norm(ks)
             # print('norm of ks = ', np.linalg.norm(ks))
-            for lsitr in range(ls_max_iter):
-                for i in range(H):
-                    new_ctrls[i] = ls_alpha * ks[i] + ctrls[i] + Ks[i] @ (new_states[i] - states[i])
+
+            # Compute rollout for all possible alphas
+            alphas = np.array([ls_discount**i for i in range(ls_max_iter)])
+            for i in range(ls_max_iter):
+                ls_states[i,0,:] = state
+            for i in range(H):
+                for j, alpha in enumerate(alphas):
+                    ls_ctrls[j, i, :] = alpha * ks[i] + ctrls[i] + Ks[i] @ (ls_states[j, i, :] - states[i, :])
                     if self.ubounds is not None:
-                        new_ctrls[i] = np.clip(new_ctrls[i], self.ubounds[0], self.ubounds[1])
-                    new_states[i + 1] = self.model.pred(new_states[i], new_ctrls[i])
+                        ls_ctrls[j, i, :] = np.clip(ls_ctrls[j, i, :], self.ubounds[0], self.ubounds[1])
+                ls_states[:, i + 1, :] = self.model.pred_parallel(ls_states[:, i, :], ls_ctrls[:, i, :])
+
+            # Now do backtrack line search.
+            for lsitr, ls_alpha in enumerate(alphas):
+                new_states = ls_states[lsitr, :, :]
+                new_ctrls = ls_ctrls[lsitr, :, :]
                 new_obj = eval_obj(new_states, new_ctrls)
                 expect_cost_reduction = ls_alpha * lin_cost_reduce + ls_alpha ** 2 * quad_cost_reduce / 2
+                print((obj - new_obj) / (-expect_cost_reduction))
                 if (obj - new_obj) / (-expect_cost_reduction) > ls_cost_threshold:
                     best_obj = new_obj
                     best_alpha = ls_alpha
+                    best_alpha_idx = lsitr
                     break
                 if new_obj < best_obj:
                     best_obj = new_obj
                     best_alpha = ls_alpha
-                ls_alpha *= ls_discount
+                    best_alpha_idx = lsitr
+                #ls_alpha *= ls_discount
                 if ks_norm < u_threshold:
                     break
             if self.verbose:
                 print('line search obj %f to %f at alpha = %f' % (obj, new_obj, ls_alpha))
             if best_obj < obj or ks_norm < u_threshold:
                 ls_success = True
-                for i in range(H):
-                    new_ctrls[i] = best_alpha * ks[i] + ctrls[i] + Ks[i] @ (new_states[i] - states[i])
-                    if self.ubounds is not None:
-                        new_ctrls[i] = np.clip(new_ctrls[i], self.ubounds[0], self.ubounds[1])
-                    new_states[i + 1] = self.model.pred(new_states[i], new_ctrls[i])
+                new_ctrls = ls_ctrls[best_alpha_idx, :, :]
+                new_states = ls_states[best_alpha_idx, :, :]
                 _, jxs, jus = self.model.pred_diff_parallel(new_states[:-1,:], new_ctrls)
                 Jacs[:, :, :dimx] = jxs
                 Jacs[:, :, dimx:] = jus
@@ -517,8 +527,8 @@ class IterativeLQR(Controller):
                     print('Break since update of control is small at %f' % (np.linalg.norm(new_ctrls - ctrls)))
                 converged = True
             # ready to swap...
-            states, new_states = new_states, states
-            ctrls, new_ctrls = new_ctrls, ctrls
+            states = np.copy(new_states)
+            ctrls = np.copy(new_ctrls)
             obj = new_obj
             if converged:
                 print('Convergence achieved within %d iterations' % itr)
