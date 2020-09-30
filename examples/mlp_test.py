@@ -53,7 +53,7 @@ def test_mlp_accuracy():
     from autompc.sysid import MLP
 
     metric = RmseKstepMetric(cartpole, k=10)
-    grapher = InteractiveEvalGrapher(cartpole)
+    grapher = InteractiveEvalGrapher(cartpole, logscale=True)
     grapher2 = KstepGrapher(cartpole, kmax=50, kstep=5, evalstep=10)
 
     rng = np.random.default_rng(42)

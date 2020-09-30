@@ -13,6 +13,17 @@ import ConfigSpace.conditions as CSC
 
 from ..model import Model
 
+def transform_input(xu_means, xu_std, XU):
+    XUt = []
+    for i in range(XU.shape[1]):
+        XUt.append((XU[:,i] - xu_means[i]) / xu_std[i])
+    return np.vstack(XUt).T
+
+def transform_output(xu_means, xu_std, XU):
+    XUt = []
+    for i in range(XU.shape[1]):
+        XUt.append((XU[:,i] * xu_std[i]) + xu_means[i])
+    return np.vstack(XUt).T
 
 class ForwardNet(torch.nn.Module):
     def __init__(self, n_in, n_out, n_hidden, hidden_size, nonlintype):
@@ -56,7 +67,7 @@ class SimpleDataset(Dataset):
 
 
 class MLP(Model):
-    def __init__(self, system, n_hidden=2, hidden_size=32, nonlintype='relu', n_iter=10, n_batch=64, lr=1e-3):
+    def __init__(self, system, n_hidden=3, hidden_size=128, nonlintype='relu', n_iter=40, n_batch=64, lr=1e-3):
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
         self.net = ForwardNet(nx + nu, nx, n_hidden, hidden_size, nonlintype)
@@ -105,13 +116,20 @@ class MLP(Model):
 
     def train(self, trajs):
         n_iter, n_batch, lr = self._train_data
-        X = [traj.obs for traj in trajs]
-        U = [traj.ctrls for traj in trajs]
+        X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
+        dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
+        U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
+        XU = np.concatenate((X, U), axis = 1) # stack X and U together
+        self.xu_means = np.mean(XU, axis=0)
+        self.xu_std = np.std(XU, axis=0)
+        XUt = transform_input(self.xu_means, self.xu_std, XU)
+
+        self.dy_means = np.mean(dY, axis=0)
+        self.dy_std = np.std(dY, axis=0)
+        dYt = transform_input(self.dy_means, self.dy_std, dY)
         # concatenate data
-        allXprev = np.concatenate([traj.obs[:-1] for traj in trajs], axis=0)
-        allUprev = np.concatenate([traj.ctrls[:-1] for traj in trajs], axis=0)
-        feedX = np.concatenate((allXprev, allUprev), axis=1)
-        predY = np.concatenate([traj.obs[1:] for traj in trajs], axis=0)
+        feedX = XUt
+        predY = dYt
         dataset = SimpleDataset(feedX, predY)
         dataloader = DataLoader(dataset, batch_size=n_batch, shuffle=True)
         # now I can perform training... using torch default dataset holder
@@ -129,21 +147,29 @@ class MLP(Model):
                 loss = lossfun(predy, y.to(self._device))
                 loss.backward()
                 optim.step()
+            print("loss=", loss.item())
         self.net.eval()
         for param in self.net.parameters():
             param.requires_grad_(False)
 
     def pred(self, state, ctrl):
+        X = np.concatenate([state, ctrl])
+        X = X[np.newaxis,:]
+        Xt = transform_input(self.xu_means, self.xu_std, X)
         with torch.no_grad():
-            xin = torch.from_numpy(np.concatenate((state, ctrl))[None, :]).to(self._device)
-            yout = self.net(xin).cpu().numpy()[0]
-        return yout
+            xin = torch.from_numpy(Xt).to(self._device)
+            yout = self.net(xin).cpu().numpy()
+        dy = transform_output(self.dy_means, self.dy_std, yout).flatten()
+        return state + dy
 
     def pred_parallel(self, state, ctrl):
+        X = np.concatenate([state, ctrl], axis=1)
+        Xt = transform_input(self.xu_means, self.xu_std, X)
         with torch.no_grad():
-            xin = torch.from_numpy(np.concatenate((state, ctrl), axis=1)).to(self._device)
+            xin = torch.from_numpy(Xt).to(self._device)
             yout = self.net(xin).cpu().numpy()
-        return yout
+        dy = transform_output(self.dy_means, self.dy_std, yout).flatten()
+        return state + dy.reshape((state.shape[0], self.state_dim))
 
     def pred_diff(self, state, ctrl):
         """Use code from https://gist.github.com/sbarratt/37356c46ad1350d4c30aefbd488a4faa .
@@ -168,19 +194,69 @@ class MLP(Model):
             y.backward(input_val)  # y.shape = b,to,to
             return x.grad.reshape(x_batch, *y_shape, *x_shape).data  # x.shape = b,o,i
         """
-        xin = torch.from_numpy(np.concatenate((state, ctrl))).to(self._device)
+        X = np.concatenate([state, ctrl])
+        X = X[np.newaxis,:]
+        Xt = transform_input(self.xu_means, self.xu_std, X)
+        xin = torch.from_numpy(Xt).to(self._device)
         n_out = self.system.obs_dim
         xin = xin.repeat(n_out, 1)
         xin.requires_grad_(True)
         yout = self.net(xin)
         # compute gradient...
         yout.backward(torch.eye(n_out).to(self._device))
-        outy = yout[0].data.cpu().numpy()
-        jac = xin.grad.data.cpu().numpy()
-        return outy, jac[:, :n_out], jac[:, n_out:]
+        jac = xin.grad.cpu().data.numpy()
+        # properly scale back...
+        jac = jac / self.xu_std[None] * self.dy_std[:, np.newaxis]
+        n = self.system.obs_dim
+        state_jac = jac[:, :n] + np.eye(n)
+        ctrl_jac = jac[:, n:]
+        out = yout.detach().cpu().numpy()[:1, :]
+        dy = transform_output(self.dy_means, self.dy_std, out).flatten()
+        return state+dy, state_jac, ctrl_jac
+
+    def pred_diff_parallel(self, state, ctrl):
+        """Prediction, but with gradient information"""
+        X = np.concatenate([state, ctrl], axis=1)
+        Xt = transform_input(self.xu_means, self.xu_std, X)
+        obs_dim = state.shape[1]
+        m = state.shape[0]
+        # get the Tensor
+        TsrXt = torch.from_numpy(Xt).to(self._device)
+        TsrXt = TsrXt.repeat(obs_dim, 1, 1).permute(1,0,2).flatten(0,1)
+        TsrXt.requires_grad_(True)
+        predy = self.net(TsrXt)
+        predy.backward(torch.eye(obs_dim).to(self._device).repeat(m,1), retain_graph=True)
+        predy = predy.reshape((m, obs_dim, obs_dim))
+        #predy.backward(retain_graph=True)
+        jac = TsrXt.grad.cpu().data.numpy()
+        jac = jac.reshape((m, obs_dim, TsrXt.shape[-1]))
+        # properly scale back...
+        jac = jac / np.tile(self.xu_std, (m,obs_dim,1)) * np.tile(self.dy_std, (m,1))[:,:,np.newaxis]
+        # since repeat, y value is the first one...
+        out = predy[:,0,:].cpu().data.numpy()
+        dy = transform_output(self.dy_means, self.dy_std, out)
+        n = self.system.obs_dim
+        state_jacs = jac[:, :, :n] + np.tile(np.eye(n), (m,1,1))
+        ctrl_jacs = jac[:, :, n:]
+        return state + dy, state_jacs, ctrl_jacs
 
     @staticmethod
     def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
         cs.add_configuration_space
         return cs
+
+    def get_parameters(self):
+        return {"net_state" : self.net.state_dict(),
+                "xu_means" : self.xu_means,
+                "xu_std" : self.xu_std,
+                "dy_means" : self.dy_means,
+                "dy_std" : self.dy_std }
+
+
+    def set_parameters(self, params):
+        self.xu_means = params["xu_means"]
+        self.xu_std = params["xu_std"]
+        self.dy_means = params["dy_means"]
+        self.dy_std = params["dy_std"]
+        self.net.load_state_dict(params["net_state"])

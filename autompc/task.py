@@ -370,7 +370,7 @@ class Task:
         return False
 
     def are_ctrl_bounded(self):
-        for i in range(self.model.ctrl_dim):
+        for i in range(self.system.ctrl_dim):
             if (self._ctrl_bounds[i, 0] != -np.inf 
                     or self._ctrl_bounds[i, 1] != np.inf):
                 return True

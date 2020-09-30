@@ -91,8 +91,8 @@ def animate_cartpole(fig, ax, dt, traj):
 dt = 0.05
 cartpole.dt = dt
 
-umin = -20.0
-umax = 20.0
+umin = -5.0
+umax = 5.0
 
 from cartpole_model import CartpoleModel
 from autompc.control import FiniteHorizonLQR
@@ -232,26 +232,26 @@ def train_approx_gp(num_trajs):
     model.set_parameters(params)
     return model
 
-gp = train_approx_gp(25)
-import timeit
-m = 50
-#t1 = timeit.Timer(lambda: gp.pred_parallel(np.zeros((m,4)), np.ones((m,1))))
-#res1 = gp.pred_diff_parallel(np.zeros((m,4)), np.ones((m,1)))
-#res2 = gp.pred_diff(np.zeros((4)), np.ones((1)))
-#set_trace()
-#gp.pred_timeit(np.zeros(4,), np.ones(1,))
-t1 = timeit.Timer(lambda: gp.pred(np.zeros(4,), np.ones(1,)))
-t2 = timeit.Timer(lambda: gp.pred_diff_parallel(np.zeros((m,4)), np.ones((m,1))))
-
-n = 100
-print(f"{t1.timeit(number=n)/n*1000=} ms")
-rep = t1.repeat(number=n)
-print("rep1=", [str(r/n*1000) + " ms" for r in rep])
-print(f"{t2.timeit(number=n)/n*1000=} ms")
-rep2 = t2.repeat(number=n)
-print("rep2=", [str(r/n*1000) + " ms" for r in rep2])
-
-sys.exit(0)
+#gp = train_approx_gp(25)
+#import timeit
+#m = 50
+##t1 = timeit.Timer(lambda: gp.pred_parallel(np.zeros((m,4)), np.ones((m,1))))
+##res1 = gp.pred_diff_parallel(np.zeros((m,4)), np.ones((m,1)))
+##res2 = gp.pred_diff(np.zeros((4)), np.ones((1)))
+##set_trace()
+##gp.pred_timeit(np.zeros(4,), np.ones(1,))
+#t1 = timeit.Timer(lambda: gp.pred(np.zeros(4,), np.ones(1,)))
+#t2 = timeit.Timer(lambda: gp.pred_diff_parallel(np.zeros((m,4)), np.ones((m,1))))
+#
+#n = 100
+#print(f"{t1.timeit(number=n)/n*1000=} ms")
+#rep = t1.repeat(number=n)
+#print("rep1=", [str(r/n*1000) + " ms" for r in rep])
+#print(f"{t2.timeit(number=n)/n*1000=} ms")
+#rep2 = t2.repeat(number=n)
+#print("rep2=", [str(r/n*1000) + " ms" for r in rep2])
+#
+#sys.exit(0)
 
 
 #arx = train_arx(k=4)
@@ -313,6 +313,7 @@ if True:
     #cs = LargeGaussianProcess.get_configuration_space(cartpole)
     cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
+    cfg["induce_count"] = 500
     #cfg["trig_basis"] = "true"
     #cfg["poly_basis"] = "false"
     #cfg["poly_degree"] = 3

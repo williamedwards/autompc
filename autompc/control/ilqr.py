@@ -32,7 +32,11 @@ class IterativeLQR(Controller):
         else:
             self.reuse_feedback = reuse_feedback
         self._guess = None
-        self.ubounds = ubounds
+        if ubounds is None and task.are_ctrl_bounded():
+            bounds = task.get_ctrl_bounds()
+            self.ubounds = (bounds[:,0], bounds[:,1])
+        else:
+            self.ubounds = ubounds
         self.mode = mode
         self.verbose = verbose
         if mode is None:

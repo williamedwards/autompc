@@ -274,6 +274,13 @@ class ApproximateGaussianProcess(GPytorchGP):
         self.batch_size = batch_size
         self.induce_count = induce_count
 
+    def get_configuration_space(cartpole):
+        cs = ConfigurationSpace()
+        induce_count = UniformIntegerHyperparameter("induce_count", lower=100,
+                upper=10000)
+        cs.add_hyperparameter(induce_count)
+        return cs
+
     def train(self, trajs):
         """Given collected trajectories, train the GP to approximate the actual dynamics"""
         # extract transfer pairs from data

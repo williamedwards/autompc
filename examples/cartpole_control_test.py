@@ -204,6 +204,7 @@ def run_experiment(model_name, controller_name, init_state):
     R = np.diag([1.0]) * 0.01
     F = np.diag([10., 10., 10., 10.])*10.0
     task1.set_quad_cost(Q, R, F)
+    task1.set_ctrl_bound("u", -20, 20)
 
     if controller_name == "ilqr":
         con = init_ilqr(model, task1, hori=40)
