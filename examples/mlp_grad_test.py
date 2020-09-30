@@ -136,10 +136,12 @@ def fd_jac(func, x, dt=1e-4):
         jac[:,i] = (resp - res) / dt
     return jac
 
+from cartpole_model import CartpoleModel
+true_dyn = CartpoleModel(cartpole)
 cs = MLP.get_configuration_space(cartpole)
 cfg = cs.get_default_configuration()
 gp = ampc.make_model(cartpole, MLP, cfg)
-gp.train(trajs2[-1:])
+gp.train(trajs2[-450:])
 params = gp.get_parameters()
 with open("test.pickle", "wb") as f:
     pickle.dump(params, f)
@@ -159,13 +161,18 @@ state_jac2 = fd_jac(lambda y: gp2.pred_parallel(np.vstack([y,y]),
         np.vstack([ctrl, ctrl]))[1,:], 
     state, dt=1e-3)
 ctrl_jac2 = fd_jac(lambda y: gp2.pred(state, y), ctrl, dt=1e-3)
+x3, state_jac3, ctrl_jac3 = true_dyn.pred_diff(state, ctrl)
 
 print("state_jac=")
 print(state_jac)
 print("state_jac2=")
 print(state_jac2)
+print("state_jac3=")
+print(state_jac3)
 print("ctrl_jac=")
 print(ctrl_jac)
 print("ctrl_jac2=")
 print(ctrl_jac2)
+print("ctrl_jac3=")
+print(ctrl_jac3)
 set_trace()

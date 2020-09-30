@@ -166,7 +166,7 @@ trajs3 = gen_trajs(200, rand_contr_prob = 0.5)
 
 from autompc.sysid import (GaussianProcess, 
         LargeGaussianProcess, 
-        ApproximateGaussianProcess)
+        ApproximateGaussianProcess, MLP)
 from autompc.control import IterativeLQR
 
 @memory.cache
@@ -185,10 +185,27 @@ def train_approx_gp(num_trajs):
     model.set_parameters(params)
     return model
 
+@memory.cache
+def train_mlp_inner(num_trajs):
+    cs = MLP.get_configuration_space(cartpole)
+    cfg = cs.get_default_configuration()
+    model = ampc.make_model(cartpole, MLP, cfg)
+    model.train(trajs3[-num_trajs:])
+    return model.get_parameters()
+
+def train_mlp(num_trajs):
+    cs = MLP.get_configuration_space(cartpole)
+    cfg = cs.get_default_configuration()
+    model = ampc.make_model(cartpole, MLP, cfg)
+    params = train_mlp_inner(num_trajs)
+    model.set_parameters(params)
+    return model
+
+
 def init_ilqr(model, task, hori=40):
     ubound = np.array([[-15], [15]])
     mode = 'auglag'
-    ilqr = IterativeLQR(cartpole, task, model, hori, reuse_feedback=20, 
+    ilqr = IterativeLQR(cartpole, task, model, hori, reuse_feedback=5, 
             verbose=True)
     return ilqr
 
@@ -196,6 +213,10 @@ def init_ilqr(model, task, hori=40):
 def run_experiment(model_name, controller_name, init_state):
     if model_name == "approx_gp":
         model = train_approx_gp(50)
+    elif model_name == "mlp":
+        model = train_mlp(490)
+    else:
+        raise ValueError("Unknown model type")
 
 
     # Now it's time to apply the controller
@@ -207,7 +228,7 @@ def run_experiment(model_name, controller_name, init_state):
     task1.set_ctrl_bound("u", -20, 20)
 
     if controller_name == "ilqr":
-        con = init_ilqr(model, task1, hori=40)
+        con = init_ilqr(model, task1, hori=20)
 
     # just give a random initial state
     sim_traj = ampc.zeros(cartpole, 1)
@@ -233,7 +254,7 @@ def run_experiment(model_name, controller_name, init_state):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, choices=["approx_gp"], 
+    parser.add_argument("--model", type=str, choices=["approx_gp", "mlp"], 
             default = "approx_gp", help="Specify which system id model to use")
     parser.add_argument("--controller", type=str, choices=["ilqr"], 
             default = "ilqr", help="Specify which nonlinear controller to use")

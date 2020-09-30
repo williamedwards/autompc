@@ -67,7 +67,7 @@ class SimpleDataset(Dataset):
 
 
 class MLP(Model):
-    def __init__(self, system, n_hidden=3, hidden_size=128, nonlintype='relu', n_iter=40, n_batch=64, lr=1e-3):
+    def __init__(self, system, n_hidden=3, hidden_size=128, nonlintype='relu', n_iter=100, n_batch=64, lr=1e-3):
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
         self.net = ForwardNet(nx + nu, nx, n_hidden, hidden_size, nonlintype)

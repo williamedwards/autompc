@@ -400,7 +400,7 @@ class IterativeLQR(Controller):
                 cur_mu *= mu_scale
         return True, states, ctrls, Ks, ks
 
-    def compute_ilqr_default(self, state, uguess, u_threshold=1e-3, ls_max_iter=5, ls_discount=0.2, ls_cost_threshold=0.3):
+    def compute_ilqr_default(self, state, uguess, u_threshold=1e-3, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         Here I do not have Hessian correction since I'm certain all my matrices are SPD
