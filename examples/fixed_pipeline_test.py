@@ -118,10 +118,72 @@ from autompc.control import FiniteHorizonLQR
 from autompc.sysid import Koopman
 from autompc.pipelines import FixedControlPipeline
 
+print(Koopman.get_configuration_space(cartpole))
+"""
+ Configuration space object:
+   Hyperparameters:
+     method, Type: Categorical, Choices: {lstsq}, Default: lstsq
+     poly_basis, Type: Categorical, Choices: {true, false}, Default: false
+     poly_degree, Type: UniformInteger, Range: [2, 8], Default: 3
+     product_terms, Type: Categorical, Choices: {false}, Default: false
+     trig_basis, Type: Categorical, Choices: {true, false}, Default: false
+     trig_freq, Type: UniformInteger, Range: [1, 8], Default: 1
+   Conditions:
+     poly_degree | poly_basis in {'true'}
+     trig_freq | trig_basis in {'true'}
+"""
+print(QuadCostTransformer.get_configuration_space(cartpole))
+"""
+  Configuration space object:
+    Hyperparameters:
+      dx_log10Fgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      dx_log10Qgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      omega_log10Fgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      omega_log10Qgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      theta_log10Fgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      theta_log10Qgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      u_log10Rgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      x_log10Fgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      x_log10Qgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+"""
+print(FiniteHorizonLQR.get_configuration_space(cartpole, task, Koopman))
+"""
+  Configuration space object:
+    Hyperparameters:
+      horizon, Type: UniformInteger, Range: [1, 1000], Default: 10
+"""
+
 pipeline = FixedControlPipeline(cartpole, task, Koopman, FiniteHorizonLQR, 
         [QuadCostTransformer])
 cs = pipeline.get_configuration_space()
 print(cs)
+"""
+  Configuration space object:
+    Hyperparameters:
+      horizon, Type: UniformInteger, Range: [1, 1000], Default: 10
+  
+  Configuration space object:
+    Hyperparameters:
+      _controller:horizon, Type: UniformInteger, Range: [1, 1000], Default: 10
+      _model:method, Type: Categorical, Choices: {lstsq}, Default: lstsq
+      _model:poly_basis, Type: Categorical, Choices: {true, false}, Default: false
+      _model:poly_degree, Type: UniformInteger, Range: [2, 8], Default: 3
+      _model:product_terms, Type: Categorical, Choices: {false}, Default: false
+      _model:trig_basis, Type: Categorical, Choices: {true, false}, Default: false
+      _model:trig_freq, Type: UniformInteger, Range: [1, 8], Default: 1
+      _task_transformer_0:dx_log10Fgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      _task_transformer_0:dx_log10Qgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      _task_transformer_0:omega_log10Fgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      _task_transformer_0:omega_log10Qgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      _task_transformer_0:theta_log10Fgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      _task_transformer_0:theta_log10Qgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      _task_transformer_0:u_log10Rgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      _task_transformer_0:x_log10Fgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+      _task_transformer_0:x_log10Qgain, Type: UniformFloat, Range: [-3.0, 4.0], Default: 0.0
+    Conditions:
+      _model:poly_degree | _model:poly_basis in {'true'}
+      _model:trig_freq | _model:trig_basis in {'true'}
+"""
 
 cfg = cs.get_default_configuration()
 controller, model = pipeline(cfg, trajs)
@@ -171,7 +233,7 @@ def eval_config(cfg, ret_extra=False):
             theta0_upper = theta0
     print("Done with evaluating config!")
     if ret_extra:
-        return theta0_lower, run_sim(theta0_lower), con.task
+        return theta0_lower, run_sim(0.01), con.task
     else:
         return theta0_lower
 
@@ -213,22 +275,22 @@ def run_smac(seed, runcount_limit=5, n_jobs = 1):
 
 ret_value = run_smac(42, runcount_limit=100, n_jobs=1)
 
-for cfg, cost in ret_value["top_five"]:
-    print(f"Config cost is {cost}")
-    print(cfg)
-
-    theta_max, sim_traj, newtask = eval_config(cfg, ret_extra=True)
-
-    Q, R, F = newtask.get_cost().get_cost_matrices()
-    print("Q")
-    print(Q)
-    print("R")
-    print(R)
+#for cfg, cost in ret_value["top_five"]:
+#    print(f"Config cost is {cost}")
+#    print(cfg)
+#
+#    theta_max, sim_traj, newtask = eval_config(cfg, ret_extra=True)
+#
+#    Q, R, F = newtask.get_cost().get_cost_matrices()
+#    print("Q")
+#    print(Q)
+#    print("R")
+#    print(R)
 #
 inc_cfg = ret_value["incumbent"]
 #inc_cfg = cs.get_default_configuration()
 #
-theta_max, sim_traj, newtask = eval_config(inc_cfg, ret_extra=True)
+theta_max, sim_traj, newtask = eval_config(cs.get_default_configuration(), ret_extra=True)
 print("Incumbent configuration has theta_max={}".format(theta_max))
 print("Incumbent configuration is")
 print(inc_cfg)
@@ -242,11 +304,11 @@ print(R)
 fig = plt.figure()
 ax = fig.gca()
 ax.set_aspect("equal")
-ax.set_xlim([-1.1, 1.1])
+ax.set_xlim([-4.1, 4.1])
 ax.set_ylim([-1.1, 1.1])
 #set_trace()
 ani = animate_cartpole(fig, ax, dt, sim_traj)
-ani.save("out/cartpole_test/sep03_01.mp4")
+ani.save("out/cartpole_test/sep30_03.mp4")
 
 fig = plt.figure()
 ax = fig.gca()

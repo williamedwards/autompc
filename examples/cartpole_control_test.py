@@ -71,8 +71,8 @@ def animate_cartpole(fig, ax, dt, traj):
     ax.grid()
 
     line, = ax.plot([0.0, 0.0], [0.0, -1.0], 'o-', lw=2)
-    time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
-    ctrl_text = ax.text(0.7, 0.95, '', transform=ax.transAxes)
+    time_text = ax.text(0.02, 0.85, '', transform=ax.transAxes)
+    ctrl_text = ax.text(0.7, 0.85, '', transform=ax.transAxes)
 
     def init():
         line.set_data([0.0, 0.0], [0.0, -1.0])
@@ -273,11 +273,11 @@ def main():
     fig = plt.figure()
     ax = fig.gca()
     ax.set_aspect("equal")
-    ax.set_xlim([-1.1, 1.1])
+    ax.set_xlim([-4.1, 4.1])
     ax.set_ylim([-1.1, 1.1])
     ani = animate_cartpole(fig, ax, dt, sim_traj)
-    #ani.save("out/cartpole_test/aug31_02.mp4")
-    plt.show()
+    ani.save("out/cartpole_test/oct1_02.mp4")
+    #plt.show()
 
 if __name__ == "__main__":
     main()
