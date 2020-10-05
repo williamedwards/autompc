@@ -1,5 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+import numpy as np
+
 from abc import ABC, abstractmethod
 from pdb import set_trace
 
@@ -54,6 +56,27 @@ class Model(ABC):
                 New predicted model state
         """
         raise NotImplementedError
+
+    def pred_parallel(self, states, ctrls):
+        n = self.system.obs_dim
+        m = states.shape[0]
+        out = np.empty((m, n))
+        for i in range(m):
+            out[i,:] = self.pred(states[i,:], ctrls[i,:])
+        return out
+
+    def pred_diff_parallel(self, states, ctrls):
+        n = self.system.obs_dim
+        m = states.shape[0]
+        out = np.empty((m, n))
+        state_jacs = np.empty((m, n, n))
+        ctrl_jacs = np.empty((m, n, self.system.ctrl_dim))
+        for i in range(m):
+            out[i,:], state_jacs[i,:,:], ctrl_jacs[i,:,:] = \
+                self.pred_diff(states[i,:], ctrls[i,:])
+        return out, state_jacs, ctrl_jacs
+
+
 
     @abstractmethod
     def pred_diff(self, state, ctrl):
