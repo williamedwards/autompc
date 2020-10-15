@@ -11,6 +11,8 @@ import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
+from pdb import set_trace
+
 from ..model import Model
 
 def transform_input(xu_means, xu_std, XU):
@@ -47,8 +49,9 @@ class ForwardNet(torch.nn.Module):
             raise NotImplementedError("Currently supported nonlinearity: relu, tanh, sigmoid")
 
     def forward(self, x):
-        for lyr in self.layers:
-            x = self.nonlin(self.layers[lyr](x))
+        for i, lyr in enumerate(self.layers):
+            y = self.layers[lyr](x)
+            x = self.nonlin(y)
         return self.output_layer(x)
 
 
@@ -67,41 +70,31 @@ class SimpleDataset(Dataset):
 
 
 class MLP(Model):
-    def __init__(self, system, n_hidden=3, hidden_size=128, nonlintype='relu', n_iter=100, n_batch=64, lr=1e-3):
+    def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
+            nonlintype='relu', n_train_iters=25, n_batch=64, lr=1e-3,
+            use_cuda=True):
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
-        self.net = ForwardNet(nx + nu, nx, n_hidden, hidden_size, nonlintype)
-        self._train_data = (n_iter, n_batch, lr)
-        self._device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.net = ForwardNet(nx + nu, nx, n_hidden_layers, hidden_size, nonlintype)
+        self._train_data = (n_train_iters, n_batch, lr)
+        self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
+                else torch.device('cpu'))
         self.net = self.net.double().to(self._device)
 
     @staticmethod
     def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
-        method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
-        lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
-                lower=-5.0, upper=2.0, default_value=0.0)
-        use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
-                values=["lasso"])
-
-        poly_basis = CSH.CategoricalHyperparameter("poly_basis", 
-                choices=["true", "false"], default_value="false")
-        poly_degree = CSH.UniformIntegerHyperparameter("poly_degree", lower=2, upper=8,
-                default_value=3)
-        use_poly_degree = CSC.InCondition(child=poly_degree, parent=poly_basis,
-                values=["true"])
-
-        trig_basis = CSH.CategoricalHyperparameter("trig_basis", 
-                choices=["true", "false"], default_value="false")
-        trig_freq = CSH.UniformIntegerHyperparameter("trig_freq", lower=1, upper=8,
-                default_value=1)
-        use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
-                values=["true"])
-
-        cs.add_hyperparameters([method, lasso_alpha_log10, poly_basis, poly_degree,
-            trig_basis, trig_freq])
-        cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
-
+        nonlintype = CSH.CategoricalHyperparameter("nonlintype", 
+                #choices=["relu", "tanh", "sigmoid"])
+                choices=["relu"])
+        n_hidden_layers = CSH.UniformIntegerHyperparameter("n_hidden_layers",
+                lower=1, upper=4, default_value=2)
+        hidden_size = CSH.UniformIntegerHyperparameter("hidden_size",
+                lower = 16, upper = 160, default_value=32)
+        n_train_iters = CSH.UniformIntegerHyperparameter("n_train_iters",
+                lower = 10, upper = 50, default_value=20)
+        cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size,
+            n_train_iters])
         return cs
 
     def traj_to_state(self, traj):
@@ -138,9 +131,12 @@ class MLP(Model):
             param.requires_grad_(True)
         optim = torch.optim.Adam(self.net.parameters(), lr=lr)
         lossfun = torch.nn.SmoothL1Loss()
+        for lyr in self.net.layers:
+            print(lyr)
+            print(list(self.net.layers[lyr].parameters()))
         for i in range(n_iter):
             print('Train iteration %d' % i)
-            for x, y in dataloader:
+            for i, (x, y) in enumerate(dataloader):
                 optim.zero_grad()
                 x = x.to(self._device)
                 predy = self.net(x)
@@ -240,11 +236,6 @@ class MLP(Model):
         ctrl_jacs = jac[:, :, n:]
         return state + dy, state_jacs, ctrl_jacs
 
-    @staticmethod
-    def get_configuration_space(system):
-        cs = CS.ConfigurationSpace()
-        cs.add_configuration_space
-        return cs
 
     def get_parameters(self):
         return {"net_state" : self.net.state_dict(),

@@ -131,13 +131,15 @@ def get_generation_controller():
 num_trajs = 500
 
 @memory.cache
-def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt, rand_contr_prob=1.0):
+def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt, rand_contr_prob=1.0,
+        init_min = [-1.0, 0.0, 0.0, 0.0], init_max=[1.0, 0.0, 0.0, 0.0]):
     rng = np.random.default_rng(49)
     trajs = []
     con = get_generation_controller()
     for _ in range(num_trajs):
-        theta0 = rng.uniform(-1.0, 1.0, 1)[0]
-        y = [theta0, 0.0, 0.0, 0.0]
+        state0 = [rng.uniform(minval, maxval, 1)[0] for minval, maxval 
+                in zip(init_min, init_max)]
+        y = state0[:]
         traj = ampc.zeros(cartpole, traj_len)
         traj.obs[:] = y
         if rng.random() < rand_contr_prob:
@@ -163,6 +165,10 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt, rand_contr_prob=1.0):
 trajs = gen_trajs(4)
 trajs2 = gen_trajs(200)
 trajs3 = gen_trajs(200, rand_contr_prob = 0.5)
+trajs4 = gen_trajs(200, init_min=[-1.0, -10.0, -1.0, -10.0],
+        init_max=[1.0, 10.0, 1.0, 10.0])
+trajs5 = gen_trajs(200, num_trajs=2000, init_min=[-3.0, -12.0, -5.0, -20.0],
+        init_max=[3.0, 12.0, 5.0, 20.0])
 
 from autompc.sysid import (GaussianProcess, 
         LargeGaussianProcess, 
@@ -189,8 +195,8 @@ def train_approx_gp(num_trajs):
 def train_mlp_inner(num_trajs):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    model = ampc.make_model(cartpole, MLP, cfg)
-    model.train(trajs3[-num_trajs:])
+    model = ampc.make_model(cartpole, MLP, cfg, n_iter=75)
+    model.train(trajs5[-num_trajs:])
     return model.get_parameters()
 
 def train_mlp(num_trajs):
@@ -214,7 +220,7 @@ def run_experiment(model_name, controller_name, init_state):
     if model_name == "approx_gp":
         model = train_approx_gp(50)
     elif model_name == "mlp":
-        model = train_mlp(490)
+        model = train_mlp(2000)
     else:
         raise ValueError("Unknown model type")
 
@@ -276,8 +282,8 @@ def main():
     ax.set_xlim([-4.1, 4.1])
     ax.set_ylim([-1.1, 1.1])
     ani = animate_cartpole(fig, ax, dt, sim_traj)
-    ani.save("out/cartpole_test/oct1_02.mp4")
-    #plt.show()
+    #ani.save("out/cartpole_test/oct1_02.mp4")
+    plt.show()
 
 if __name__ == "__main__":
     main()

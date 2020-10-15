@@ -216,7 +216,7 @@ def fd_jac(func, x, dt=1e-4):
         jac[:,i] = (resp - res) / dt
     return jac
 
-@memory.cache
+#@memory.cache
 def train_approx_gp_inner(num_trajs):
     cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
@@ -232,7 +232,8 @@ def train_approx_gp(num_trajs):
     model.set_parameters(params)
     return model
 
-#gp = train_approx_gp(25)
+gp = train_approx_gp(25)
+set_trace()
 #import timeit
 #m = 50
 ##t1 = timeit.Timer(lambda: gp.pred_parallel(np.zeros((m,4)), np.ones((m,1))))

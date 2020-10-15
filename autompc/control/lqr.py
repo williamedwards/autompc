@@ -158,7 +158,14 @@ class FiniteHorizonLQR(Controller):
         # Implement control logic here
         modelstate = self.model.update_state(state[:-self.system.ctrl_dim],
                 state[-self.system.ctrl_dim:], new_obs)
-        u = self.K @ modelstate
+        x0 = self.task.get_cost().get_x0()
+        if x0.size < modelstate.size:
+            state0 = np.zeros(modelstate.size)
+            state0[:x0.size] = x0
+        else:
+            state0 = x0
+        print(f"{state0=}")
+        u = self.K @ (modelstate - state0)
         u = np.minimum(u, self.umax)
         u = np.maximum(u, self.umin)
         #print("state={}".format(state))

@@ -30,12 +30,16 @@ class FixedControlPipeline:
         return cs
 
     def __call__(self, cfg, trajs):
+        print("Making pipeline configuration")
+        print(cfg)
+        print("-----")
         # First instantiate and train the model
         model_cs = self.Model.get_configuration_space(self.system)
         model_cfg = model_cs.get_default_configuration()
         set_subspace_configuration(cfg, "_model", model_cfg)
         model = make_model(self.system, self.Model, model_cfg)
         model.train(trajs)
+        print("Exit training.")
 
         # Next set up task
         task = self.task
@@ -44,7 +48,7 @@ class FixedControlPipeline:
             trans_cfg = trans_cs.get_default_configuration()
             set_subspace_configuration(cfg, "_task_transformer_{}".format(i), trans_cfg)
             trans = make_transformer(self.system, Trans, trans_cfg)
-            task = trans(task)
+            task = trans(task, trajs)
 
         # Finally create the controller
         contr_cs = self.Controller.get_configuration_space(self.system, self.task,

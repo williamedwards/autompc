@@ -47,7 +47,7 @@ class QuadCostTransformer(TaskTransformer):
     def is_compatible(self, task):
         return task.get_cost().is_quad
 
-    def __call__(self, task):
+    def __call__(self, task, trajs):
         newtask = copy.deepcopy(task)
         cost = newtask.get_cost()
         Q, R, F = cost.get_cost_matrices()

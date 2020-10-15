@@ -137,6 +137,9 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt, rand_contr_prob=1.0, seed=42
 trajs = gen_trajs(4)
 trajs2 = gen_trajs(200)
 
+X = np.concatenate([traj.obs for traj in trajs2])
+set_trace()
+
 from cartpole_model import CartpoleModel
 true_dyn = CartpoleModel(cartpole)
 
@@ -152,7 +155,6 @@ task.set_cost(cost)
 task.set_ctrl_bound("u", -20.0, 20.0)
 
 from autompc.tasks.quad_cost_transformer import QuadCostTransformer
-from autompc.tasks.gaussian_reg_transformer import GaussianRegTransformer
 from autompc.pipelines import FixedControlPipeline
 from autompc.sysid import Koopman
 from autompc.control import FiniteHorizonLQR
@@ -164,7 +166,7 @@ pipeline = FixedControlPipeline(cartpole, task, Koopman, FiniteHorizonLQR,
 from autompc.control_evaluation import CrossDataEvaluator, FixedModelEvaluator
 from autompc.control_evaluation import FixedInitialMetric
 
-init_states = [np.array([0.2, 0.0, 0.0, 0.0])]
+init_states = [np.array([0.5, 0.0, 0.0, 0.0])]
 
 metric = FixedInitialMetric(cartpole, task, init_states, sim_iters=100,
         sim_time_limit=10.0)
@@ -190,7 +192,8 @@ def sample_approx_gp_inner(num_trajs, seed):
     cs = ApproximateGaussianProcess.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     model = ampc.make_model(cartpole, ApproximateGaussianProcess, cfg)
-    traj_sample = gen_trajs(traj_len=200, num_trajs=num_trajs, seed=seed)
+    traj_sample = gen_trajs(traj_len=200, num_trajs=num_trajs, seed=seed,
+            rand_contr_prob=0.5)
     model.train(traj_sample)
     return model.get_parameters()
 
@@ -206,9 +209,6 @@ def sample_approx_gp(num_trajs, seed):
 def sample_mlp_inner(num_trajs, seed, rc_prob):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["n_hidden_layers"] = 3
-    cfg["hidden_size"] = 128
-    cfg["n_train_iters"] = 50
     traj_sample = gen_trajs(traj_len=200, num_trajs=num_trajs, 
             seed=seed, rand_contr_prob=rc_prob)
     model = ampc.make_model(cartpole, MLP, cfg)
@@ -218,107 +218,62 @@ def sample_mlp_inner(num_trajs, seed, rc_prob):
 def sample_mlp(num_trajs, seed, rc_prob=1.0):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["n_hidden_layers"] = 3
-    cfg["hidden_size"] = 128
-    cfg["n_train_iters"] = 50
     model = ampc.make_model(cartpole, MLP, cfg)
     params = sample_mlp_inner(num_trajs, seed, rc_prob)
     model.set_parameters(params)
     return model
+
+#from scipy import stats
+#def get_ucb(sample, p, alpha):
+#    sample.sort()
+#    s = int(stats.binom.ppf(1 - alpha, len(sample), p))
+#    if s < len(sample):
+#        upper = sample[s]
+#    else:
+#        upper = float("inf")
+#    return upper
+
+
 
 evaluator_true = FixedModelEvaluator(cartpole, task, metric, training_trajs, 
         sim_model=true_dyn)
 cs = pipeline.get_configuration_space()
 cfg1 = cs.get_default_configuration()
 cfg1["_controller:horizon"] = 1000
-#cfg1["_task_transformer_1:state_reg_weight_log10"] = -2
 eval_true = evaluator_true(pipeline)
 true_cost = eval_true(cfg1)
 print(f"True dynamics cost is {true_cost}")
 
+gp = sample_approx_gp(num_trajs=5, seed=77)
 
-@memory.cache
-def get_gp_costs(num_trajs, num_samples):
-    rng = np.random.default_rng(42)
-    gp_costs = []
-    for i in range(num_samples):
-        seed = rng.integers(1 << 30)
-        gp = sample_approx_gp(num_trajs=num_trajs, seed=seed)
-        evaluator_gp = FixedModelEvaluator(cartpole, task, metric, training_trajs, 
-                sim_model=gp)
-        eval_gp = evaluator_gp(pipeline)
-        gp_costs.append(eval_gp(cfg1))
-    return gp_costs
+n_trials = 100
+gp_costs = []
+for i in range(n_trials):
+    gp.pred = gp.get_sampler()
+    evaluator_gp = FixedModelEvaluator(cartpole, task, metric, training_trajs, 
+            sim_model=gp)
+    eval_gp = evaluator_gp(pipeline)
+    gp_costs.append(eval_gp(cfg1))
 
-@memory.cache
-def get_mlp_costs(num_trajs, num_samples, rc_prob=1.0):
-    rng = np.random.default_rng(702)
-    gp_costs = []
-    for i in range(num_samples):
-        seed = rng.integers(1 << 30)
-        gp = sample_mlp(num_trajs=num_trajs, seed=seed)
-        evaluator_gp = FixedModelEvaluator(cartpole, task, metric, training_trajs, 
-                sim_model=gp)
-        eval_gp = evaluator_gp(pipeline)
-        gp_costs.append(eval_gp(cfg1))
-    return gp_costs
+sorted_costs = gp_costs[:]
+sorted_costs.sort()
+p90 = sorted_costs[int(len(sorted_costs)*0.9)]
+p75 = sorted_costs[int(len(sorted_costs)*0.75)]
+p50 = sorted_costs[int(len(sorted_costs)*0.5)]
 
-from noisy_cartpole_model import NoisyCartpoleModel
-@memory.cache
-def get_noisy_dyn_costs(noise_factro, num_samples):
-    rng = np.random.default_rng(42)
-    costs = []
-    model = NoisyCartpoleModel(cartpole, rng, noise_factor)
-    for i in range(num_samples):
-        evaluator = FixedModelEvaluator(cartpole, task, metric, training_trajs, 
-                sim_model=model)
-        eval = evaluator(pipeline)
-        costs.append(eval(cfg1))
-    return costs
+fig = plt.figure()
+ax = fig.gca()
 
-gp_costss = []
-num_trajss = [5, 10, 20, 40]#, 80]#, 160, 320, 640]
-#num_trajss = [5]
-for num_trajs in num_trajss:
-    print("===== num_trajs={} ======".format(num_trajs))
-    gp_costs = get_mlp_costs(num_trajs, 29, rc_prob=1.0)
-    gp_costss.append(gp_costs)
+ax.set_title(f"Cost Distribution")
+ax.set_xlabel("Cost")
+ax.set_ylabel("Count")
+ax.axvline(x=true_cost, color="r", label="True dynamics cost")
+ax.axvline(x=p90, color="g", label="90th percentile")
+ax.axvline(x=p75, color="y", label="75th percentile")
+ax.axvline(x=p50, color="k", label="50th percentile")
+ax.hist(gp_costs, bins=np.arange(0, 2000, 25))
+ax.legend()
 
-    print(f"GP surrogate dynamics costs are {gp_costs}")
+plt.show()
 
-for num_trajs, gp_costs in zip(num_trajss, gp_costss):
-    fig = plt.figure()
-    ax = fig.gca()
-
-    ax.set_title(f"Cost Distribution for trainsize={num_trajs} trajs")
-    ax.set_xlabel("Cost")
-    ax.set_ylabel("Count")
-    ax.axvline(x=true_cost, color="r", label="True dynamics cost")
-    ax.hist(gp_costs, bins=np.arange(0, 2000, 10))
-    ax.legend()
-
-    plt.show()
-
-#costss = []
-#noise_factors = [0.4, 0.2, 0.1, 0.05, 0.025]
-##noise_factors = [0.0]
-#for noise_factor in noise_factors:
-#    print("===== noise_factor={} ======".format(noise_factor))
-#    costs = get_noisy_dyn_costs(noise_factor, 100)
-#    costss.append(costs)
-#
-#    #print(f"GP surrogate dynamics costs are {gp_costs}")
-#
-#set_trace()
-#for noise_factor, costs in zip(noise_factors, costss):
-#    fig = plt.figure()
-#    ax = fig.gca()
-#
-#    ax.set_title(f"Cost Distribution for noise_factor={noise_factor}")
-#    ax.set_xlabel("Cost")
-#    ax.set_ylabel("Count")
-#    ax.axvline(x=true_cost, color="r", label="True dynamics cost")
-#    ax.hist(costs, bins=np.arange(0, 2000, 10))
-#    ax.legend()
-#
-#    plt.show()
+set_trace()

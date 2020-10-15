@@ -8,8 +8,9 @@ from ..evaluator import Evaluator, CachingPredictor
 from .. import utils
 
 class HoldoutEvaluator(Evaluator):
-    def __init__(self, *args, holdout_prop = 0.1, **kwargs):
+    def __init__(self, *args, holdout_prop = 0.1, verbose=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.verbose = verbose
         holdout_size = round(holdout_prop * len(self.trajs))
         holdout_indices = self.rng.choice(np.arange(len(self.trajs)), 
                 holdout_size, replace=False)
@@ -20,6 +21,10 @@ class HoldoutEvaluator(Evaluator):
                 self.training_set.append(traj)
 
     def __call__(self, model, configuration):
+        if self.verbose:
+            print("Evaluating Configuration:")
+            print(configuration)
+            print("----")
         m = utils.make_model(self.system, model, configuration)
         print("Entering training")
         train_start = time.time()

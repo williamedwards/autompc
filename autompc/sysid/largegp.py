@@ -42,12 +42,14 @@ def transform_output(xu_means, xu_std, XU):
 
 class GPytorchGP(Model):
     """Define a base class that can be extended to both scalable and un-scalable case"""
-    def __init__(self, system, mean='constant', kernel='RBF', niter=40, lr=0.1):
+    def __init__(self, system, mean='constant', kernel='RBF', niter=40, lr=0.1,
+            use_cuda=True):
         super().__init__(system)
         self.niter = niter
         self.lr = lr
-        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-        if torch.cuda.is_available():
+        self.device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
+                else torch.device('cpu'))
+        if use_cuda and torch.cuda.is_available():
             print("Cuda is used for GPytorch")
         self.gpmodel = None
         self.gp_mean = mean
@@ -78,6 +80,46 @@ class GPytorchGP(Model):
         dy = transform_output(self.dy_means, self.dy_std, out).flatten()
         return state + dy
 
+    def get_sampler(self):
+        d = self.system.obs_dim
+        u = np.random.normal(loc=0, scale=1, size=d).reshape((d, 1)) 
+        def sample(state, ctrl):
+            X = np.concatenate([state, ctrl])
+            X = X[np.newaxis,:]
+            Xt = transform_input(self.xu_means, self.xu_std, X)
+            # for this one, make a prediction is easy...
+            TsrXt = torch.from_numpy(Xt).to(self.device)
+            predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
+            #predf = self.gpmodel(TsrXt)
+            mean = predy.mean.cpu().data.reshape((d,1))
+            cov = predy.covariance_matrix.cpu().data
+            L = np.linalg.cholesky(cov)
+            out = mean + np.dot(L, u)
+            out = out.reshape((1,d))
+            #out2 = predy.sample().cpu().data.numpy()
+            dy = transform_output(self.dy_means, self.dy_std, out).flatten()
+            return state + dy
+        return sample
+
+    def sample(self, state, ctrl):
+        X = np.concatenate([state, ctrl])
+        X = X[np.newaxis,:]
+        Xt = transform_input(self.xu_means, self.xu_std, X)
+        # for this one, make a prediction is easy...
+        TsrXt = torch.from_numpy(Xt).to(self.device)
+        predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
+        #predf = self.gpmodel(TsrXt)
+        d = self.system.obs_dim
+        mean = predy.mean.cpu().data.reshape((d,1))
+        cov = predy.covariance_matrix.cpu().data
+        L = np.linalg.cholesky(cov)
+        u = np.random.normal(loc=0, scale=1, size=d).reshape((d, 1)) 
+        out = mean + np.dot(L, u)
+        out = out.reshape((1,d))
+        #out2 = predy.sample().cpu().data.numpy()
+        dy = transform_output(self.dy_means, self.dy_std, out).flatten()
+        return state + dy
+
     def pred_timeit(self, state, ctrl):
         import time
         start = time.time()
@@ -103,6 +145,16 @@ class GPytorchGP(Model):
         TsrXt = torch.from_numpy(Xt).to(self.device)
         predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
         out = predy.mean.cpu().data.numpy()
+        dy = transform_output(self.dy_means, self.dy_std, out).flatten()
+        return state + dy.reshape((state.shape[0], self.state_dim))
+
+    def sample_parallel(self, state, ctrl):
+        """The batch mode"""
+        X = np.concatenate([state, ctrl], axis=1)
+        Xt = transform_input(self.xu_means, self.xu_std, X)
+        TsrXt = torch.from_numpy(Xt).to(self.device)
+        predy = self.gpmodel.likelihood(self.gpmodel(TsrXt))
+        out = predy.sample().cpu().data.numpy()
         dy = transform_output(self.dy_means, self.dy_std, out).flatten()
         return state + dy.reshape((state.shape[0], self.state_dim))
 
@@ -269,15 +321,15 @@ class LargeGaussianProcess(GPytorchGP):
 
 # this part implements the approximate GP
 class ApproximateGaussianProcess(GPytorchGP):
-    def __init__(self, system, mean='constant', kernel='RBF', niter=40, lr=0.1, batch_size=1024, induce_count=500):
-        super().__init__(system, mean, kernel, niter, lr)
+    def __init__(self, system, mean='constant', kernel='RBF', niter=40, lr=0.1, batch_size=1024, induce_count=500, **kwargs):
+        super().__init__(system, mean, kernel, niter, lr, **kwargs)
         self.batch_size = batch_size
         self.induce_count = induce_count
 
     def get_configuration_space(cartpole):
         cs = ConfigurationSpace()
         induce_count = UniformIntegerHyperparameter("induce_count", lower=100,
-                upper=10000)
+                upper=10000, default_value=500)
         cs.add_hyperparameter(induce_count)
         return cs
 

@@ -29,6 +29,12 @@ class BaseCost(ABC):
         else:
             raise ValueError("Cost is not quadratic.")
 
+    def get_x0(self):
+        if self.is_quad:
+            return np.copy(self._x0)
+        else:
+            raise ValueError("Cost is not quadratic")
+
     def eval_obs_cost(self, obs):
         """
         Returns additive observation cost of the form

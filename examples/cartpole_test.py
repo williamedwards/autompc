@@ -136,11 +136,11 @@ def train_arx(k=2):
 def train_koop():
     cs = Koopman.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["trig_basis"] = "true"
+    cfg["trig_basis"] = "false"
     cfg["poly_basis"] = "false"
     cfg["method"] = "lstsq"
     koop = ampc.make_model(cartpole, Koopman, cfg)
-    koop.train(trajs2[:50])
+    koop.train(trajs[:50])
     return koop
 
 def train_sindy():
@@ -206,7 +206,9 @@ task = Task(cartpole)
 Q = np.diag([1.0, 1.0, 1.0, 1.0])
 R = np.diag([1.0])
 #F = np.diag([10.0, 1.0, 1.0, 1.0])
-task.set_cost(QuadCost(cartpole, Q, R))
+x0 = np.array([0.0, 0.0, 0.5, 0.0])
+task.set_cost(QuadCost(cartpole, Q, R, x0=x0))
+#task.set_ctrl_bound("u", -2.0, 2.0)
 
 model = koop
 cs = FiniteHorizonLQR.get_configuration_space(cartpole, task, model)
@@ -227,26 +229,26 @@ def run_sim(theta0, break_sim=True):
         x = dt_cartpole_dynamics(x, u, dt)
         sim_traj[-1, "u"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
-        state_cost = x.T @ Q @ x
-        if break_sim and state_cost > 10000.0:
-            break
+        #state_cost = x.T @ Q @ x
+        #if break_sim and state_cost > 10000.0:
+        #    break
     return sim_traj
 
-theta0_lower = 0.0
-theta0_upper = 3.0
-while theta0_upper - theta0_lower > 0.01:
-    theta0 = (theta0_upper + theta0_lower) / 2
-    print(f"{theta0=}")
-    sim_traj = run_sim(theta0)
-    success = (abs(sim_traj[-1, "theta"]) < 0.01
-            and abs(sim_traj[-1, "x"])  < 0.01)
-    if success:
-        theta0_lower = theta0
-    else:
-        theta0_upper = theta0
-
-print(f"Max Theta = {theta0_lower}")
-sim_traj = run_sim(theta0_lower, break_sim=True)
+#theta0_lower = 0.0
+#theta0_upper = 3.0
+#while theta0_upper - theta0_lower > 0.01:
+#    theta0 = (theta0_upper + theta0_lower) / 2
+#    print(f"{theta0=}")
+#    sim_traj = run_sim(theta0)
+#    success = (abs(sim_traj[-1, "theta"]) < 0.01
+#            and abs(sim_traj[-1, "x"])  < 0.01)
+#    if success:
+#        theta0_lower = theta0
+#    else:
+#        theta0_upper = theta0
+#
+#print(f"Max Theta = {theta0_lower}")
+sim_traj = run_sim(0.3, break_sim=True)
 
 fig = plt.figure()
 ax = fig.gca()
