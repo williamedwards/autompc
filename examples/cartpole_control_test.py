@@ -195,13 +195,19 @@ def train_approx_gp(num_trajs):
 def train_mlp_inner(num_trajs):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    model = ampc.make_model(cartpole, MLP, cfg, n_iter=75)
+    cfg["n_train_iters"] = 25
+    cfg["n_hidden_layers"] = 3
+    cfg["hidden_size"] = 128
+    model = ampc.make_model(cartpole, MLP, cfg)
     model.train(trajs5[-num_trajs:])
     return model.get_parameters()
 
 def train_mlp(num_trajs):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
+    cfg["n_train_iters"] = 25
+    cfg["n_hidden_layers"] = 3
+    cfg["hidden_size"] = 128
     model = ampc.make_model(cartpole, MLP, cfg)
     params = train_mlp_inner(num_trajs)
     model.set_parameters(params)
@@ -282,8 +288,8 @@ def main():
     ax.set_xlim([-4.1, 4.1])
     ax.set_ylim([-1.1, 1.1])
     ani = animate_cartpole(fig, ax, dt, sim_traj)
-    #ani.save("out/cartpole_test/oct1_02.mp4")
-    plt.show()
+    ani.save("out/cartpole_test/oct15_03.mp4")
+    #plt.show()
 
 if __name__ == "__main__":
     main()

@@ -164,7 +164,6 @@ class FiniteHorizonLQR(Controller):
             state0[:x0.size] = x0
         else:
             state0 = x0
-        print(f"{state0=}")
         u = self.K @ (modelstate - state0)
         u = np.minimum(u, self.umax)
         u = np.maximum(u, self.umin)

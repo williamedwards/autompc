@@ -92,7 +92,7 @@ class MLP(Model):
         hidden_size = CSH.UniformIntegerHyperparameter("hidden_size",
                 lower = 16, upper = 160, default_value=32)
         n_train_iters = CSH.UniformIntegerHyperparameter("n_train_iters",
-                lower = 10, upper = 50, default_value=20)
+                lower = 10, upper = 100, default_value=20)
         cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size,
             n_train_iters])
         return cs

@@ -137,75 +137,83 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt, rand_contr_prob=1.0,
             traj[i].ctrl[:] = u
         trajs.append(traj)
     return trajs
-trajs = gen_trajs(4)
-trajs2 = gen_trajs(200)
-trajs3 = gen_trajs(200, rand_contr_prob = 0.5)
 
-from autompc.sysid import ARX, Koopman, MLP
+def main():
+    trajs = gen_trajs(4)
+    trajs2 = gen_trajs(200)
+    trajs3 = gen_trajs(200, rand_contr_prob = 0.5)
 
-Model = MLP
+    from autompc.sysid import ARX, Koopman, MLP
 
-cs = Model.get_configuration_space(cartpole)
-s = cs.get_default_configuration()
-s["n_train_iters"] = 11
-#model = ampc.make_model(cartpole, Model, s)
-#model.train(trajs3)
+    Model = MLP
 
-from autompc.evaluators import HoldoutEvaluator
-from autompc.metrics import RmseKstepMetric
-from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
+    cs = Model.get_configuration_space(cartpole)
+    s = cs.get_default_configuration()
+    s["n_train_iters"] = 11
+    #model = ampc.make_model(cartpole, Model, s)
+    #model.train(trajs3)
 
-metric = RmseKstepMetric(cartpole, k=50)
-#grapher = KstepGrapher(pendulum, kmax=50, kstep=5, evalstep=10)
-grapher = InteractiveEvalGrapher(cartpole)
+    from autompc.evaluators import HoldoutEvaluator
+    from autompc.metrics import RmseKstepMetric
+    from autompc.graphs import KstepGrapher, InteractiveEvalGrapher
 
-rng = np.random.default_rng(42)
-evaluator = HoldoutEvaluator(cartpole, trajs3[:500], metric, rng, holdout_prop=0.25,
-        verbose=True) 
-#evaluator.add_grapher(grapher)
-#eval_score, _, graphs = evaluator(Model, s)
-#print("eval_score = {}".format(eval_score))
-#fig = plt.figure()
-#graph = graphs[0]
-#graph.set_obs_lower_bound("ang", -0.2)
-#graph.set_obs_upper_bound("ang", 0.2)
-#graphs[0](fig)
-#plt.show()
-#sys.exit(0)
+    metric = RmseKstepMetric(cartpole, k=50)
+    #grapher = KstepGrapher(pendulum, kmax=50, kstep=5, evalstep=10)
+    grapher = InteractiveEvalGrapher(cartpole)
 
-tuner = ampc.ModelTuner(cartpole, evaluator)
-#tuner.add_model(ARX)
-#tuner.add_model(Koopman)
-tuner.add_model(MLP)
-ret_value = tuner.run(rng=np.random.RandomState(42), runcount_limit=100,
-        n_jobs=1)
+    rng = np.random.default_rng(42)
+    evaluator = HoldoutEvaluator(cartpole, trajs3[:500], metric, rng, holdout_prop=0.02,
+            verbose=True) 
+    #evaluator.add_grapher(grapher)
+    #eval_score, _, graphs = evaluator(Model, s)
+    #print("eval_score = {}".format(eval_score))
+    #fig = plt.figure()
+    #graph = graphs[0]
+    #graph.set_obs_lower_bound("ang", -0.2)
+    #graph.set_obs_upper_bound("ang", 0.2)
+    #graphs[0](fig)
+    #plt.show()
+    #sys.exit(0)
 
-print(ret_value)
+    @memory.cache
+    def run_tuner(runcount_limit=100, seed=42, n_jobs=1):
+        tuner = ampc.ModelTuner(cartpole, evaluator)
+        tuner.add_model(MLP)
+        ret_value = tuner.run(rng=np.random.RandomState(seed), 
+                runcount_limit=runcount_limit, n_jobs=n_jobs)
+        return ret_value
 
-fig = plt.figure()
-ax = fig.gca()
-ax.plot(range(len(ret_value["inc_costs"])), ret_value["inc_costs"])
-ax.set_title("Incumbent cost over time")
-ax.set_ylim([0.0, 5.0])
-ax.set_xlabel("Iterations.")
-ax.set_ylabel("Cost")
-plt.show()
+    ret_value = run_tuner(runcount_limit=60)
 
-#from smac.scenario.scenario import Scenario
-#from smac.facade.smac_hpo_facade import SMAC4HPO
-#
-#scenario = Scenario({"run_obj": "quality",  
-#                     "runcount-limit": 50,  
-#                     "cs": cs,  
-#                     "deterministic": "true",
-#                     "n_jobs" : 10
-#                     })
-#
-#smac = SMAC4HPO(scenario=scenario, rng=np.random.RandomState(42),
-#        tae_runner=lambda cfg: evaluator(Model, cfg)[0])
-#
-#incumbent = smac.optimize()
-#
-#print("Done!")
-#
-#print(incumbent)
+    print(ret_value)
+
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.plot(range(len(ret_value["inc_costs"])), ret_value["inc_costs"])
+    ax.set_title("Incumbent cost over time")
+    ax.set_ylim([0.0, 5.0])
+    ax.set_xlabel("Iterations.")
+    ax.set_ylabel("Cost")
+    plt.show()
+
+    #from smac.scenario.scenario import Scenario
+    #from smac.facade.smac_hpo_facade import SMAC4HPO
+    #
+    #scenario = Scenario({"run_obj": "quality",  
+    #                     "runcount-limit": 50,  
+    #                     "cs": cs,  
+    #                     "deterministic": "true",
+    #                     "n_jobs" : 10
+    #                     })
+    #
+    #smac = SMAC4HPO(scenario=scenario, rng=np.random.RandomState(42),
+    #        tae_runner=lambda cfg: evaluator(Model, cfg)[0])
+    #
+    #incumbent = smac.optimize()
+    #
+    #print("Done!")
+    #
+    #print(incumbent)
+
+if __name__ == "__main__":
+    main()

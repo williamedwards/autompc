@@ -244,12 +244,13 @@ eval_true = evaluator_true(pipeline)
 true_cost = eval_true(cfg1)
 print(f"True dynamics cost is {true_cost}")
 
-gp = sample_approx_gp(num_trajs=5, seed=77)
+gp = sample_approx_gp(num_trajs=5, seed=76)
 
-n_trials = 100
+n_trials = 40
 gp_costs = []
 for i in range(n_trials):
-    gp.pred = gp.get_sampler()
+    #gp.pred = gp.get_sampler()
+    gp.pred = gp.sample
     evaluator_gp = FixedModelEvaluator(cartpole, task, metric, training_trajs, 
             sim_model=gp)
     eval_gp = evaluator_gp(pipeline)

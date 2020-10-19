@@ -37,7 +37,8 @@ class FixedControlPipeline:
         model_cs = self.Model.get_configuration_space(self.system)
         model_cfg = model_cs.get_default_configuration()
         set_subspace_configuration(cfg, "_model", model_cfg)
-        model = make_model(self.system, self.Model, model_cfg)
+        model = make_model(self.system, self.Model, model_cfg,
+                use_cuda=False)
         model.train(trajs)
         print("Exit training.")
 
