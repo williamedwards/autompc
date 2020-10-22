@@ -25,7 +25,7 @@ class HoldoutEvaluator(Evaluator):
             print("Evaluating Configuration:")
             print(configuration)
             print("----")
-        m = utils.make_model(self.system, model, configuration)
+        m = utils.make_model(self.system, model, configuration, use_cuda=False)
         print("Entering training")
         train_start = time.time()
         m.train(self.training_set)

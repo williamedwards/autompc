@@ -80,7 +80,7 @@ class ModelTuner:
 
         smac = SMAC4HPO(scenario=scenario, rng=rng,
                 tae_runner=self._evaluate, n_jobs=n_jobs)
-        
+
         incumbent = smac.optimize()
 
         ret_value = dict()

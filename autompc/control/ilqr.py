@@ -78,7 +78,7 @@ class IterativeLQR(Controller):
         """
         assert self.ubounds is not None
         umin, umax = self.ubounds
-        Q, R, F = self.task.get_quad_cost()
+        Q, R, F = self.task.get_cost().get_cost_matrices()
         Q = Q * self.system.dt
         R = R * self.system.dt
         H = self.horizon
@@ -253,7 +253,7 @@ class IterativeLQR(Controller):
         """
         assert self.ubounds is not None
         umin, umax = self.ubounds
-        Q, R, F = self.task.get_quad_cost()
+        Q, R, F = self.task.get_cost().get_cost_matrices()
         Q = Q * self.system.dt
         R = R * self.system.dt
         H = self.horizon
@@ -405,7 +405,16 @@ class IterativeLQR(Controller):
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         Here I do not have Hessian correction since I'm certain all my matrices are SPD
         """
-        Q, R, F = self.task.get_quad_cost()
+        cost = self.task.get_cost()
+        # Cost function example
+        # cost = cost.eval_obs_cost(obs)
+        # cost, cost_jac = cost.eval_obs_cost_diff(obs)
+        # cost = cost.eval_ctrl_cost(ctrl)
+        # cost, cost_jac = cost.eval_ctrl_cost_diff(ctrl)
+        # cost = cost.eval_term_obs_cost(obs)
+        # cost, cost_jac = cost.eval_term_obs_cost_diff(obs)
+        Q, R, F = cost.get_cost_matrices()
+        x0 = cost.get_x0()
         Q = Q * self.system.dt
         R = R * self.system.dt
         H = self.horizon

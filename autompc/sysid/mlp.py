@@ -28,15 +28,15 @@ def transform_output(xu_means, xu_std, XU):
     return np.vstack(XUt).T
 
 class ForwardNet(torch.nn.Module):
-    def __init__(self, n_in, n_out, n_hidden, hidden_size, nonlintype):
+    def __init__(self, n_in, n_out, hidden_sizes, nonlintype):
         """Specify the feedforward neuro network size and nonlinearity"""
-        assert n_hidden > 0
+        assert len(hidden_sizes) > 0
         torch.nn.Module.__init__(self)
         self.layers = torch.nn.ModuleDict() # a collection that will hold your layers
         last_n = n_in
-        for i in range(n_hidden):
-            self.layers['layer%d' % i] = torch.nn.Linear(last_n, hidden_size)
-            last_n = hidden_size
+        for i, size in enumerate(hidden_sizes):
+            self.layers['layer%d' % i] = torch.nn.Linear(last_n, size)
+            last_n = size
         # the final one
         self.output_layer = torch.nn.Linear(last_n, n_out)
         if nonlintype == 'relu':
@@ -72,10 +72,18 @@ class SimpleDataset(Dataset):
 class MLP(Model):
     def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
             nonlintype='relu', n_train_iters=25, n_batch=64, lr=1e-3,
+            hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
+            hidden_size_4=None,
             use_cuda=True):
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
-        self.net = ForwardNet(nx + nu, nx, n_hidden_layers, hidden_size, nonlintype)
+        n_hidden_layers = int(n_hidden_layers)
+        hidden_sizes = [hidden_size] * n_hidden_layers
+        for i, size in enumerate([hidden_size_1, hidden_size_2, hidden_size_3,
+                hidden_size_4]):
+            if size is not None:
+                hidden_sizes[i] = size
+        self.net = ForwardNet(nx + nu, nx, hidden_sizes, nonlintype)
         self._train_data = (n_train_iters, n_batch, lr)
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
                 else torch.device('cpu'))
@@ -87,14 +95,28 @@ class MLP(Model):
         nonlintype = CSH.CategoricalHyperparameter("nonlintype", 
                 #choices=["relu", "tanh", "sigmoid"])
                 choices=["relu"])
-        n_hidden_layers = CSH.UniformIntegerHyperparameter("n_hidden_layers",
-                lower=1, upper=4, default_value=2)
-        hidden_size = CSH.UniformIntegerHyperparameter("hidden_size",
-                lower = 16, upper = 160, default_value=32)
+        n_hidden_layers = CSH.CategoricalHyperparameter("n_hidden_layers",
+                choices=["1", "2", "3", "4"], default_value="2")
+        hidden_size_1 = CSH.UniformIntegerHyperparameter("hidden_size_1",
+                lower = 16, upper = 256, default_value=32)
+        hidden_size_2 = CSH.UniformIntegerHyperparameter("hidden_size_2",
+                lower = 16, upper = 256, default_value=32)
+        hidden_size_3 = CSH.UniformIntegerHyperparameter("hidden_size_3",
+                lower = 16, upper = 256, default_value=32)
+        hidden_size_4 = CSH.UniformIntegerHyperparameter("hidden_size_4",
+                lower = 16, upper = 256, default_value=32)
+        hidden_cond_2 = CSC.InCondition(child=hidden_size_2, parent=n_hidden_layers,
+                values=["2","3","4"])
+        hidden_cond_3 = CSC.InCondition(child=hidden_size_3, parent=n_hidden_layers,
+                values=["3","4"])
+        hidden_cond_4 = CSC.InCondition(child=hidden_size_4, parent=n_hidden_layers,
+                values=["4"])
         n_train_iters = CSH.UniformIntegerHyperparameter("n_train_iters",
                 lower = 10, upper = 100, default_value=20)
-        cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size,
+        cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size_1,
+            hidden_size_2, hidden_size_3, hidden_size_4,
             n_train_iters])
+        cs.add_conditions([hidden_cond_2, hidden_cond_3, hidden_cond_4])
         return cs
 
     def traj_to_state(self, traj):

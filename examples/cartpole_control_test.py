@@ -196,8 +196,10 @@ def train_mlp_inner(num_trajs):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     cfg["n_train_iters"] = 25
-    cfg["n_hidden_layers"] = 3
-    cfg["hidden_size"] = 128
+    cfg["n_hidden_layers"] = "3"
+    cfg["hidden_size_1"] = 128
+    cfg["hidden_size_2"] = 128
+    cfg["hidden_size_3"] = 128
     model = ampc.make_model(cartpole, MLP, cfg)
     model.train(trajs5[-num_trajs:])
     return model.get_parameters()
@@ -206,8 +208,10 @@ def train_mlp(num_trajs):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     cfg["n_train_iters"] = 25
-    cfg["n_hidden_layers"] = 3
-    cfg["hidden_size"] = 128
+    cfg["n_hidden_layers"] = "3"
+    cfg["hidden_size_1"] = 128
+    cfg["hidden_size_2"] = 128
+    cfg["hidden_size_3"] = 128
     model = ampc.make_model(cartpole, MLP, cfg)
     params = train_mlp_inner(num_trajs)
     model.set_parameters(params)
@@ -221,7 +225,7 @@ def init_ilqr(model, task, hori=40):
             verbose=True)
     return ilqr
 
-@memory.cache
+#@memory.cache
 def run_experiment(model_name, controller_name, init_state):
     if model_name == "approx_gp":
         model = train_approx_gp(50)
@@ -232,11 +236,13 @@ def run_experiment(model_name, controller_name, init_state):
 
 
     # Now it's time to apply the controller
-    task1 = ampc.Task(cartpole)
+    from autompc.tasks import Task, QuadCost
+    task1 = Task(cartpole)
     Q = np.diag([1.0, 1.0, 1.0, 1.0])
     R = np.diag([1.0]) * 0.01
     F = np.diag([10., 10., 10., 10.])*10.0
-    task1.set_quad_cost(Q, R, F)
+    cost = QuadCost(cartpole, Q, R, F)
+    task1.set_cost(cost)
     task1.set_ctrl_bound("u", -20, 20)
 
     if controller_name == "ilqr":
@@ -279,7 +285,6 @@ def main():
 
     init_state = np.array([args.init_angle, 0.0, 0.0, 0.0])
     sim_traj = run_experiment(args.model, args.controller, init_state)
-    set_trace()
 
     print(sim_traj.obs)
     fig = plt.figure()
@@ -288,8 +293,8 @@ def main():
     ax.set_xlim([-4.1, 4.1])
     ax.set_ylim([-1.1, 1.1])
     ani = animate_cartpole(fig, ax, dt, sim_traj)
-    ani.save("out/cartpole_test/oct15_03.mp4")
-    #plt.show()
+    #ani.save("out/cartpole_test/oct15_03.mp4")
+    plt.show()
 
 if __name__ == "__main__":
     main()

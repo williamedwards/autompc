@@ -176,14 +176,15 @@ def main():
     #sys.exit(0)
 
     @memory.cache
-    def run_tuner(runcount_limit=100, seed=42, n_jobs=1):
+    def run_tuner(runcount_limit=100, seed=43, n_jobs=1):
         tuner = ampc.ModelTuner(cartpole, evaluator)
         tuner.add_model(MLP)
+        #tuner.add_model(Koopman)
         ret_value = tuner.run(rng=np.random.RandomState(seed), 
                 runcount_limit=runcount_limit, n_jobs=n_jobs)
         return ret_value
 
-    ret_value = run_tuner(runcount_limit=60)
+    ret_value = run_tuner(runcount_limit=60, seed=44)
 
     print(ret_value)
 

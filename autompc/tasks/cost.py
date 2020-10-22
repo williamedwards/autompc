@@ -41,7 +41,8 @@ class BaseCost(ABC):
         obs -> float.
         """
         if self.is_quad:
-            return obs.T @ self._Q @ obs
+            obst = obs - self._x0
+            return obst.T @ self._Q @ obst
         else:
             raise NotImplementedError
 
@@ -51,7 +52,8 @@ class BaseCost(ABC):
         obs -> float, jac
         """
         if self.is_quad:
-            return obs.T @ self._Q @ obs, (self._Q + self._Q.T) @ obs
+            obst = obs - self._x0
+            return obst.T @ self._Q @ obst, (self._Q + self._Q.T) @ obst
         else:
             raise NotImplementedError
 
@@ -81,7 +83,8 @@ class BaseCost(ABC):
         obs -> float.
         """
         if self.is_quad:
-            return obs.T @ self._F @ obs
+            obst = obs - self._x0
+            return obst.T @ self._F @ obst
         else:
             raise NotImplementedError
 

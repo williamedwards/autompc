@@ -14,6 +14,8 @@ import time
 
 import multiprocessing
 multiprocessing.set_start_method("fork")
+import torch
+torch.set_num_threads(1)
 
 rng = np.random.default_rng(43)
 
@@ -132,7 +134,13 @@ def sample_approx_gp(num_trajs, seed):
     return model
 
 @memory.cache
-def sample_mlp_inner(num_trajs, seed, cfg):
+def sample_mlp_inner(num_trajs, seed):
+    cs = MLP.get_configuration_space(cartpole)
+    cfg = cs.get_default_configuration()
+    cfg["n_hidden_layers"] = "3"
+    cfg["hidden_size_1"] = 128
+    cfg["hidden_size_2"] = 128
+    cfg["hidden_size_3"] = 128
     model = ampc.make_model(cartpole, MLP, cfg, use_cuda=False)
     model.train(trajs2[-num_trajs:])
     return model.get_parameters()
@@ -140,10 +148,12 @@ def sample_mlp_inner(num_trajs, seed, cfg):
 def sample_mlp(num_trajs, seed):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["n_hidden_layers"] = 3
-    cfg["hidden_size"] = 128
+    cfg["n_hidden_layers"] = "3"
+    cfg["hidden_size_1"] = 128
+    cfg["hidden_size_2"] = 128
+    cfg["hidden_size_3"] = 128
     model = ampc.make_model(cartpole, MLP, cfg, use_cuda=False)
-    params = sample_mlp_inner(num_trajs, seed, cfg)
+    params = sample_mlp_inner(num_trajs, seed)
     model.set_parameters(params)
     model.net = model.net.to("cpu")
     model._device = "cpu"
@@ -156,12 +166,12 @@ low_noise = NoisyCartpoleModel(cartpole, np.random.default_rng(rng.integers(1 <<
         noise_factor=0.1)
 high_noise = NoisyCartpoleModel(cartpole, np.random.default_rng(rng.integers(1 << 30)), 
         noise_factor=0.4)
-#low_data_gp = sample_approx_gp(10, rng.integers(1 << 30))
-#high_data_gp = sample_approx_gp(80, rng.integers(1 << 30))
+low_data_gp = sample_approx_gp(10, 601)
+high_data_gp = sample_approx_gp(80, 602)
 import torch
-#low_data_mlp = sample_mlp(10, rng.integers(1 << 30))
-#high_data_mlp = sample_mlp(80, rng.integers(1 << 30))
-a = torch.zeros(100000)
+low_data_mlp = sample_mlp(10, 603)
+high_data_mlp = sample_mlp(80, 604)
+#a = torch.zeros(100000)
 #del a
 #a = np.zeros(100000)
 #print(a)
@@ -169,14 +179,15 @@ a = torch.zeros(100000)
 import torch.multiprocessing as tmul
 import smac
 smac.multiprocessing = tmul
+#tmul.set_start_method("spawn")
 
-surrogates = [("true_dyn", true_dyn)]
+surrogates = [("true_dyn", true_dyn),
         #("low_noise", low_noise),
         #("high_noise", high_noise),
         #("low_data_gp", low_data_gp),
         #("high_data_gp", high_data_gp),
         #("low_data_mlp", low_data_mlp),
-        #("high_data_mlp", high_data_mlp)
+        ("high_data_mlp", high_data_mlp)]
 
 training_trajs = trajs[:]
 
@@ -200,22 +211,22 @@ def run_smac(pipeline, label, seed, runcount_limit=5, n_jobs=1):
                          })
 
     eval_cfg = evaluator(pipeline)
-    cfg = cs.get_default_configuration()
-    cfg["_controller:horizon"] = 500
-    cfg["_model:hidden_size"] = 88
-    cfg["_model:n_hidden_layers"] = 2
-    cfg["_model:n_train_iters"] = 30
-    cfg["_model:nonlintype"] = "relu"
+    #cfg = cs.get_default_configuration()
+    #cfg["_controller:horizon"] = 500
+    #cfg["_model:hidden_size"] = 88
+    #cfg["_model:n_hidden_layers"] = 2
+    #cfg["_model:n_train_iters"] = 30
+    #cfg["_model:nonlintype"] = "relu"
 
-    cfg["_task_transformer_0:dx_log10Fgain"]
-    cfg["_task_transformer_0:dx_log10Qgain"]
-    cfg["_task_transformer_0:omega_log10Fgain"]
-    cfg["_task_transformer_0:omega_log10Qgain"]
-    cfg["_task_transformer_0:theta_log10Fgain"]
-    cfg["_task_transformer_0:theta_log10Qgain"]
-    cfg["_task_transformer_0:u_log10Rgain"]
-    cfg["_task_transformer_0:x_log10Fgain"]
-    cfg["_task_transformer_0:x_log10Qgain"]
+    #cfg["_task_transformer_0:dx_log10Fgain"]
+    #cfg["_task_transformer_0:dx_log10Qgain"]
+    #cfg["_task_transformer_0:omega_log10Fgain"]
+    #cfg["_task_transformer_0:omega_log10Qgain"]
+    #cfg["_task_transformer_0:theta_log10Fgain"]
+    #cfg["_task_transformer_0:theta_log10Qgain"]
+    #cfg["_task_transformer_0:u_log10Rgain"]
+    #cfg["_task_transformer_0:x_log10Fgain"]
+    #cfg["_task_transformer_0:x_log10Qgain"]
 
 
     #eval_cfg(cs.get_default_configuration())
@@ -268,13 +279,21 @@ rets = []
 for label, _ in surrogates:
     smac_seed = rng.integers(1 << 30)
     ret = run_smac(pipeline, label, smac_seed, 
-            runcount_limit=4)
+            runcount_limit=100)
     rets.append(ret)
+from joblib import Parallel, delayed
+#rets = Parallel(n_jobs=10)(delayed(run_smac)(pipeline, label,
+#    rng.integers(1 << 30), runcount_limit=3) for label, _ in surrogates)
 
 print("Evaluating true dynamics scores...")
-true_scores = [reevealuate(ret) for ret in rets]
+#true_scores = [reevealuate(ret) for ret in rets]
+true_scores = Parallel(n_jobs=10)(delayed(reevealuate)(ret) for ret in rets)
+print(f"{true_scores=}")
 
-set_trace()
+#import sys
+#sys.exit(0)
+#
+#set_trace()
 
 fig = plt.figure()
 ax = fig.gca()
