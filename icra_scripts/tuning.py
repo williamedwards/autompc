@@ -4,6 +4,7 @@
 import os, sys
 from pdb import set_trace
 import argparse
+import pickle
 
 # External projects include
 import numpy as np
@@ -81,25 +82,30 @@ def run_smac(pipeline, surrogate, train_trajs, seed, tuneiters):
                          })
 
     smac = SMAC4HPO(scenario=scenario, rng=rng,
-            tae_runner=lambda cfg: -surrogate(pipeline, train_trajs, cfg))
+            tae_runner=lambda cfg: surrogate(pipeline, train_trajs, cfg))
     
     incumbent = smac.optimize()
 
     ret_value = dict()
     ret_value["incumbent"] = incumbent
     inc_cost = float("inf")
+    inc_truedyn_cost = None
     inc_costs = []
+    inc_truedyn_costs = []
     inc_cfgs = []
     inc_cfg = None
     costs_and_config_ids = []
     for key, val in smac.runhistory.data.items():
         if val.cost < inc_cost:
             inc_cost = val.cost
+            inc_truedyn_cost = val.additional_info
             inc_cfg = smac.runhistory.ids_config[key.config_id]
         inc_costs.append(inc_cost)
+        inc_truedyn_costs.append(inc_truedyn_cost)
         inc_cfgs.append(inc_cfg)
         costs_and_config_ids.append((val.cost, key.config_id))
     ret_value["inc_costs"] = inc_costs
+    ret_value["inc_truedyn_costs"] = inc_costs
     ret_value["inc_cfgs"] = inc_cfgs
     costs_and_config_ids.sort()
 
@@ -124,15 +130,20 @@ def main(args):
     surrogate = init_surrogate(task_info, args.simsteps, args.surrogate,
             surr_trajs)
     pipeline = init_pipeline(task_info, args.pipeline)
-    cs = pipeline.get_configuration_space()
-    cfg = cs.get_default_configuration()
-    cfg["_model:n_hidden_layers"] = "3"
-    cfg["_model:hidden_size_1"] = 128
-    cfg["_model:hidden_size_2"] = 128
-    cfg["_model:hidden_size_3"] = 128
-    surrogate(pipeline, train_trajs, cfg)
-    #ret_value = run_smac(pipeline, surrogate, train_trajs, args.seed, args.tuneiters)
-    set_trace()
+    #cs = pipeline.get_configuration_space()
+    #cfg = cs.get_default_configuration()
+    #cfg["_model:n_hidden_layers"] = "3"
+    #cfg["_model:hidden_size_1"] = 128
+    #cfg["_model:hidden_size_2"] = 128
+    #cfg["_model:hidden_size_3"] = 128
+    #surrogate(pipeline, train_trajs, cfg)
+    ret_value = run_smac(pipeline, surrogate, train_trajs, args.seed, args.tuneiters)
+    
+    results_fn = f"{args.task}_{args.surrogate}_{args.seed}_{args.tuneiters}.pkl"
+    results_path = os.path.join(args.resultsdir, results_fn)
+    
+    with open(results_path, "wb") as f:
+        pickle.dump(ret_value, f)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

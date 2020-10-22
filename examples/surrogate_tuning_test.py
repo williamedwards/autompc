@@ -20,7 +20,7 @@ torch.set_num_threads(1)
 rng = np.random.default_rng(43)
 
 cartpole = ampc.System(["theta", "omega", "x", "dx"], ["u"])
-dt = 0.01
+dt = 0.05
 
 def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
     """
@@ -161,41 +161,42 @@ def sample_mlp(num_trajs, seed):
 
 # Generate surrogate models
 
-true_dyn = CartpoleModel(cartpole)
-low_noise = NoisyCartpoleModel(cartpole, np.random.default_rng(rng.integers(1 << 30)), 
-        noise_factor=0.1)
-high_noise = NoisyCartpoleModel(cartpole, np.random.default_rng(rng.integers(1 << 30)), 
-        noise_factor=0.4)
-low_data_gp = sample_approx_gp(10, 601)
-high_data_gp = sample_approx_gp(80, 602)
-import torch
-low_data_mlp = sample_mlp(10, 603)
-high_data_mlp = sample_mlp(80, 604)
-#a = torch.zeros(100000)
-#del a
-#a = np.zeros(100000)
-#print(a)
+if __name__ == "__main__":
+    true_dyn = CartpoleModel(cartpole)
+    low_noise = NoisyCartpoleModel(cartpole, np.random.default_rng(rng.integers(1 << 30)), 
+            noise_factor=0.1)
+    high_noise = NoisyCartpoleModel(cartpole, np.random.default_rng(rng.integers(1 << 30)), 
+            noise_factor=0.4)
+    low_data_gp = sample_approx_gp(10, 601)
+    high_data_gp = sample_approx_gp(80, 602)
+    import torch
+    low_data_mlp = sample_mlp(10, 603)
+    high_data_mlp = sample_mlp(80, 604)
+    #a = torch.zeros(100000)
+    #del a
+    #a = np.zeros(100000)
+    #print(a)
 
-import torch.multiprocessing as tmul
-import smac
-smac.multiprocessing = tmul
-#tmul.set_start_method("spawn")
+    import torch.multiprocessing as tmul
+    import smac
+    smac.multiprocessing = tmul
+    #tmul.set_start_method("spawn")
 
-surrogates = [("true_dyn", true_dyn),
-        #("low_noise", low_noise),
-        #("high_noise", high_noise),
-        #("low_data_gp", low_data_gp),
-        #("high_data_gp", high_data_gp),
-        #("low_data_mlp", low_data_mlp),
-        ("high_data_mlp", high_data_mlp)]
+    surrogates = [("true_dyn", true_dyn),
+            #("low_noise", low_noise),
+            #("high_noise", high_noise),
+            #("low_data_gp", low_data_gp),
+            #("high_data_gp", high_data_gp),
+            #("low_data_mlp", low_data_mlp),
+            ("high_data_mlp", high_data_mlp)]
 
-training_trajs = trajs[:]
+    training_trajs = trajs[:]
 
-evaluators = dict()
-for label, model in surrogates:
-    evaluator = FixedModelEvaluator(cartpole, task, metric, trajs2[:80], 
-            sim_model=model)
-    evaluators[label] = evaluator
+    evaluators = dict()
+    for label, model in surrogates:
+        evaluator = FixedModelEvaluator(cartpole, task, metric, trajs2[:80], 
+                sim_model=model)
+        evaluators[label] = evaluator
 
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
@@ -260,9 +261,9 @@ def run_smac(pipeline, label, seed, runcount_limit=5, n_jobs=1):
 
     return ret_value
 
-evaluator_true = evaluators["true_dyn"]
 @memory.cache
 def reevealuate(smac_retval):
+    evaluator_true = evaluators["true_dyn"]
     new_scores = []
     eval_cfg = evaluator_true(pipeline)
     cfg_to_score = dict()
@@ -275,42 +276,43 @@ def reevealuate(smac_retval):
         new_scores.append(score)
     return new_scores
 
-rets = []
-for label, _ in surrogates:
-    smac_seed = rng.integers(1 << 30)
-    ret = run_smac(pipeline, label, smac_seed, 
-            runcount_limit=100)
-    rets.append(ret)
-from joblib import Parallel, delayed
-#rets = Parallel(n_jobs=10)(delayed(run_smac)(pipeline, label,
-#    rng.integers(1 << 30), runcount_limit=3) for label, _ in surrogates)
+if __name__ == "___main__":
+    rets = []
+    for label, _ in surrogates:
+        smac_seed = rng.integers(1 << 30)
+        ret = run_smac(pipeline, label, smac_seed, 
+                runcount_limit=100)
+        rets.append(ret)
+    from joblib import Parallel, delayed
+    #rets = Parallel(n_jobs=10)(delayed(run_smac)(pipeline, label,
+    #    rng.integers(1 << 30), runcount_limit=3) for label, _ in surrogates)
 
-print("Evaluating true dynamics scores...")
-#true_scores = [reevealuate(ret) for ret in rets]
-true_scores = Parallel(n_jobs=10)(delayed(reevealuate)(ret) for ret in rets)
-print(f"{true_scores=}")
+    print("Evaluating true dynamics scores...")
+    #true_scores = [reevealuate(ret) for ret in rets]
+    true_scores = Parallel(n_jobs=10)(delayed(reevealuate)(ret) for ret in rets)
+    print(f"{true_scores=}")
 
-#import sys
-#sys.exit(0)
-#
-#set_trace()
+    #import sys
+    #sys.exit(0)
+    #
+    #set_trace()
 
-fig = plt.figure()
-ax = fig.gca()
-for ret in rets:
-    ax.plot(range(len(ret["inc_costs"])), ret["inc_costs"])
-ax.set_title("Surrogate cost over time")
-ax.set_xlabel("Tuning iterations")
-ax.set_ylabel("Surrogate cost")
-ax.legend([label for label, _ in surrogates])
+    fig = plt.figure()
+    ax = fig.gca()
+    for ret in rets:
+        ax.plot(range(len(ret["inc_costs"])), ret["inc_costs"])
+    ax.set_title("Surrogate cost over time")
+    ax.set_xlabel("Tuning iterations")
+    ax.set_ylabel("Surrogate cost")
+    ax.legend([label for label, _ in surrogates])
 
-fig = plt.figure()
-ax = fig.gca()
-for ts in true_scores:
-    ax.plot(range(len(ts)), ts)
-ax.set_title("True dynamics cost over time")
-ax.set_xlabel("Tuning iterations")
-ax.set_ylabel("True dynamics cost")
-ax.legend([label for label, _ in surrogates])
+    fig = plt.figure()
+    ax = fig.gca()
+    for ts in true_scores:
+        ax.plot(range(len(ts)), ts)
+    ax.set_title("True dynamics cost over time")
+    ax.set_xlabel("Tuning iterations")
+    ax.set_ylabel("True dynamics cost")
+    ax.legend([label for label, _ in surrogates])
 
-plt.show()
+    plt.show()
