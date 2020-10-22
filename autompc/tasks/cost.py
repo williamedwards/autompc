@@ -57,6 +57,19 @@ class BaseCost(ABC):
         else:
             raise NotImplementedError
 
+    def eval_obs_cost_hess(self, obs):
+        """
+        Returns additive observation cost of the form
+        obs -> float, jac, hess
+        """
+        if self.is_quad:
+            obst = obs - self._x0
+            return (obst.T @ self._Q @ obst, 
+                    (self._Q + self._Q.T) @ obst,
+                    self._Q + self._Q.T)
+        else:
+            raise NotImplementedError
+
     def eval_ctrl_cost(self, ctrl):
         """
         Returns additive observation cost of the form
@@ -74,6 +87,18 @@ class BaseCost(ABC):
         """
         if self.is_quad:
             return ctrl.T @ self._R @ ctrl, (self._R + self._R.T) @ ctrl
+        else:
+            raise NotImplementedError
+
+    def eval_ctrl_cost_hess(self, ctrl):
+        """
+        Returns additive observation cost of the form
+        ctrl -> float, jac
+        """
+        if self.is_quad:
+            return (ctrl.T @ self._R @ ctrl, 
+                    (self._R + self._R.T) @ ctrl,
+                    self._R + self._R.T)
         else:
             raise NotImplementedError
 
@@ -95,6 +120,18 @@ class BaseCost(ABC):
         """
         if self.is_quad:
             return obs.T @ self._F @ obs, (self._F + self._F.T) @ obs
+        else:
+            raise NotImplementedError
+
+    def eval_term_obs_cost_hess(self, obs):
+        """
+        Returns additive observation cost of the form
+        obs -> float, jac
+        """
+        if self.is_quad:
+            return (obs.T @ self._F @ obs, 
+                    (self._F + self._F.T) @ obs,
+                    self._F + self._F.T)
         else:
             raise NotImplementedError
 

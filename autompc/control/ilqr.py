@@ -409,10 +409,13 @@ class IterativeLQR(Controller):
         # Cost function example
         # cost = cost.eval_obs_cost(obs)
         # cost, cost_jac = cost.eval_obs_cost_diff(obs)
+        # cost, cost_jac, cost_hess = cost.eval_obs_cost_hess(obs)
         # cost = cost.eval_ctrl_cost(ctrl)
         # cost, cost_jac = cost.eval_ctrl_cost_diff(ctrl)
+        # cost, cost_jac, cost_hess = cost.eval_ctrl_cost_hess(ctrl)
         # cost = cost.eval_term_obs_cost(obs)
         # cost, cost_jac = cost.eval_term_obs_cost_diff(obs)
+        # cost, cost_jac, cost_hess = cost.eval_term_obs_cost_hess(obs)
         Q, R, F = cost.get_cost_matrices()
         x0 = cost.get_x0()
         Q = Q * self.system.dt
