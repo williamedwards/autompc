@@ -71,11 +71,12 @@ class SimpleDataset(Dataset):
 
 class MLP(Model):
     def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
-            nonlintype='relu', n_train_iters=25, n_batch=64, lr=1e-3,
+            nonlintype='relu', n_train_iters=25, n_batch=64, lr_log10=-3,
             hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
             hidden_size_4=None,
             use_cuda=True):
         Model.__init__(self, system)
+        lr = 10**lr_log10
         nx, nu = system.obs_dim, system.ctrl_dim
         n_hidden_layers = int(n_hidden_layers)
         hidden_sizes = [hidden_size] * n_hidden_layers
@@ -111,11 +112,13 @@ class MLP(Model):
                 values=["3","4"])
         hidden_cond_4 = CSC.InCondition(child=hidden_size_4, parent=n_hidden_layers,
                 values=["4"])
-        n_train_iters = CSH.UniformIntegerHyperparameter("n_train_iters",
-                lower = 10, upper = 100, default_value=20)
+        #n_train_iters = CSH.UniformIntegerHyperparameter("n_train_iters",
+        #        lower = 10, upper = 100, default_value=20)
+        lr_log10 = CSH.UniformFloatHyperparameter("lr_log10",
+                lower = -5, upper = 0, default_value=-3)
         cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size_1,
             hidden_size_2, hidden_size_3, hidden_size_4,
-            n_train_iters])
+            lr_log10])
         cs.add_conditions([hidden_cond_2, hidden_cond_3, hidden_cond_4])
         return cs
 
@@ -153,22 +156,32 @@ class MLP(Model):
             param.requires_grad_(True)
         optim = torch.optim.Adam(self.net.parameters(), lr=lr)
         lossfun = torch.nn.SmoothL1Loss()
-        for lyr in self.net.layers:
-            print(lyr)
-            print(list(self.net.layers[lyr].parameters()))
+        best_loss = float("inf")
+        best_params = None
         for i in range(n_iter):
             print('Train iteration %d' % i)
+            cum_loss = 0.0
             for i, (x, y) in enumerate(dataloader):
                 optim.zero_grad()
                 x = x.to(self._device)
                 predy = self.net(x)
                 loss = lossfun(predy, y.to(self._device))
                 loss.backward()
+                cum_loss += loss.item()
                 optim.step()
-            print("loss=", loss.item())
+            print("loss=", cum_loss)
+       #     if loss.item() < best_loss:
+       #         best_loss = loss.item()
+       #         best_params = self.net.state_dict()
         self.net.eval()
+       # self.net.load_state_dict(best_params)
         for param in self.net.parameters():
             param.requires_grad_(False)
+       # for i, (x, y) in enumerate(dataloader):
+       #     x = x.to(self._device)
+       #     predy = self.net(x)
+       #     loss = lossfun(predy, y.to(self._device))
+        print("final_loss=", loss.item())
 
     def pred(self, state, ctrl):
         X = np.concatenate([state, ctrl])

@@ -16,7 +16,7 @@ from autompc.pipelines import FixedControlPipeline
 from autompc.sysid import Koopman, MLP
 from autompc.control import FiniteHorizonLQR, IterativeLQR
 
-def init_mlp_ilqr(tinf)
+def init_mlp_ilqr(tinf):
     pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
             IterativeLQR, [QuadCostTransformer])
     return pipeline

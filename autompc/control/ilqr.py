@@ -15,7 +15,7 @@ from ..controller import Controller
 
 
 class IterativeLQR(Controller):
-    def __init__(self, system, task, model, horizon, reuse_feedback=-1, ubounds=None, mode=None, verbose=False):
+    def __init__(self, system, task, model, horizon, reuse_feedback=5, ubounds=None, mode=None, verbose=False):
         """Reuse_feedback determines how many steps of K are used as feedback.
         ubounds is a tuple of minimum and maximum control bounds
         mode specifies mode, 'barrier' use barrier method for control bounds; 'auglag' use augmented Lagrangian; None use default one, clip
@@ -56,7 +56,7 @@ class IterativeLQR(Controller):
     def get_configuration_space(system, task, model):
         cs = ConfigurationSpace()
         horizon = UniformIntegerHyperparameter(name="horizon",
-                lower=1, upper=1000, default_value=10)
+                lower=19, upper=21, default_value=20)
         cs.add_hyperparameter(horizon)
         return cs
 
@@ -507,7 +507,7 @@ class IterativeLQR(Controller):
                 new_ctrls = ls_ctrls[lsitr, :, :]
                 new_obj = eval_obj(new_states, new_ctrls)
                 expect_cost_reduction = ls_alpha * lin_cost_reduce + ls_alpha ** 2 * quad_cost_reduce / 2
-                print((obj - new_obj) / (-expect_cost_reduction))
+                #print((obj - new_obj) / (-expect_cost_reduction))
                 if (obj - new_obj) / (-expect_cost_reduction) > ls_cost_threshold:
                     best_obj = new_obj
                     best_alpha = ls_alpha

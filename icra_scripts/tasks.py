@@ -8,8 +8,9 @@ import argparse
 # External projects include
 import numpy as np
 import gym
-import gym_cartpole_swingup
-from gym_cartpole_swingup.envs.cartpole_swingup import State as GymCartpoleState
+#import gym_cartpole_swingup
+import custom_gym_cartpole_swingup
+from custom_gym_cartpole_swingup.envs.cartpole_swingup import State as GymCartpoleState
 
 # Internal project includes
 import autompc as ampc
@@ -22,14 +23,16 @@ TaskInfo = namedtuple("TaskInfo", ["system", "task", "init_obs", "env_name",
 
 def cartpole_swingup_task():
     system = ampc.System(["theta", "omega", "x", "dx"], ["u"])
+    system.dt = 0.01
     Q = np.eye(4)
-    R = np.eye(1)
-    cost = QuadCost(cartpole, Q, R)
-    task = Task(cartpole)
+    R = 0.01 * np.eye(1)
+    F = 100.0 * np.eye(4)
+    cost = QuadCost(system, Q, R, F)
+    task = Task(system)
     task.set_cost(cost)
     task.set_ctrl_bound("u", -1.0, 1.0)
     init_obs = np.array([3.1, 0.0, 0.0, 0.0])
-    env_name = "CartPoleSwingUp-v1"
+    env_name = "CustomCartPoleSwingUp-v1"
     def gym_to_obs(gym):
         x_pos, x_dot, cos, sin, omega = gym
         theta = np.arctan2(sin, cos)
@@ -40,7 +43,7 @@ def cartpole_swingup_task():
         return ctrl[:]
     def set_env_state(env, obs):
         theta, thetadot, x, xdot = obs
-        env.state = GymCartpoleState(x, xdot, theta, thetadot)
+        env.env.state = GymCartpoleState(x, xdot, theta, thetadot)
     return TaskInfo(system=system, 
             task=task, 
             init_obs=init_obs, 

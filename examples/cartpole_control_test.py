@@ -195,7 +195,7 @@ def train_approx_gp(num_trajs):
 def train_mlp_inner(num_trajs):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["n_train_iters"] = 25
+    #cfg["n_train_iters"] = 25
     cfg["n_hidden_layers"] = "3"
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
@@ -207,7 +207,7 @@ def train_mlp_inner(num_trajs):
 def train_mlp(num_trajs):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
-    cfg["n_train_iters"] = 25
+    #cfg["n_train_iters"] = 25
     cfg["n_hidden_layers"] = "3"
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
@@ -243,7 +243,7 @@ def run_experiment(model_name, controller_name, init_state):
     F = np.diag([10., 10., 10., 10.])*10.0
     cost = QuadCost(cartpole, Q, R, F)
     task1.set_cost(cost)
-    task1.set_ctrl_bound("u", -20, 20)
+    task1.set_ctrl_bound("u", -1, 1)
 
     if controller_name == "ilqr":
         con = init_ilqr(model, task1, hori=20)

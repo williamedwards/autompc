@@ -8,7 +8,10 @@ import argparse
 # External projects include
 import numpy as np
 import gym
-import gym_cartpole_swingup
+#import gym_cartpole_swingup
+import custom_gym_cartpole_swingup
+from smac.scenario.scenario import Scenario
+from smac.facade.smac_hpo_facade import SMAC4HPO
 
 # Internal project includes
 import autompc as ampc
@@ -17,6 +20,36 @@ import autompc as ampc
 from tasks import init_task
 from surrogates import init_surrogate
 from pipelines import init_pipeline
+
+def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
+    """
+    Parameters
+    ----------
+        y : states
+        u : control
+
+    Returns
+    -------
+        A list describing the dynamics of the cart cart pole
+    """
+    theta, omega, x, dx = y
+    return np.array([omega,
+            g * np.sin(theta)/L - b * omega / (m*L**2) + u * np.cos(theta)/L,
+            dx,
+            u])
+
+def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
+    y = np.copy(y)
+    #y[0] += np.pi
+    #sol = solve_ivp(lambda t, y: cartpole_dynamics(y, u, g, m, L, b), (0, dt), y, t_eval = [dt])
+    #if not sol.success:
+    #    raise Exception("Integration failed due to {}".format(sol.message))
+    #y = sol.y.reshape((4,))
+    y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
+    #y[0] -= np.pi
+    return y
+
+
 
 def load_buffer(tinf, buffer_dir, prefix=None):
     if prefix is None:
@@ -48,8 +81,7 @@ def run_smac(pipeline, surrogate, train_trajs, seed, tuneiters):
                          })
 
     smac = SMAC4HPO(scenario=scenario, rng=rng,
-            tae_runner=lambda cfg: -surrogate(pipeline, train_trajs, cfg)),
-            n_jobs=1)
+            tae_runner=lambda cfg: -surrogate(pipeline, train_trajs, cfg))
     
     incumbent = smac.optimize()
 
@@ -70,9 +102,6 @@ def run_smac(pipeline, surrogate, train_trajs, seed, tuneiters):
     ret_value["inc_costs"] = inc_costs
     ret_value["inc_cfgs"] = inc_cfgs
     costs_and_config_ids.sort()
-    top_five = [(smac.runhistory.ids_config[cfg_id], cost) for cost, cfg_id 
-        in costs_and_config_ids[:5]]
-    ret_value["top_five"] = top_five
 
     return ret_value
 
@@ -84,12 +113,25 @@ def main(args):
         trajs = load_buffer(task_info, args.bufferdir)
     else:
         raise
+    sys.path.append("../examples/")
+    from cartpole_control_test import trajs3
+    for traj in trajs3:
+        traj.ctrls /= 20.0
+    trajs = trajs3
+    #set_trace()
     train_trajs = trajs[:int(len(trajs)*args.datasplit)]
     surr_trajs = trajs[int(len(trajs)*args.datasplit):]
     surrogate = init_surrogate(task_info, args.simsteps, args.surrogate,
             surr_trajs)
-    pipeline = init_pipeline(args.pipeline)
-    ret_value = run_smac(pipeline, surrogate, train_trajs, args.seed, args.tuneiters)
+    pipeline = init_pipeline(task_info, args.pipeline)
+    cs = pipeline.get_configuration_space()
+    cfg = cs.get_default_configuration()
+    cfg["_model:n_hidden_layers"] = "3"
+    cfg["_model:hidden_size_1"] = 128
+    cfg["_model:hidden_size_2"] = 128
+    cfg["_model:hidden_size_3"] = 128
+    surrogate(pipeline, train_trajs, cfg)
+    #ret_value = run_smac(pipeline, surrogate, train_trajs, args.seed, args.tuneiters)
     set_trace()
 
 if __name__ == "__main__":
