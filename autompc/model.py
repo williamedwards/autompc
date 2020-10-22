@@ -76,9 +76,6 @@ class Model(ABC):
                 self.pred_diff(states[i,:], ctrls[i,:])
         return out, state_jacs, ctrl_jacs
 
-
-
-    @abstractmethod
     def pred_diff(self, state, ctrl):
         """
         Parameters
