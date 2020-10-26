@@ -13,7 +13,8 @@ import ConfigSpace.conditions as CSC
 
 class Koopman(Model):
     def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
-            poly_degree=1, trig_basis=False, trig_freq=1, product_terms=False):
+            poly_degree=1, trig_basis=False, trig_freq=1, product_terms=False,
+            use_cuda=None):
         super().__init__(system)
 
         self.method = method
