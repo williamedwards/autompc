@@ -45,6 +45,21 @@ def make_figure_sysid1():
                 print("&          ", end="")
         print(r" \\")
 
+def make_figure_cost_tuning():
+    setting = ("cartpole-swingup", "mlp-ilqr", 3, 42)
+    result, baseline_res = load_result("cost_tuning", *setting)
+
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.set_title(f"Cost Tuning Performance")
+    ax.set_xlabel("Tuning iterations")
+    ax.set_ylabel("True Perf.")
+    perfs = [cost for cost in result["inc_truedyn_costs"]]
+    print(f"{perfs=}")
+    ax.plot(perfs)
+    ax.plot([0.0, len(perfs)], [baseline_res[1], baseline_res[1]], "k--")
+    plt.show()
+
 def make_figure_tuning1():
     experiments = [
             (("MLP-iLQR", "Pendulum Swing-up"),
@@ -114,6 +129,8 @@ def main(command):
         make_figure_tuning1()
     elif command == "sysid2":
         make_figure_sysid2()
+    elif command == "cost_tuning":
+        make_figure_cost_tuning()
     else:
         raise Exception("Unrecognized command")
 

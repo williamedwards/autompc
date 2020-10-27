@@ -20,6 +20,7 @@ from pipelines import init_pipeline
 from sysid1 import runexp_sysid1
 from sysid2 import runexp_sysid2
 from tuning1 import runexp_tuning1
+from cost_tuning import runexp_cost_tuning
 from utils import *
 
 
@@ -70,6 +71,13 @@ def main(args):
         result = runexp_sysid2(pipeline, tinf, tune_iters=args.tuneiters,
                 sub_exp = args.subexp, seed=args.seed)
         save_result(result, "sysid2", args.task, args.pipeline, args.subexp,
+                args.tuneiters, args.seed)
+    elif args.command == "cost_tuning":
+        tinf = init_task(args.task)
+        pipeline = init_pipeline(tinf, args.pipeline)
+        result = runexp_cost_tuning(pipeline, tinf, tune_iters=args.tuneiters,
+                seed=args.seed)
+        save_result(result, "cost_tuning", args.task, args.pipeline,
                 args.tuneiters, args.seed)
     else:
         raise ValueError("Command not recognized.")

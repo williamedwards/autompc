@@ -38,12 +38,12 @@ class FixedControlPipeline:
 
     def set_controller_cfg(self, pipeline_cfg, controller_cfg):
         cfg = copy.deepcopy(pipeline_cfg)
-        set_parent_configuration(cfg, "_controller", model_cfg)
+        set_parent_configuration(cfg, "_controller", controller_cfg)
         return cfg
 
     def set_tt_cfg(self, pipeline_cfg, tt_idx, tt_cfg):
         cfg = copy.deepcopy(pipeline_cfg)
-        set_parent_configuration(cfg, f"_task_transformer_{tt_idx}", model_cfg)
+        set_parent_configuration(cfg, f"_task_transformer_{tt_idx}", tt_cfg)
         return cfg
 
     def get_model_cfg(self, pipeline_cfg):
