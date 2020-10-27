@@ -29,6 +29,11 @@ def set_subspace_configuration(cfg, prefix, sub_cfg, delimiter=":"):
         if key[:len(prefix)] == prefix:
             sub_cfg[key.split(delimiter)[1]] = val
 
+def set_parent_configuration(cfg, prefix, sub_cfg, delimiter=":"):
+    prefix = prefix + delimiter
+    for key, val in sub_cfg.get_dictionary().items():
+        cfg[prefix+key] = val
+
 def add_configuration_space(self,
                             prefix: str,
                             configuration_space: 'ConfigurationSpace',

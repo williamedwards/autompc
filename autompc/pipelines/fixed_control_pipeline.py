@@ -1,6 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 from pdb import set_trace
+import copy
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
@@ -29,18 +30,39 @@ class FixedControlPipeline:
             add_configuration_space(cs, "_task_transformer_{}".format(i), trans_cs)
         return cs
 
-    def __call__(self, cfg, trajs):
+
+    def set_model_cfg(self, pipeline_cfg, model_cfg):
+        cfg = copy.deepcopy(pipeline_cfg)
+        set_parent_configuration(cfg, "_model", model_cfg)
+        return cfg
+
+    def set_controller_cfg(self, pipeline_cfg, controller_cfg):
+        cfg = copy.deepcopy(pipeline_cfg)
+        set_parent_configuration(cfg, "_controller", model_cfg)
+        return cfg
+
+    def set_tt_cfg(self, pipeline_cfg, tt_idx, tt_cfg):
+        cfg = copy.deepcopy(pipeline_cfg)
+        set_parent_configuration(cfg, f"_task_transformer_{tt_idx}", model_cfg)
+        return cfg
+
+    def get_model_cfg(self, pipeline_cfg):
+        model_cs = self.Model.get_configuration_space(self.system)
+        model_cfg = model_cs.get_default_configuration()
+        set_subspace_configuration(cfg, "_model", model_cfg)
+        return model_cfg
+
+    def __call__(self, cfg, trajs, model=None):
         print("Making pipeline configuration")
         print(cfg)
         print("-----")
         # First instantiate and train the model
-        model_cs = self.Model.get_configuration_space(self.system)
-        model_cfg = model_cs.get_default_configuration()
-        set_subspace_configuration(cfg, "_model", model_cfg)
-        model = make_model(self.system, self.Model, model_cfg,
-                use_cuda=False)
-        model.train(trajs)
-        print("Exit training.")
+        if model is None:
+            model_cfg = self.get_model_cfg(cfg)
+            model = make_model(self.system, self.Model, model_cfg,
+                    use_cuda=False)
+            model.train(trajs)
+            print("Exit training.")
 
         # Next set up task
         task = self.task

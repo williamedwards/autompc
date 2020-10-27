@@ -16,12 +16,16 @@ class FixedSetEvaluator(Evaluator):
             if not traj in training_trajs:
                 self.holdout.append(traj)
 
-    def __call__(self, model, configuration):
-        m = utils.make_model(self.system, model, configuration)
-        print("Entering training")
-        train_start = time.time()
-        m.train(self.training_set)
-        print("Training completed in {} sec".format(time.time() - train_start))
+    def __call__(self, model, configuration, ret_trained_model=False,
+            trained_model=None):
+        if trained_model is None:
+            m = utils.make_model(self.system, model, configuration)
+            print("Entering training")
+            train_start = time.time()
+            m.train(self.training_set)
+            print("Training completed in {} sec".format(time.time() - train_start))
+        else:
+            m = trained_model
 
         print("Entering evaluation.")
         eval_start = time.time()
@@ -62,4 +66,7 @@ class FixedSetEvaluator(Evaluator):
         print(configuration)
         print("score = {}".format(primary_metric_value))
 
-        return primary_metric_value, secondary_metric_value, graphs
+        if not ret_trained_model:
+            return primary_metric_value, secondary_metric_value, graphs
+        else:
+            return primary_metric_value, secondary_metric_value, graphs, m
