@@ -72,7 +72,7 @@ class AcrobotModel(Model):
     def pred_diff(self, state, ctrl):
         xpred = dt_acrobot_dynamics(state, ctrl, self.dt)
         x = np.concatenate([state, ctrl])
-        #x[0] += np.pi
+        x[0] += np.pi
         jac = self.gfun(x)
         # so I get system dynamics
         A = jac[:, :4]

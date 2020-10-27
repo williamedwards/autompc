@@ -329,7 +329,7 @@ class ApproximateGaussianProcess(GPytorchGP):
     def get_configuration_space(cartpole):
         cs = ConfigurationSpace()
         induce_count = UniformIntegerHyperparameter("induce_count", lower=100,
-                upper=10000, default_value=500)
+                upper=600, default_value=500)
         cs.add_hyperparameter(induce_count)
         return cs
 

@@ -249,7 +249,7 @@ def train_mlp(num_trajs):
 def init_ilqr(model, task, hori=40):
     ubound = np.array([[-15], [15]])
     mode = 'auglag'
-    ilqr = IterativeLQR(acrobot, task, model, hori, reuse_feedback=5, 
+    ilqr = IterativeLQR(acrobot, task, model, hori, reuse_feedback=39, 
             verbose=True)
     return ilqr
 
@@ -268,19 +268,18 @@ def run_experiment(model_name, controller_name, init_state):
 
     # Now it's time to apply the controller
     task1 = ampc.Task(acrobot)
-    Q = np.diag([1.0, 1.0, 1.0, 1.0])
+    Q = np.diag([1.0, 0.1, 1.0, 0.1])
     R = np.diag([1.0]) * 0.01
-    F = np.diag([10., 10., 10., 10.])*10.0
-    task1.set_quad_cost(Q, R, F)
-    #task1.set_ctrl_bound("u", -20, 20)
+    F = np.diag([10., 1., 10., 1.])*10.0
     from autompc.tasks.quad_cost import QuadCost
-    cost = QuadCost(acrobot, Q, R)
+    cost = QuadCost(acrobot, Q, R, F)
     from autompc.tasks.task import Task as Task2
     task2 = Task2(acrobot)
     task2.set_cost(cost)
+    task2.set_ctrl_bound("u", -10, 10)
 
     if controller_name == "ilqr":
-        con = init_ilqr(model, task1, hori=20)
+        con = init_ilqr(model, task2, hori=60)
     elif controller_name == "lqr":
         con = create_lqr_controller(task2)
     else:

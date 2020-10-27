@@ -11,11 +11,21 @@ import matplotlib.pyplot as plt
 from utils import *
 
 def make_figure_sysid1():
-    models = [("ARX", "arx"), ("Koopman", "koop")]
-    tasks = [("Cartpole swing-up", "cartpole-swingup"),
-            ("Pendulum swing-up", "pendulum-swingup")]
-    settings = [["cartpole-swingup", "arx", 1, 42],
-            ["cartpole-swingup", "koop", 1, 42]]
+    models = [("ARX", "arx"), ("Koopman", "koop"),
+            ("SINDy", "sindy"), ("MLP", "mlp")]
+    tasks = [("Pendulum swing-up", "pendulum-swingup"),
+            ( "Cartpole swing-up", "cartpole-swingup")]
+    settings = [
+            ["cartpole-swingup", "arx", 1, 42],
+            ["cartpole-swingup", "mlp", 100, 42],
+            ["cartpole-swingup", "koop", 100, 42],
+            ["cartpole-swingup", "sindy", 100, 42],
+            ["cartpole-swingup", "approxgp", 100, 42],
+            ["pendulum-swingup", "arx", 1, 42],
+            ["pendulum-swingup", "mlp", 100, 42],
+            ["pendulum-swingup", "koop", 100, 42],
+            ["pendulum-swingup", "sindy", 100, 42],
+            ["pendulum-swingup", "approxgp", 100, 42]]
     print("SysID Figure")
     print("============")
     print("SystemID ", end="")

@@ -11,14 +11,13 @@ import numpy as np
 
 # Internal project includes
 import autompc as ampc
-from autompc.sysid import MLP, ARX
+from autompc.sysid import MLP, ARX, Koopman, SINDy, ApproximateGaussianProcess
 
 from cartpole_task import cartpole_swingup_task
+from pendulum_task import pendulum_swingup_task
 from sysid1 import runexp_sysid1
 from utils import *
 
-# Constants
-save_path = "results"
 
 
 def init_model(model_name):
@@ -26,14 +25,22 @@ def init_model(model_name):
         return MLP
     elif model_name == "arx":
         return ARX
+    elif model_name == "koop":
+        return Koopman
+    elif model_name == "sindy":
+        return SINDy
+    elif model_name == "approxgp":
+        return ApproximateGaussianProcess
     else:
-        raise "Model not found"
+        raise ValueError("Model not found")
 
 def init_task(task_name):
     if task_name == "cartpole-swingup":
         return cartpole_swingup_task()
+    elif task_name == "pendulum-swingup":
+        return pendulum_swingup_task()
     else:
-        raise "Task not found"
+        raise ValueError("Task not found")
 
 
 def main(args):
@@ -44,6 +51,8 @@ def main(args):
                 seed=args.seed)
         save_result(results, "sysid1", args.task, args.model, 
                 args.tuneiters, args.seed)
+    else:
+        raise ValueError("Command not recognized.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
