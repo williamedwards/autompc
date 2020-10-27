@@ -15,7 +15,9 @@ from autompc.sysid import MLP, ARX, Koopman, SINDy, ApproximateGaussianProcess
 
 from cartpole_task import cartpole_swingup_task
 from pendulum_task import pendulum_swingup_task
+from pipelines import init_pipeline
 from sysid1 import runexp_sysid1
+from tuning1 import runexp_tuning1
 from utils import *
 
 
@@ -47,9 +49,16 @@ def main(args):
     if args.command == "sysid1":
         Model = init_model(args.model)
         tinf = init_task(args.task)
-        results = runexp_sysid1(Model, tinf, tune_iters=args.tuneiters,
+        result = runexp_sysid1(Model, tinf, tune_iters=args.tuneiters,
                 seed=args.seed)
-        save_result(results, "sysid1", args.task, args.model, 
+        save_result(result, "sysid1", args.task, args.model, 
+                args.tuneiters, args.seed)
+    elif args.command == "tuning1":
+        tinf = init_task(args.task)
+        pipeline = init_pipeline(tinf, args.pipeline)
+        result = runexp_tuning1(pipeline, tinf, tune_iters=args.tuneiters,
+                seed=args.seed)
+        save_result(result, "tuning1", args.task, args.pipeline,
                 args.tuneiters, args.seed)
     else:
         raise ValueError("Command not recognized.")
@@ -58,6 +67,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("command", type=str)
     parser.add_argument("--task", default="cartpole-swingup")
+    parser.add_argument("--pipeline", default="")
     parser.add_argument("--tuneiters", default=5, type=int)
     parser.add_argument("--model", default="mlp")
     parser.add_argument("--seed", default=42, type=int)
