@@ -105,7 +105,7 @@ def run_smac(pipeline, surrogate, train_trajs, seed, tuneiters):
         inc_cfgs.append(inc_cfg)
         costs_and_config_ids.append((val.cost, key.config_id))
     ret_value["inc_costs"] = inc_costs
-    ret_value["inc_truedyn_costs"] = inc_costs
+    ret_value["inc_truedyn_costs"] = inc_truedyn_costs
     ret_value["inc_cfgs"] = inc_cfgs
     costs_and_config_ids.sort()
 

@@ -75,11 +75,45 @@ def make_figure_tuning1():
         ax.plot(perfs)
     plt.show()
 
+def make_figure_sysid2():
+    setting1 = ("cartpole-swingup", "mlp-ilqr", 1, 1, 42)
+    setting2 = ("cartpole-swingup", "mlp-ilqr", 2, 1, 42)
+    setting3 = ("cartpole-swingup", "mlp-ilqr", 3, 1, 42)
+
+    smac_res1, (rmses1, horizs1) = load_result("sysid2", *setting1)
+    smac_res2, (rmses2, horizs2) = load_result("sysid2", *setting2)
+    smac_res3, (rmses3, horizs3) = load_result("sysid2", *setting3)
+
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.set_xlabel("Prediction Horizon")
+    ax.set_ylabel("RMSE")
+    ax.set_title("Multi-Step Pred. Accuracy")
+    ax.plot(horizs1, rmses1)
+    ax.plot(horizs2, rmses2)
+    ax.plot(horizs3, rmses3)
+    ax.legend(["1-step train", "Multi-step train", "Pipeline train"])
+
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.set_xlabel("Tuning Iterations")
+    ax.set_ylabel("Performance")
+    ax.set_title("Pipeline Performance vs Sys ID Strategy")
+    ax.plot(smac_res1["inc_truedyn_costs"])
+    ax.plot(smac_res2["inc_truedyn_costs"])
+    ax.plot(smac_res3["inc_truedyn_costs"])
+    ax.legend(["1-step train", "Multi-step train", "Pipeline train"])
+
+    plt.show()
+
+
 def main(command):
     if command == "sysid1":
         make_figure_sysid1()
     elif command == "tuning1":
         make_figure_tuning1()
+    elif command == "sysid2":
+        make_figure_sysid2()
     else:
         raise Exception("Unrecognized command")
 

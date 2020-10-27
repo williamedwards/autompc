@@ -53,7 +53,7 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
         inc_cfgs.append(inc_cfg)
         costs_and_config_ids.append((val.cost, key.config_id))
     ret_value["inc_costs"] = inc_costs
-    ret_value["inc_truedyn_costs"] = inc_costs
+    ret_value["inc_truedyn_costs"] = inc_truedyn_costs
     ret_value["inc_model_seeds"] = inc_model_seeds
     ret_value["inc_cfgs"] = inc_cfgs
     costs_and_config_ids.sort()
@@ -109,27 +109,27 @@ def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed):
         controller, _ = pipeline(pipeline_cfg, sysid_trajs, model)
         truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
         truedyn_score = tinf.perf_metric(truedyn_traj)
-        return score, (truedyn_score, model.get_parameters())
+        return score, (truedyn_score, eval_seed2)
 
     eval_seed3 = int(rng.integers(1 << 30))
     def eval_cfg3(cfg):
-        torch.manual_seed(eval_seed2)
-        controller, model = pipeline(cfg, sysid_trajs, model)
+        torch.manual_seed(eval_seed3)
+        controller, model = pipeline(cfg, sysid_trajs)
         surr_traj = runsim(tinf, 200, surrogate, controller)
         truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
-        surr_score = tinf.pef_metric(surr_traj)
+        surr_score = tinf.perf_metric(surr_traj)
         truedyn_score = tinf.perf_metric(truedyn_traj)
-        return surr_score, (truedyn_score, model.get_parameters())
+        return surr_score, (truedyn_score, eval_seed3)
 
     if sub_exp == 1:
         result = run_smac(pipeline.Model.get_configuration_space(tinf.system),
                 eval_cfg1, tune_iters, rng.integers(1 << 30))
     elif sub_exp == 2:
         result = run_smac(pipeline.Model.get_configuration_space(tinf.system),
-                eval_cfg2, tune_iters, rng_integers(1 << 30))
+                eval_cfg2, tune_iters, rng.integers(1 << 30))
     elif sub_exp == 3:
         result = run_smac(pipeline.get_configuration_space(),
-                eval_cfg3, tune_iters, rng_integers(1 << 30))
+                eval_cfg3, tune_iters, rng.integers(1 << 30))
 
     #inc_model_params = result["inc_model_paramss"][-1]
     inc_cfg = result["inc_cfgs"][-1]
@@ -140,7 +140,7 @@ def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed):
     inc_seed = result["inc_model_seeds"][-1]
 
     torch.manual_seed(inc_seed)
-    _, _, graphs = final_evaluator(pipeline.Model, inc_cfg)
-    rmses, _ = graphs[0].get_rmses()
+    _, _, graphs = final_evaluator(pipeline.Model, inc_cfg, use_cuda=False)
+    rmses, _, horizs = graphs[0].get_rmses()
 
-    return result, rmses
+    return result, (rmses, horizs)

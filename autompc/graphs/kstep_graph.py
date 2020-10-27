@@ -48,7 +48,8 @@ class KstepGraph(Graph):
                 self.sumsqes_baseline, self.nevals):
             rmses.append(np.sqrt(sumsqe / n))
             rmses_baseline.append(np.sqrt(sumsqe_baseline / n))
-        return rmses, rmses_baseline
+        horizs = np.array(self.ks) * self.system.dt
+        return rmses, rmses_baseline, horizs
 
             
     def __call__(self, fig):
@@ -57,8 +58,7 @@ class KstepGraph(Graph):
         ax.set_ylabel("Prediction Error (RMSE)")
         if self.logscale:
             ax.set_yscale("log")
-        rmses, rmses_baseline = self.get_rmses()
-        horizs = np.array(self.ks) * self.system.dt
+        rmses, rmses_baseline, horizs = self.get_rmses()
         ax.plot(horizs, rmses, "b-")
         ax.plot(horizs, rmses_baseline, "r-")
         ax.legend(["Model", "Baseline"])

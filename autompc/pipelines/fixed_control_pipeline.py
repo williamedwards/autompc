@@ -49,7 +49,7 @@ class FixedControlPipeline:
     def get_model_cfg(self, pipeline_cfg):
         model_cs = self.Model.get_configuration_space(self.system)
         model_cfg = model_cs.get_default_configuration()
-        set_subspace_configuration(cfg, "_model", model_cfg)
+        set_subspace_configuration(pipeline_cfg, "_model", model_cfg)
         return model_cfg
 
     def __call__(self, cfg, trajs, model=None):

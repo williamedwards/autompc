@@ -17,9 +17,13 @@ class FixedSetEvaluator(Evaluator):
                 self.holdout.append(traj)
 
     def __call__(self, model, configuration, ret_trained_model=False,
-            trained_model=None):
+            trained_model=None, use_cuda=None):
         if trained_model is None:
-            m = utils.make_model(self.system, model, configuration)
+            if use_cuda is None:
+                m = utils.make_model(self.system, model, configuration)
+            else:
+                m = utils.make_model(self.system, model, configuration,
+                        use_cuda=use_cuda)
             print("Entering training")
             train_start = time.time()
             m.train(self.training_set)

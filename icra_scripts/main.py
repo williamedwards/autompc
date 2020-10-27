@@ -69,7 +69,7 @@ def main(args):
         pipeline = init_pipeline(tinf, args.pipeline)
         result = runexp_sysid2(pipeline, tinf, tune_iters=args.tuneiters,
                 sub_exp = args.subexp, seed=args.seed)
-        save_result(result, "sysid2", args.task, args.pipeline,
+        save_result(result, "sysid2", args.task, args.pipeline, args.subexp,
                 args.tuneiters, args.seed)
     else:
         raise ValueError("Command not recognized.")
