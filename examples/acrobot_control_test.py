@@ -19,6 +19,8 @@ memory = Memory("cache")
 
 #cartpole = ampc.System(["theta", "omega", "x", "dx"], ["u"])
 acrobot = ampc.System(["theta1", "theta2", "dtheta1", "dtheta2"], ["u"])
+acrobot2 = ampc.System(["sin1", "cos1", "sin2", "cos2", "dtheta1", "dtheta2"], ["u"])
+#system = acrobot2
 
 #def acrobot_dynamics(states, control, m1 = 1, m2 = 0.5, L1 = 1, L2 = 2, g = 9.81):
 #    """
@@ -88,7 +90,43 @@ def dt_acrobot_dynamics(y,u,dt):
     y[0] += np.pi
     y += dt * acrobot_dynamics(y,u[0])
     y[0] -= np.pi
+    #if y[0] < -2 * np.pi:
+    #    y[0] += 2 * np.pi
+    #if y[0] > 2 * np.pi:
+    #    y[0] -= 2 * np.pi
+    #if y[1] < -2 * np.pi:
+    #    y[1] += 2 * np.pi
+    #if y[1] > 2 * np.pi:
+    #    y[1] -= 2 * np.pi
     return y
+
+def dt_acrobot2_dynamics(x, u, dt):
+    y = np.array([np.arctan2(x[0], x[1]), np.arctan2(x[2], x[3]), x[4], x[5]])
+    y[0] += np.pi
+    y += dt * acrobot_dynamics(y, u[0])
+    y[0] -= np.pi
+    newx = np.array([np.sin(y[0]), np.cos(y[0]), np.sin(y[1]), np.cos(y[1]), y[2], y[3]])
+    return newx
+
+def traj_acrobot_to_acrobot2(traj):
+    traj2 = ampc.zeros(acrobot2, len(traj))
+    traj2.obs[:, 0] = np.sin(traj.obs[:,0])
+    traj2.obs[:, 1] = np.cos(traj.obs[:,0])
+    traj2.obs[:, 2] = np.sin(traj.obs[:,1])
+    traj2.obs[:, 3] = np.cos(traj.obs[:,1])
+    traj2.obs[:, 4] = traj.obs[:,2]
+    traj2.obs[:, 5] = traj.obs[:,3]
+    traj2.ctrls[:] = traj.ctrls[:]
+    return traj2
+    
+def traj_acrobot2_to_acrobot(traj2):
+    traj = ampc.zeros(acrobot, len(traj2))
+    traj.obs[:, 0] = np.arctan2(traj2.obs[:, 0], traj2.obs[:, 1])
+    traj.obs[:, 1] = np.arctan2(traj2.obs[:, 2], traj2.obs[:, 3])
+    traj.obs[:, 2] = traj2.obs[:, 4]
+    traj.obs[:, 3] = traj2.obs[:, 5]
+    traj.ctrls[:, :] = traj2.ctrls
+    return traj
 
 def animate_acrobot(fig, ax, dt, traj):
     ax.grid()
@@ -125,6 +163,7 @@ def animate_acrobot(fig, ax, dt, traj):
 
 dt = 0.05
 acrobot.dt = dt
+acrobot2.dt = dt
 
 umin = -20.0
 umax = 20.0
@@ -137,26 +176,37 @@ num_trajs = 500
 #from autompc.control import FiniteHorizonLQR
 #from autompc.sysid.dummy_linear import DummyLinear
 #
-#def get_generation_controller():
-#    truedyn = CartpoleModel(cartpole)
-#    _, A, B = truedyn.pred_diff(np.zeros(4,), np.zeros(1))
-#    model = DummyLinear(cartpole, A, B)
-#    Q = np.eye(4)
-#    R = 0.01 * np.eye(1)
-#
-#    from autompc.tasks.quad_cost import QuadCost
-#    cost = QuadCost(cartpole, Q, R)
-#
-#    from autompc.tasks.task import Task
-#
-#    task = Task(cartpole)
-#    task.set_cost(cost)
-#    task.set_ctrl_bound("u", -20.0, 20.0)
-#    cs = FiniteHorizonLQR.get_configuration_space(cartpole, task, model)
-#    cfg = cs.get_default_configuration()
-#    cfg["horizon"] = 1000
-#    con = ampc.make_controller(cartpole, task, model, FiniteHorizonLQR, cfg)
-#    return con
+
+from autompc.sysid import (GaussianProcess, 
+        LargeGaussianProcess, 
+        ApproximateGaussianProcess, MLP)
+from autompc.control import IterativeLQR, FiniteHorizonLQR
+
+def init_ilqr(system, model, task, hori=40, reuse_feedback=1):
+    mode = 'auglag'
+    ilqr = IterativeLQR(system, task, model, hori, reuse_feedback=reuse_feedback, 
+            verbose=True)
+    return ilqr
+
+def get_generation_controller():
+    from acrobot_model import AcrobotModel
+    model = AcrobotModel(acrobot)
+
+    Q = 0.01 * np.eye(4)
+    R = 0.01 * np.eye(1)
+    F = 20.0 * np.eye(4)
+    Q2 = np.eye(4)
+    R2 = np.eye(1)
+    F2 = np.eye(4)
+    from autompc.tasks.quad_cost import QuadCost
+    cost = QuadCost(acrobot, Q, R, F)
+    cost2 = QuadCost(acrobot, Q2, R2, F2)
+    from autompc.tasks.task import Task
+    task1 = Task(acrobot)
+    task1.set_cost(cost)
+    task1.set_ctrl_bound("u", -100, 100)
+    con = init_ilqr(model, task1, hori=20, reuse_feedback=5)
+    return con
 
 # Generate trajectories for training
 num_trajs = 500
@@ -165,17 +215,19 @@ num_trajs = 500
 def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt, rand_contr_prob=1.0):
     rng = np.random.default_rng(49)
     trajs = []
-    #con = get_generation_controller()
+    con = get_generation_controller()
     for _ in range(num_trajs):
-        theta0 = rng.uniform(-1.0, 1.0, 1)[0]
+        if rng.random() < rand_contr_prob:
+            actuate = False
+            theta0 = rng.uniform(-0.01, 0.01, 1)[0]
+        else:
+            actuate = True
+            theta0 = rng.uniform(-3.0, 3.0, 1)[0]
         y = [theta0, 0.0, 0.0, 0.0]
         traj = ampc.zeros(acrobot, traj_len)
         traj.obs[:] = y
-        #if rng.random() < rand_contr_prob:
-        actuate = False
-        #else:
-        #    actuate = True
-        #    constate = con.traj_to_state(traj[:1])
+        if actuate:
+            constate = con.traj_to_state(traj[:1])
         for i in range(traj_len):
             traj[i].obs[:] = y
             #if u[0] > umax:
@@ -189,16 +241,15 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt, rand_contr_prob=1.0):
                 u, constate = con.run(constate, y)
             y = dt_acrobot_dynamics(y, u, dt)
             traj[i].ctrl[:] = u
+        if np.isnan(traj.obs).any() or np.isnan(traj.ctrls).any():
+            continue
         trajs.append(traj)
     return trajs
 trajs = gen_trajs(4)
-trajs2 = gen_trajs(200)
+trajs2 = gen_trajs(40)
 #trajs3 = gen_trajs(200, rand_contr_prob = 0.5)
+#trajs4 = gen_trajs(200, rand_contr_prob = 0.0)
 
-from autompc.sysid import (GaussianProcess, 
-        LargeGaussianProcess, 
-        ApproximateGaussianProcess, MLP)
-from autompc.control import IterativeLQR, FiniteHorizonLQR
 
 def create_lqr_controller(task):
     from acrobot_model import AcrobotModel
@@ -230,65 +281,130 @@ def train_approx_gp(num_trajs):
     return model
 
 @memory.cache
-def train_mlp_inner(num_trajs):
-    cs = MLP.get_configuration_space(acrobot)
+def train_mlp_inner(system, num_trajs, change_state, seed, n_train_iters=50):
+    cs = MLP.get_configuration_space(system)
     cfg = cs.get_default_configuration()
-    model = ampc.make_model(acrobot, MLP, cfg)
-    model.train(trajs2[-num_trajs:])
+    cfg["nonlintype"] = "relu"
+    cfg["n_hidden_layers"] = "2"
+    cfg["hidden_size_1"] = 128
+    cfg["hidden_size_2"] = 128
+    model = ampc.make_model(system, MLP, cfg, 
+            n_train_iters=n_train_iters)
+    torch.manual_seed(seed)
+    if change_state:
+        train_trajs = [traj_acrobot_to_acrobot2(traj) for traj in trajs2]
+    else:
+        train_trajs = trajs2
+    model.train(train_trajs[-num_trajs:])
     return model.get_parameters()
 
-def train_mlp(num_trajs):
-    cs = MLP.get_configuration_space(acrobot)
+def train_mlp(system, num_trajs, change_state, seed=42):
+    cs = MLP.get_configuration_space(system)
     cfg = cs.get_default_configuration()
-    model = ampc.make_model(acrobot, MLP, cfg)
-    params = train_mlp_inner(num_trajs)
+    cfg["nonlintype"] = "relu"
+    cfg["n_hidden_layers"] = "2"
+    cfg["hidden_size_1"] = 128
+    cfg["hidden_size_2"] = 128
+    model = ampc.make_model(system, MLP, cfg)
+    params = train_mlp_inner(system, num_trajs, change_state,
+            seed, n_train_iters=20)
     model.set_parameters(params)
     return model
 
 
-def init_ilqr(model, task, hori=40):
-    ubound = np.array([[-15], [15]])
-    mode = 'auglag'
-    ilqr = IterativeLQR(acrobot, task, model, hori, reuse_feedback=39, 
-            verbose=True)
-    return ilqr
+
+
+def fd_jac(func, x, dt=1e-4):
+    res = func(x)
+    jac = np.empty((res.size, x.size))
+    for i in range(x.size):
+        xp = np.copy(x)
+        xp[i] += dt
+        resp = func(xp)
+        jac[:,i] = (resp - res) / dt
+    return jac
 
 #@memory.cache
-def run_experiment(model_name, controller_name, init_state):
-    if model_name == "approx_gp":
-        model = train_approx_gp(50)
-    elif model_name == "true":
+def run_experiment(model_name, controller_name, init_state, change_state):
+    if change_state:
+        system = acrobot2
+    else:
+        system = acrobot
+    if model_name == "true":
         from acrobot_model import AcrobotModel
         model = AcrobotModel(acrobot)
     elif model_name == "mlp":
-        model = train_mlp(490)
+        model = train_mlp(system, 600, change_state)
     else:
         raise ValueError("Unknown model type")
 
 
+    ## Test model gradients
+    #state = np.zeros(4,)
+    #state[1] = 1.0
+    #ctrl = np.ones(1,)
+    #pred, state_jac, ctrl_jac = model.pred_diff(state, ctrl)
+    #state_jac2 = fd_jac(lambda y: model.pred(y, ctrl), state)
+    #ctrl_jac2 = fd_jac(lambda y: model.pred(state, y), ctrl)
+    #print(f"{state_jac=}")
+    #print(f"{state_jac2=}")
+    #print(f"{ctrl_jac=}")
+    #print(f"{ctrl_jac2=}")
+
+
     # Now it's time to apply the controller
-    task1 = ampc.Task(acrobot)
-    Q = np.diag([1.0, 0.1, 1.0, 0.1])
-    R = np.diag([1.0]) * 0.01
-    F = np.diag([10., 1., 10., 1.])*10.0
+    #task1 = ampc.Task(acrobot)
+    #Q = np.diag([10.0, 10.0, 0.0001, 0.0001])
+    #R = np.diag([1.0]) * 0.0001
+    #F = np.diag([100., 100., 10000., 10000.])*10000.0
+    #Q = np.eye(4)
+    #R = 0.01 * np.eye(1)
+    #F = 20.0 * np.eye(4)
+    #Q2 = np.eye(4)
+    #R2 = np.eye(1)
+    #F2 = np.eye(4)
     from autompc.tasks.quad_cost import QuadCost
-    cost = QuadCost(acrobot, Q, R, F)
-    from autompc.tasks.task import Task as Task2
-    task2 = Task2(acrobot)
-    task2.set_cost(cost)
-    task2.set_ctrl_bound("u", -10, 10)
+    #cost = QuadCost(acrobot, Q, R, F)
+    #cost2 = QuadCost(acrobot, Q2, R2, F2)
+    from autompc.tasks.task import Task
+    #task1 = Task(acrobot)
+    #task1.set_cost(cost)
+    #task1.set_ctrl_bound("u", -100, 100)
+
+    if change_state:
+        Q = 0.00 * np.eye(6)
+        R = 0.01 * np.eye(1)
+        F = 100.0 * np.eye(6)
+        x0 = np.array([0.0, 1.0, 0.0, 1.0, 0.0, 0.0])
+    else:
+        Q = 0.00 * np.eye(4)
+        R = 0.01 * np.eye(1)
+        F = 100.0 * np.eye(4)
+        x0 = np.zeros(4)
+    #F[-1,-1] /= 10
+    #F[-2,-2] /= 10
+    cost = QuadCost(system, Q, R, F, x0=x0)
+    task1 = Task(system)
+    task1.set_cost(cost)
+    task1.set_ctrl_bound("u", -100, 100)
+
 
     if controller_name == "ilqr":
-        con = init_ilqr(model, task2, hori=60)
+        con = init_ilqr(system, model, task1, hori=20, reuse_feedback=-1)
     elif controller_name == "lqr":
-        con = create_lqr_controller(task2)
+        con = create_lqr_controller(task1)
     else:
         raise ValueError("Unknown controler type")
 
     # just give a random initial state
-    sim_traj = ampc.zeros(acrobot, 1)
+    sim_traj = ampc.zeros(system, 1)
     #x = np.array([0.01, 0, 0, 0])
-    x = init_state
+    if change_state:
+        x = [np.sin(init_state[0]), np.cos(init_state[0]),
+                np.sin(init_state[1]), np.cos(init_state[1]),
+                init_state[2], init_state[3]]
+    else:
+        x = init_state
     sim_traj[0].obs[:] = x
     us = []
 
@@ -299,31 +415,37 @@ def run_experiment(model_name, controller_name, init_state):
         u, constate = con.run(constate, sim_traj[-1].obs)
         #u = np.zeros(1,)
         print('u = ', u, 'state = ', sim_traj[-1].obs)
-        x = dt_acrobot_dynamics(sim_traj[-1].obs, u, dt)
+        if change_state:
+            x = dt_acrobot2_dynamics(sim_traj[-1].obs, u, dt)
+        else:
+            x = dt_acrobot_dynamics(sim_traj[-1].obs, u, dt)
         #model_state = model.pred(model_state, u)
         #x = model_state[:cartpole.obs_dim]
         # x = model.pred(sim_traj[-1].obs, u)
         sim_traj[-1, "u"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
         us.append(u)
+    #print(f"Performance metric = {cost2(sim_traj)}")
+    if change_state:
+        sim_traj = traj_acrobot2_to_acrobot(sim_traj)
     return sim_traj
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, choices=["approx_gp", "mlp", "true"], 
             default = "approx_gp", help="Specify which system id model to use")
-    parser.add_argument("--controller", type=str, choices=["ilqr", "lqr"], 
+    parser.add_argument("--controller", type=str, choices=["ilqr", "lqr", "mppi"], 
             default = "ilqr", help="Specify which nonlinear controller to use")
+    parser.add_argument("--changestate", action="store_true")
     parser.add_argument("--init_angle", type=float, default=0.1,
             help="Specify the initial angle for the simulation.")
     args = parser.parse_args()
 
-    dt = 0.05
-    acrobot.dt = dt
+    #dt = 0.05
+    #acrobot.dt = dt
 
     init_state = np.array([args.init_angle, 0.0, 0.0, 0.0])
-    sim_traj = run_experiment(args.model, args.controller, init_state)
-    set_trace()
+    sim_traj = run_experiment(args.model, args.controller, init_state, args.changestate)
 
     print(sim_traj.obs)
     fig = plt.figure()

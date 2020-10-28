@@ -2,6 +2,7 @@
 
 # Standard project includes
 import sys
+from pdb import set_trace
 
 # External project includes
 import numpy as np
@@ -62,8 +63,10 @@ def make_figure_cost_tuning():
 
 def make_figure_tuning1():
     experiments = [
-            #(("MLP-iLQR", "Pendulum Swing-up"),
-             #("pendulum-swingup", "mlp-ilqr", 3, 42))
+            (("MLP-iLQR", "Pendulum Swing-up"),
+             ("pendulum-swingup", "mlp-ilqr", 100, 42)),
+            (("MLP-iLQR", "Cartpole Swing-up"),
+             ("cartpole-swingup", "mlp-ilqr", 100, 42)),
             (("MLP-iLQR", "Acrobot"),
                 ("acrobot-swingup", "mlp-ilqr", 100, 42))
             ]
@@ -87,7 +90,7 @@ def make_figure_tuning1():
         #    ax.plot(perfs)
         #    labels.append(label)
         #ax.legend(labels)
-        perfs = [cost for cost in result["inc_truedyn_costs"]]
+        perfs = [cost for cost in result["inc_costs"]]
         print(f"{perfs=}")
         ax.plot(perfs)
     plt.show()

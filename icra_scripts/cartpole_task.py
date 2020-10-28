@@ -7,6 +7,7 @@ import argparse
 
 # External projects include
 import numpy as np
+import numpy.linalg as la
 import gym
 #import gym_cartpole_swingup
 import custom_gym_cartpole_swingup
@@ -74,8 +75,12 @@ def cartpole_swingup_task():
     task.set_cost(cost)
     task.set_ctrl_bound("u", -1.0, 1.0)
     init_obs = np.array([3.1, 0.0, 0.0, 0.0])
-    def perf_metric(traj):
-        return cost(traj)
+    def perf_metric(traj, threshold=0.1):
+        cost = 0.0
+        for i in range(len(traj)):
+            if la.norm(traj[i].obs, 2) > threshold:
+                cost += 1
+        return cost
     def dynamics(y, u):
         return dt_cartpole_dynamics(y, u, system.dt)
     init_max = np.array([1.0, 10.0, 1.0, 10.0])

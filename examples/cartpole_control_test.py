@@ -7,6 +7,7 @@ import numpy as np
 import autompc as ampc
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import numpy.linalg as la
 import argparse
 import pickle
 from joblib import Memory
@@ -192,7 +193,7 @@ def train_approx_gp(num_trajs):
     return model
 
 @memory.cache
-def train_mlp_inner(num_trajs):
+def train_mlp_inner(num_trajs, seed):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     #cfg["n_train_iters"] = 25
@@ -201,10 +202,11 @@ def train_mlp_inner(num_trajs):
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
     model = ampc.make_model(cartpole, MLP, cfg)
-    model.train(trajs5[-num_trajs:])
+    torch.manual_seed(seed)
+    model.train(trajs3[-num_trajs:])
     return model.get_parameters()
 
-def train_mlp(num_trajs):
+def train_mlp(num_trajs, seed=42):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
     #cfg["n_train_iters"] = 25
@@ -213,7 +215,7 @@ def train_mlp(num_trajs):
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
     model = ampc.make_model(cartpole, MLP, cfg)
-    params = train_mlp_inner(num_trajs)
+    params = train_mlp_inner(num_trajs, seed)
     model.set_parameters(params)
     return model
 
@@ -230,7 +232,7 @@ def run_experiment(model_name, controller_name, init_state):
     if model_name == "approx_gp":
         model = train_approx_gp(50)
     elif model_name == "mlp":
-        model = train_mlp(2000)
+        model = train_mlp(500, seed=48)
     else:
         raise ValueError("Unknown model type")
 
@@ -241,9 +243,19 @@ def run_experiment(model_name, controller_name, init_state):
     Q = np.diag([1.0, 1.0, 1.0, 1.0])
     R = np.diag([1.0]) * 0.01
     F = np.diag([10., 10., 10., 10.])*10.0
-    cost = QuadCost(cartpole, Q, R, F)
+    Q2 = 0.0 * np.eye(4)
+    R2 = 0.0 * np.eye(1)
+    F2 = np.eye(4)
+    cost = QuadCost(cartpole, Q2, R, F)
+    cost2 = QuadCost(cartpole, Q2, R2, F2)
     task1.set_cost(cost)
-    task1.set_ctrl_bound("u", -1, 1)
+    task1.set_ctrl_bound("u", -20, 20)
+    def perf_metric(traj, threshold=0.1):
+        cost = 0.0
+        for i in range(len(traj)):
+            if la.norm(traj[i].obs, 2) > threshold:
+                cost += 1
+        return cost
 
     if controller_name == "ilqr":
         con = init_ilqr(model, task1, hori=20)
@@ -260,6 +272,7 @@ def run_experiment(model_name, controller_name, init_state):
     #model_state = model.traj_to_state(sim_traj[:1])
     for step in range(200):
         u, constate = con.run(constate, sim_traj[-1].obs)
+        #u = np.zeros(1,)
         print('u = ', u, 'state = ', sim_traj[-1].obs)
         x = dt_cartpole_dynamics(sim_traj[-1].obs, u, dt)
         #model_state = model.pred(model_state, u)
@@ -268,6 +281,7 @@ def run_experiment(model_name, controller_name, init_state):
         sim_traj[-1, "u"] = u
         sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
         us.append(u)
+    print(f"Performance metric is {perf_metric(sim_traj)}")
     return sim_traj
 
 def main():

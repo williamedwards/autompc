@@ -41,6 +41,8 @@ class ForwardNet(torch.nn.Module):
         self.output_layer = torch.nn.Linear(last_n, n_out)
         if nonlintype == 'relu':
             self.nonlin = torch.nn.ReLU()
+        elif nonlintype == 'selu':
+            self.nonlin = torch.nn.SELU()
         elif nonlintype == 'tanh':
             self.nonlin = torch.nn.Tanh()
         elif nonlintype == 'sigmoid':
@@ -94,8 +96,9 @@ class MLP(Model):
     def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
         nonlintype = CSH.CategoricalHyperparameter("nonlintype", 
-                #choices=["relu", "tanh", "sigmoid"])
-                choices=["relu"])
+                choices=["relu", "tanh", "sigmoid", "selu"],
+                default_value="relu")
+                #choices=["relu"])
         n_hidden_layers = CSH.CategoricalHyperparameter("n_hidden_layers",
                 choices=["1", "2", "3", "4"], default_value="2")
         hidden_size_1 = CSH.UniformIntegerHyperparameter("hidden_size_1",
