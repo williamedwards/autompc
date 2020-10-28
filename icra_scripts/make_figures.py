@@ -46,7 +46,7 @@ def make_figure_sysid1():
         print(r" \\")
 
 def make_figure_cost_tuning():
-    setting = ("cartpole-swingup", "mlp-ilqr", 3, 42)
+    setting = ("cartpole-swingup", "mlp-ilqr", 100, 42)
     result, baseline_res = load_result("cost_tuning", *setting)
 
     fig = plt.figure()
@@ -62,8 +62,10 @@ def make_figure_cost_tuning():
 
 def make_figure_tuning1():
     experiments = [
-            (("MLP-iLQR", "Pendulum Swing-up"),
-             ("pendulum-swingup", "mlp-ilqr", 3, 42))
+            #(("MLP-iLQR", "Pendulum Swing-up"),
+             #("pendulum-swingup", "mlp-ilqr", 3, 42))
+            (("MLP-iLQR", "Acrobot"),
+                ("acrobot-swingup", "mlp-ilqr", 100, 42))
             ]
     for (pipeline_label, task_label), setting in experiments:
         if not result_exists("tuning1", *setting):
@@ -91,9 +93,9 @@ def make_figure_tuning1():
     plt.show()
 
 def make_figure_sysid2():
-    setting1 = ("cartpole-swingup", "mlp-ilqr", 1, 1, 42)
-    setting2 = ("cartpole-swingup", "mlp-ilqr", 2, 1, 42)
-    setting3 = ("cartpole-swingup", "mlp-ilqr", 3, 1, 42)
+    setting1 = ("cartpole-swingup", "mlp-ilqr", 1, 100, 42)
+    setting2 = ("cartpole-swingup", "mlp-ilqr", 2, 100, 42)
+    setting3 = ("cartpole-swingup", "mlp-ilqr", 3, 100, 42)
 
     smac_res1, (rmses1, horizs1) = load_result("sysid2", *setting1)
     smac_res2, (rmses2, horizs2) = load_result("sysid2", *setting2)

@@ -71,7 +71,7 @@ class SimpleDataset(Dataset):
 
 class MLP(Model):
     def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
-            nonlintype='relu', n_train_iters=3, n_batch=64, lr_log10=-3,
+            nonlintype='relu', n_train_iters=50, n_batch=64, lr_log10=-3,
             hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
             hidden_size_4=None,
             use_cuda=True):
