@@ -62,7 +62,7 @@ def main(args):
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
         result = runexp_tuning1(pipeline, tinf, tune_iters=args.tuneiters,
-                seed=args.seed)
+                seed=args.seed, int_file=args.intfile)
         save_result(result, "tuning1", args.task, args.pipeline,
                 args.tuneiters, args.seed)
     elif args.command == "sysid2":
@@ -76,7 +76,7 @@ def main(args):
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
         result = runexp_cost_tuning(pipeline, tinf, tune_iters=args.tuneiters,
-                seed=args.seed)
+                seed=args.seed, int_file=args.intfile)
         save_result(result, "cost_tuning", args.task, args.pipeline,
                 args.tuneiters, args.seed)
     else:
@@ -91,5 +91,6 @@ if __name__ == "__main__":
     parser.add_argument("--model", default="mlp")
     parser.add_argument("--seed", default=42, type=int)
     parser.add_argument("--subexp", default=1, type=int)
+    parser.add_argument("--intfile", default=None, type=str)
     args = parser.parse_args()
     main(args)

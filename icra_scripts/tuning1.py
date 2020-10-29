@@ -8,6 +8,7 @@ import torch
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
 from joblib import Memory
+from pdb import set_trace
 memory = Memory("cache")
 
 # Internal project includes
@@ -85,24 +86,31 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
     inc_truedyn_costs = []
     inc_cfgs = []
     inc_cfg = None
-    costs_and_config_ids = []
+    cfgs = []
+    costs = []
+    truedyn_costs = []
     for key, val in smac.runhistory.data.items():
+        cfg = smac.runhistory.ids_config[key.config_id]
         if val.cost < inc_cost:
             inc_cost = val.cost
             inc_truedyn_cost = val.additional_info
-            inc_cfg = smac.runhistory.ids_config[key.config_id]
+            inc_cfg = cfg
         inc_costs.append(inc_cost)
         inc_truedyn_costs.append(inc_truedyn_cost)
         inc_cfgs.append(inc_cfg)
-        costs_and_config_ids.append((val.cost, key.config_id))
+        cfgs.append(cfg)
+        costs.append(val.cost)
+        truedyn_costs.append(val.additional_info)
     ret_value["inc_costs"] = inc_costs
     ret_value["inc_truedyn_costs"] = inc_truedyn_costs
     ret_value["inc_cfgs"] = inc_cfgs
-    costs_and_config_ids.sort()
+    ret_value["cfgs"] = cfgs
+    ret_value["costs"] = costs
+    ret_value["truedyn_costs"] = truedyn_costs
 
     return ret_value
 
-def runexp_tuning1(pipeline, tinf, tune_iters, seed):
+def runexp_tuning1(pipeline, tinf, tune_iters, seed, int_file=None):
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
     surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
@@ -118,7 +126,25 @@ def runexp_tuning1(pipeline, tinf, tune_iters, seed):
         truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
         surr_score = tinf.perf_metric(surr_traj)
         truedyn_score = tinf.perf_metric(truedyn_traj)
+        if not int_file is None:
+            with open(int_file, "a") as f:
+                print(cfg, file=f)
+                print(f"Surrogate score is {surr_score}", file=f)
+                print(f"True dynamics score is {truedyn_score}", file=f)
+                print("==========\n\n", file=f)
         return surr_score, truedyn_score
+
+    #cfg1 = pipeline.get_configuration_space().get_default_configuration()
+    #cfg1["_task_transformer_0:u_log10Rgain"] = -2
+    #cfg1["_task_transformer_0:theta_log10Fgain"] = 2 
+    #cfg1["_task_transformer_0:omega_log10Fgain"] = 2 
+    #cfg1["_task_transformer_0:x_log10Fgain"] = 2 
+    #cfg1["_task_transformer_0:dx_log10Fgain"] = 2 
+    #cfg1["_controller:horizon"] = 20
+    #cfg1["_model:n_hidden_layers"] = "3"
+    #cfg1["_model:hidden_size_1"] = 128
+    #cfg1["_model:hidden_size_2"] = 128
+    #cfg1["_model:hidden_size_3"] = 128
 
     result = run_smac(pipeline.get_configuration_space(), eval_cfg, 
             tune_iters, rng.integers(1 << 30))

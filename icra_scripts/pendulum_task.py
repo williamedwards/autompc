@@ -63,7 +63,7 @@ def pendulum_swingup_task():
     cost = QuadCost(system, Q, R, F)
     task = Task(system)
     task.set_cost(cost)
-    task.set_ctrl_bound("torque", -1.0, 1.0)
+    task.set_ctrl_bound("torque", -10.0, 10.0)
     init_obs = np.array([3.1, 0.0])
     def perf_metric(traj, threshold=0.1):
         cost = 0.0

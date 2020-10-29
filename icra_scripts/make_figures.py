@@ -75,6 +75,7 @@ def make_figure_tuning1():
             print(f"Skipping {pipeline_label}, {task_label}")
             continue
         result = load_result("tuning1", *setting)
+        set_trace()
 
         fig = plt.figure()
         ax = fig.gca()

@@ -85,24 +85,31 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
     inc_truedyn_costs = []
     inc_cfgs = []
     inc_cfg = None
-    costs_and_config_ids = []
+    cfgs = []
+    costs = []
+    truedyn_costs = []
     for key, val in smac.runhistory.data.items():
+        cfg = smac.runhistory.ids_config[key.config_id]
         if val.cost < inc_cost:
             inc_cost = val.cost
             inc_truedyn_cost = val.additional_info
-            inc_cfg = smac.runhistory.ids_config[key.config_id]
+            inc_cfg = cfg
         inc_costs.append(inc_cost)
         inc_truedyn_costs.append(inc_truedyn_cost)
         inc_cfgs.append(inc_cfg)
-        costs_and_config_ids.append((val.cost, key.config_id))
+        cfgs.append(cfg)
+        costs.append(val.cost)
+        truedyn_costs.append(val.additional_info)
     ret_value["inc_costs"] = inc_costs
     ret_value["inc_truedyn_costs"] = inc_truedyn_costs
     ret_value["inc_cfgs"] = inc_cfgs
-    costs_and_config_ids.sort()
+    ret_value["cfgs"] = cfgs
+    ret_value["costs"] = costs
+    ret_value["truedyn_costs"] = truedyn_costs
 
     return ret_value
 
-def runexp_cost_tuning(pipeline, tinf, tune_iters, seed):
+def runexp_cost_tuning(pipeline, tinf, tune_iters, seed, int_file=None):
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
     surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
@@ -112,14 +119,39 @@ def runexp_cost_tuning(pipeline, tinf, tune_iters, seed):
     eval_seed = rng.integers(1 << 30)
 
     root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+    root_pipeline_cfg["_controller:horizon"] = 20
+    root_pipeline_cfg["_model:n_hidden_layers"] = "3"
+    root_pipeline_cfg["_model:hidden_size_1"] = 128
+    root_pipeline_cfg["_model:hidden_size_2"] = 128
+    root_pipeline_cfg["_model:hidden_size_3"] = 128
+
+    @memory.cache
+    def train_model():
+        model = ampc.make_model(tinf.system, pipeline.Model, 
+                pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=50,
+                use_cuda=False)
+        torch.manual_seed(eval_seed)
+        model.train(sysid_trajs)
+        return model.get_parameters()
+    model = ampc.make_model(tinf.system, pipeline.Model, 
+            pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=5,
+            use_cuda=False)
+    model_params = train_model()
+    model.set_parameters(model_params)
     def eval_cfg(cfg):
         torch.manual_seed(eval_seed)
         pipeline_cfg = pipeline.set_tt_cfg(root_pipeline_cfg, 0, cfg)
-        controller, model = pipeline(pipeline_cfg, sysid_trajs)
+        controller, _ = pipeline(pipeline_cfg, sysid_trajs, model=model)
         surr_traj = runsim(tinf, 200, surrogate, controller)
         truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
         surr_score = tinf.perf_metric(surr_traj)
         truedyn_score = tinf.perf_metric(truedyn_traj)
+        if not int_file is None:
+            with open(int_file, "a") as f:
+                print(cfg, file=f)
+                print(f"Surrogate score is {surr_score}", file=f)
+                print(f"True dynamics score is {truedyn_score}", file=f)
+                print("==========\n\n", file=f)
         return surr_score, truedyn_score
 
     cs = pipeline.task_transformers[0].get_configuration_space(tinf.system)

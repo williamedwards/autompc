@@ -18,7 +18,8 @@ from autompc.control import FiniteHorizonLQR, IterativeLQR
 
 def init_mlp_ilqr(tinf):
     pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
-            IterativeLQR, [QuadCostTransformer])
+            IterativeLQR, [QuadCostTransformer],
+            controller_kwargs={"reuse_feedback" : -1})
     return pipeline
 
 def init_pipeline(tinf, pipeline):

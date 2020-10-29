@@ -40,28 +40,35 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
     inc_model_seeds = []
     inc_cfgs = []
     inc_cfg = None
-    costs_and_config_ids = []
+    cfgs = []
+    costs = []
+    truedyn_costs = []
     for key, val in smac.runhistory.data.items():
+        cfg = smac.runhistory.ids_config[key.config_id]
         if val.cost < inc_cost:
             inc_cost = val.cost
             inc_truedyn_cost = val.additional_info[0]
             inc_model_seed = val.additional_info[1]
-            inc_cfg = smac.runhistory.ids_config[key.config_id]
+            inc_cfg = cfg
         inc_costs.append(inc_cost)
         inc_truedyn_costs.append(inc_truedyn_cost)
         inc_model_seeds.append(inc_model_seed)
         inc_cfgs.append(inc_cfg)
-        costs_and_config_ids.append((val.cost, key.config_id))
+        cfgs.append(cfg)
+        costs.append(val.cost)
+        truedyn_costs.append(val.additional_info)
     ret_value["inc_costs"] = inc_costs
     ret_value["inc_truedyn_costs"] = inc_truedyn_costs
     ret_value["inc_model_seeds"] = inc_model_seeds
     ret_value["inc_cfgs"] = inc_cfgs
-    costs_and_config_ids.sort()
+    ret_value["cfgs"] = cfgs
+    ret_value["costs"] = costs
+    ret_value["truedyn_costs"] = truedyn_costs
 
     return ret_value
 
 
-def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed):
+def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed, int_file=None):
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
     surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
@@ -83,6 +90,13 @@ def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed):
     final_evaluator.add_grapher(kstep_grapher)
 
     root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+    root_pipeline_cfg["_task_transformer_0:u_log10Rgain"] = -2
+    root_pipeline_cfg["_task_transformer_0:theta_log10Fgain"] = 2 
+    root_pipeline_cfg["_task_transformer_0:omega_log10Fgain"] = 2 
+    root_pipeline_cfg["_task_transformer_0:x_log10Fgain"] = 2 
+    root_pipeline_cfg["_task_transformer_0:dx_log10Fgain"] = 2 
+    root_pipeline_cfg["_controller:horizon"] = 20
+
     eval_seed1 = int(rng.integers(1 << 30))
     def eval_cfg1(cfg):
         torch.manual_seed(eval_seed1)
@@ -90,14 +104,16 @@ def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed):
                 ret_trained_model=True)
         pipeline_cfg = pipeline.set_model_cfg(root_pipeline_cfg, cfg)
         controller, _ = pipeline(pipeline_cfg, sysid_trajs, model)
-        print("startrunsim")
         truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
-        print("donerunsim")
         truedyn_score = tinf.perf_metric(truedyn_traj)
-        print("donemetric")
         model_params = model.get_parameters()
         additional_info = (truedyn_score, model.get_parameters())
-        print("got additional_info")
+        if not int_file is None:
+            with open(int_file, "a") as f:
+                print(cfg, file=f)
+                print(f"Score is {score}", file=f)
+                print(f"True dynamics score is {truedyn_score}", file=f)
+                print("==========\n\n", file=f)
         return score, (truedyn_score, eval_seed1)
 
     eval_seed2 = int(rng.integers(1 << 30))
@@ -109,6 +125,12 @@ def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed):
         controller, _ = pipeline(pipeline_cfg, sysid_trajs, model)
         truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
         truedyn_score = tinf.perf_metric(truedyn_traj)
+        if not int_file is None:
+            with open(int_file, "a") as f:
+                print(cfg, file=f)
+                print(f"Score is {score}", file=f)
+                print(f"True dynamics score is {truedyn_score}", file=f)
+                print("==========\n\n", file=f)
         return score, (truedyn_score, eval_seed2)
 
     eval_seed3 = int(rng.integers(1 << 30))
@@ -119,6 +141,12 @@ def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed):
         truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
         surr_score = tinf.perf_metric(surr_traj)
         truedyn_score = tinf.perf_metric(truedyn_traj)
+        if not int_file is None:
+            with open(int_file, "a") as f:
+                print(cfg, file=f)
+                print(f"Surrogate core is {surr_score}", file=f)
+                print(f"True dynamics score is {truedyn_score}", file=f)
+                print("==========\n\n", file=f)
         return surr_score, (truedyn_score, eval_seed3)
 
     if sub_exp == 1:

@@ -73,12 +73,13 @@ def cartpole_swingup_task():
     cost = QuadCost(system, Q, R, F)
     task = Task(system)
     task.set_cost(cost)
-    task.set_ctrl_bound("u", -1.0, 1.0)
+    task.set_ctrl_bound("u", -20.0, 20.0)
     init_obs = np.array([3.1, 0.0, 0.0, 0.0])
-    def perf_metric(traj, threshold=0.1):
+    def perf_metric(traj, threshold=0.2):
         cost = 0.0
         for i in range(len(traj)):
-            if la.norm(traj[i].obs, 2) > threshold:
+            if (np.abs(traj[i].obs[0]) > threshold 
+                    or np.abs(traj[i].obs[1]) > threshold):
                 cost += 1
         return cost
     def dynamics(y, u):

@@ -10,12 +10,13 @@ from ..cs_utils import *
 from ..utils import *
 
 class FixedControlPipeline:
-    def __init__(self, system, task, Model, Controller, task_transformers):
+    def __init__(self, system, task, Model, Controller, task_transformers, controller_kwargs=dict()):
         self.system = system
         self.task = task
         self.Model = Model
         self.Controller = Controller
         self.task_transformers = task_transformers[:]
+        self.controller_kwargs = controller_kwargs
 
 
     def get_configuration_space(self):
@@ -78,7 +79,8 @@ class FixedControlPipeline:
                 model)
         contr_cfg = contr_cs.get_default_configuration()
         set_subspace_configuration(cfg, "_controller", contr_cfg)
-        controller = make_controller(self.system, task, model, self.Controller, contr_cfg)
+        controller = make_controller(self.system, task, model, self.Controller, 
+                contr_cfg, **self.controller_kwargs)
 
         return controller, model
 
