@@ -18,7 +18,7 @@ def runexp_sysid1(Model, tinf, tune_iters, seed):
     validation_set = sysid_trajs[int(0.7*len(sysid_trajs)):int(0.85*len(sysid_trajs))]
     testing_set = sysid_trajs[int(0.85*len(sysid_trajs)):]
     
-    metric = RmseKstepMetric(tinf.system, k=int(1/tinf.system.dt))
+    metric = RmseKstepMetric(tinf.system, k=int(1/tinf.system.dt),step=10)
     tuning_evaluator = FixedSetEvaluator(tinf.system, training_set + validation_set, 
             metric, rng, training_trajs=training_set)
     final_evaluator = FixedSetEvaluator(tinf.system, training_set + testing_set, 

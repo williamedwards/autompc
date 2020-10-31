@@ -17,10 +17,12 @@ from cartpole_task import cartpole_swingup_task
 from pendulum_task import pendulum_swingup_task
 from acrobot_task import acrobot_swingup_task
 from halfcheetah_task import halfcheetah_task
+from halfcheetah_task_buffer import halfcheetah_task_buffer
 from pipelines import init_pipeline
 from sysid1 import runexp_sysid1
 from sysid2 import runexp_sysid2
 from tuning1 import runexp_tuning1
+from surrtest import runexp_surrtest
 from decoupled1 import runexp_decoupled1
 from cost_tuning import runexp_cost_tuning
 from utils import *
@@ -50,6 +52,10 @@ def init_task(task_name):
         return acrobot_swingup_task()
     elif task_name == "halfcheetah":
         return halfcheetah_task()
+    elif task_name == "halfcheetah-buffer1":
+        return halfcheetah_task_buffer(buff=1)
+    elif task_name == "halfcheetah-buffer2":
+        return halfcheetah_task_buffer(buff=2)
     else:
         raise ValueError("Task not found")
 
@@ -69,6 +75,13 @@ def main(args):
                 seed=args.seed, int_file=args.intfile, simsteps=args.simsteps)
         save_result(result, "tuning1", args.task, args.pipeline,
                 args.tuneiters, args.seed)
+    elif args.command == "surrtest":
+        tinf = init_task(args.task)
+        pipeline = init_pipeline(tinf, args.pipeline)
+        result = runexp_surrtest(pipeline, tinf, tune_iters=args.tuneiters,
+                seed=args.seed, int_file=args.intfile, simsteps=args.simsteps)
+        save_result(result, "surrtest", args.task, args.pipeline,
+                args.tuneiters, args.seed)
     elif args.command == "sysid2":
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
@@ -87,7 +100,7 @@ def main(args):
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
         result = runexp_decoupled1(pipeline, tinf, tune_iters=args.tuneiters,
-                seed=args.seed, int_file=args.intfile)
+                seed=args.seed, int_file=args.intfile, subexp=args.subexp)
         save_result(result, "decoupled1", args.task, args.pipeline,
                 args.tuneiters, args.seed)
     else:

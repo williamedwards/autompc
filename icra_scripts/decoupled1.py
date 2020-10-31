@@ -61,7 +61,7 @@ def runsim(tinf, simsteps, sim_model, controller, dynamics=None):
             x = dynamics(x, u)
         print(f"{u=} {x=}")
         sim_traj[-1].ctrl[:] = u
-        sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
+        sim_traj = ampc.extend(sim_traj, [x], np.zeros((1, tinf.system.ctrl_dim)))
     return sim_traj
 
 def run_smac(cs, eval_cfg, tune_iters, seed):
@@ -110,7 +110,8 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
 
     return ret_value
 
-def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None):
+def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None,
+        subexp=1):
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
     surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
@@ -119,13 +120,22 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None):
     surrogate = train_mlp(tinf.system, surr_trajs)
     eval_seed = rng.integers(1 << 30)
 
-    root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
-    root_pipeline_cfg["_model:n_hidden_layers"] = "3"
-    root_pipeline_cfg["_model:hidden_size_1"] = 69
-    root_pipeline_cfg["_model:hidden_size_2"] = 256
-    root_pipeline_cfg["_model:hidden_size_3"] = 256
-    root_pipeline_cfg["_model:lr_log10"] = -3.323534
-    root_pipeline_cfg["_model:nonlintype"] = "tanh"
+    if subexp == 1:
+        root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+        root_pipeline_cfg["_model:n_hidden_layers"] = "3"
+        root_pipeline_cfg["_model:hidden_size_1"] = 69
+        root_pipeline_cfg["_model:hidden_size_2"] = 256
+        root_pipeline_cfg["_model:hidden_size_3"] = 256
+        root_pipeline_cfg["_model:lr_log10"] = -3.323534
+        root_pipeline_cfg["_model:nonlintype"] = "tanh"
+    elif subexp == 2:
+        root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+        root_pipeline_cfg["_model:n_hidden_layers"] = "3"
+        root_pipeline_cfg["_model:hidden_size_1"] = 128
+        root_pipeline_cfg["_model:hidden_size_2"] = 128
+        root_pipeline_cfg["_model:hidden_size_3"] = 128
+    else:
+        raise ValueError("Unrecognized sub experiment.")
     #cs = pipeline.get_configuration_space_fixed_model()
     #cfg = cs.get_default_configuration()
     #cfg["_controller:horizon"] = 25
@@ -134,7 +144,7 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None):
     #set_trace()
 
     @memory.cache
-    def train_model():
+    def train_model(sysid_trajs):
         model = ampc.make_model(tinf.system, pipeline.Model, 
                 pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=50,
                 use_cuda=False)
@@ -144,7 +154,7 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None):
     model = ampc.make_model(tinf.system, pipeline.Model, 
             pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=5,
             use_cuda=False)
-    model_params = train_model()
+    model_params = train_model(sysid_trajs)
     model.set_parameters(model_params)
     def eval_cfg(cfg):
         torch.manual_seed(eval_seed)
@@ -165,7 +175,6 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None):
 
     #cs = pipeline.task_transformers[0].get_configuration_space(tinf.system)
     cs = pipeline.get_configuration_space_fixed_model()
-    set_trace()
     result = run_smac(cs, eval_cfg, tune_iters, rng.integers(1 << 30))
     baseline_res = eval_cfg(cs.get_default_configuration())
     return result, baseline_res
