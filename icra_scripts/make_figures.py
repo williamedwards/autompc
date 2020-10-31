@@ -110,6 +110,34 @@ def make_figure_tuning1():
         plt.tight_layout()
         plt.show()
 
+def make_figure_decoupled1():
+    result = load_result("decoupled1", "cartpole-swingup", "mlp-ilqr", 100,
+            42)
+
+    matplotlib.rcParams.update({'font.size': 12})
+    fig = plt.figure(figsize=(4,4))
+    ax = fig.gca()
+    ax.set_title(f"MLP-iLQR on Half-cheetah")
+    ax.set_xlabel("Tuning iterations")
+    ax.set_ylabel("True Perf.")
+    #labels = []
+    #for label, value in baselines:
+    #    ax.plot([0.0, n_iters], [value, value], "--")
+    #    labels.append(label)
+    #for label, res in tuning_results:
+    #    perfs = [-cost for cost in res["inc_truedyn_costs"]]
+    #    ax.plot(perfs)
+    #    labels.append(label)
+    #ax.legend(labels)
+    #perfs = [cost for cost in result["inc_costs"]]
+    perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*25
+    print(f"{perfs=}")
+    ax.plot(perfs)
+    ax.plot([0, len(perfs)], [37, 37], "r--") 
+    ax.legend(["Decoupled tune", "BCQ Baseline"])
+    plt.tight_layout()
+    plt.show()
+
 def make_figure_sysid2():
     setting1 = ("cartpole-swingup", "mlp-ilqr", 1, 100, 42)
     setting2 = ("cartpole-swingup", "mlp-ilqr", 2, 100, 42)
@@ -155,6 +183,8 @@ def main(command):
         make_figure_sysid2()
     elif command == "cost_tuning":
         make_figure_cost_tuning()
+    elif command == "decoupled":
+        make_figure_decoupled1()
     else:
         raise Exception("Unrecognized command")
 

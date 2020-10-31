@@ -103,6 +103,14 @@ def main(args):
                 seed=args.seed, int_file=args.intfile, subexp=args.subexp)
         save_result(result, "decoupled1", args.task, args.pipeline,
                 args.tuneiters, args.seed)
+    elif args.command == "controllers":
+        tinf = init_task(args.task)
+        pipeline = init_pipeline(tinf, args.pipeline)
+        result = runexp_tuning1(pipeline, tinf, tune_iters=args.tuneiters,
+                seed=args.seed, int_file=args.intfile, simsteps=args.simsteps)
+        save_result(result, "tuning1", args.task, args.pipeline,
+                args.tuneiters, args.seed)
+
     else:
         raise ValueError("Command not recognized.")
 

@@ -78,9 +78,7 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
         surrogate = train_mlp(tinf.system, surr_trajs)
         surrogates.append(surrogate)
 
-    def eval_cfg(cfg, surrogate, eval_true=True):
-        torch.manual_seed(eval_seed)
-        controller, model = pipeline(cfg, sysid_trajs)
+    def eval_cfg(controller, model, surrogate, eval_true=True):
         surr_traj = runsim(tinf, simsteps, surrogate, controller)
         if eval_true:
             truedyn_traj = runsim(tinf, simsteps, None, controller, tinf.dynamics)
@@ -99,12 +97,12 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
 
     cfg1 = pipeline.get_configuration_space().get_default_configuration()
     cfg1["_controller:horizon"] = 19
+    cfg1["_model:n_hidden_layers"] = '4'
     cfg1["_model:hidden_size_1"] = 196
     cfg1["_model:hidden_size_2"] = 196
     cfg1["_model:hidden_size_3"] = 76
     cfg1["_model:hidden_size_4"] = 76
     cfg1["_model:lr_log10"] = -3.75
-    cfg1["_model:n_hidden_layers"] = '4'
     cfg1["_model:nonlintype"] = 'tanh'
     cfg1["_task_transformer_0:dx_log10Fgain"] = 2.25
     cfg1["_task_transformer_0:dx_log10Qgain"] = -1.25
@@ -118,9 +116,9 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
 
     cfg2 = pipeline.get_configuration_space().get_default_configuration()
     cfg2["_controller:horizon"] = 20
+    cfg2["_model:n_hidden_layers"] = '1'
     cfg2["_model:hidden_size_1"] = 106
     cfg2["_model:lr_log10"] = -1.875
-    cfg2["_model:n_hidden_layers"] = '1'
     cfg2["_model:nonlintype"] = 'selu'
     cfg2["_task_transformer_0:dx_log10Fgain"] = 3.125
     cfg2["_task_transformer_0:dx_log10Qgain"] = -2.125
@@ -134,9 +132,9 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
 
     cfg3 = pipeline.get_configuration_space().get_default_configuration()
     cfg3["_controller:horizon"] = 19
+    cfg3["_model:n_hidden_layers"] = '1'
     cfg3["_model:hidden_size_1"] = 112
     cfg3["_model:lr_log10"] = -1.875
-    cfg3["_model:n_hidden_layers"] = '1'
     cfg3["_model:nonlintype"] = 'sigmoid'
     cfg3["_task_transformer_0:dx_log10Fgain"] = 3.125
     cfg3["_task_transformer_0:dx_log10Qgain"] = -2.642851488370617
@@ -149,13 +147,13 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     cfg3["_task_transformer_0:x_log10Qgain"] = -0.375
 
     cfg4 = pipeline.get_configuration_space().get_default_configuration()
+    cfg4["_model:n_hidden_layers"] = '4'
     cfg4["_controller:horizon"] = 20
     cfg4["_model:hidden_size_1"] = 106
     cfg4["_model:hidden_size_2"] = 32
     cfg4["_model:hidden_size_3"] = 32
     cfg4["_model:hidden_size_4"] = 35
     cfg4["_model:lr_log10"] = -1.875
-    cfg4["_model:n_hidden_layers"] = '4'
     cfg4["_model:nonlintype"] = 'tanh'
     cfg4["_task_transformer_0:dx_log10Fgain"] = 3.125
     cfg4["_task_transformer_0:dx_log10Qgain"] = -2.051623019774169
@@ -168,10 +166,10 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     cfg4["_task_transformer_0:x_log10Qgain"] = -0.375
 
     cfg5 = pipeline.get_configuration_space().get_default_configuration()
+    cfg5["_model:n_hidden_layers"] = '1'
     cfg5["_controller:horizon"] = 20
     cfg5["_model:hidden_size_1"] = 124
     cfg5["_model:lr_log10"] = -2.0624236642111304
-    cfg5["_model:n_hidden_layers"] = '1'
     cfg5["_model:nonlintype"] = 'selu'
     cfg5["_task_transformer_0:dx_log10Fgain"] = 3.125
     cfg5["_task_transformer_0:dx_log10Qgain"] = -2.1647583484435087
@@ -184,13 +182,13 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     cfg5["_task_transformer_0:x_log10Qgain"] = -0.12565529803933106
 
     cfg6 = pipeline.get_configuration_space().get_default_configuration()
+    cfg6["_model:n_hidden_layers"] = '4'
     cfg6["_controller:horizon"] = 20
     cfg6["_model:hidden_size_1"] = 105
     cfg6["_model:hidden_size_2"] = 44
     cfg6["_model:hidden_size_3"] = 32
     cfg6["_model:hidden_size_4"] = 47
     cfg6["_model:lr_log10"] = -1.8613678376416387
-    cfg6["_model:n_hidden_layers"] = '4'
     cfg6["_model:nonlintype"] = 'selu'
     cfg6["_task_transformer_0:dx_log10Fgain"] = 3.125
     cfg6["_task_transformer_0:dx_log10Qgain"] = -2.63439083089795
@@ -203,10 +201,10 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     cfg6["_task_transformer_0:x_log10Qgain"] = -0.27751394660904793
 
     cfg7 = pipeline.get_configuration_space().get_default_configuration()
+    cfg7["_model:n_hidden_layers"] = '1'
     cfg7["_controller:horizon"] = 21
     cfg7["_model:hidden_size_1"] = 78
     cfg7["_model:lr_log10"] = -1.9061089546626797
-    cfg7["_model:n_hidden_layers"] = '1'
     cfg7["_model:nonlintype"] = 'selu'
     cfg7["_task_transformer_0:dx_log10Fgain"] = 3.227423052182771
     cfg7["_task_transformer_0:dx_log10Qgain"] = -2.321790382845302
@@ -223,8 +221,10 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     surr_scoress = []
     true_scores = []
     for cfg in cfgs:
+        torch.manual_seed(eval_seed)
+        controller, model = pipeline(controller, model, sysid_trajs)
         surr_scores = []
-        _, true_score = eval_cfg(cfg, surrogates[0])
+        _, true_score = eval_cfg(controller, model, surrogates[0])
         true_scores.append(true_score)
         for surrogate in surrogates:
             surr_score = eval_cfg(cfg, surrogate, eval_true=False)
