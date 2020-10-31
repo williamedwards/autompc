@@ -3,6 +3,7 @@
 # Standard project includes
 import sys
 from pdb import set_trace
+import matplotlib
 
 # External project includes
 import numpy as np
@@ -50,7 +51,8 @@ def make_figure_cost_tuning():
     setting = ("cartpole-swingup", "mlp-ilqr", 100, 42)
     result, baseline_res = load_result("cost_tuning", *setting)
 
-    fig = plt.figure()
+    matplotlib.rcParams.update({'font.size': 12})
+    fig = plt.figure(figsize=(4,4))
     ax = fig.gca()
     ax.set_title(f"Cost Tuning Performance")
     ax.set_xlabel("Tuning iterations")
@@ -59,27 +61,35 @@ def make_figure_cost_tuning():
     print(f"{perfs=}")
     ax.plot(perfs)
     ax.plot([0.0, len(perfs)], [baseline_res[1], baseline_res[1]], "k--")
+    ax.legend(["Tuned Quad. Cost", "Untuned Perf. Metric"])
+    plt.tight_layout()
     plt.show()
 
 def make_figure_tuning1():
+    #experiments = [
+    #        (("MLP-iLQR", "Pendulum"),
+    #         ("pendulum-swingup", "mlp-ilqr", 100, 42)),
+    #        (("MLP-iLQR", "Cartpole"),
+    #         ("cartpole-swingup", "mlp-ilqr", 100, 42)),
+    #        (("MLP-iLQR", "Acrobot"),
+    #            ("acrobot-swingup", "mlp-ilqr", 100, 42))
+    #        ]
     experiments = [
-            (("MLP-iLQR", "Pendulum Swing-up"),
-             ("pendulum-swingup", "mlp-ilqr", 100, 42)),
-            (("MLP-iLQR", "Cartpole Swing-up"),
-             ("cartpole-swingup", "mlp-ilqr", 100, 42)),
-            (("MLP-iLQR", "Acrobot"),
-                ("acrobot-swingup", "mlp-ilqr", 100, 42))
+            (("MLP-iLQR", "Half-Cheetah"),
+             ("halfcheetah", "mlp-ilqr", 100, 42)),
             ]
-    for (pipeline_label, task_label), setting in experiments:
-        if not result_exists("tuning1", *setting):
-            print(f"Skipping {pipeline_label}, {task_label}")
-            continue
-        result = load_result("tuning1", *setting)
-        set_trace()
+    #bcq_baselines = [24, 37, 1000]
+    bcq_baselines = [-1000]
+    for i, ((pipeline_label, task_label), setting) in enumerate(experiments):
+        #if not result_exists("tuning1", *setting):
+        #    print(f"Skipping {pipeline_label}, {task_label}")
+        #    continue
+        #result = load_result("tuning1", *setting)
 
-        fig = plt.figure()
+        matplotlib.rcParams.update({'font.size': 12})
+        fig = plt.figure(figsize=(4,4))
         ax = fig.gca()
-        ax.set_title(f"Tuning {pipeline_label} on {task_label}")
+        ax.set_title(f"{pipeline_label} on {task_label}")
         ax.set_xlabel("Tuning iterations")
         ax.set_ylabel("True Perf.")
         #labels = []
@@ -91,10 +101,14 @@ def make_figure_tuning1():
         #    ax.plot(perfs)
         #    labels.append(label)
         #ax.legend(labels)
-        perfs = [cost for cost in result["inc_costs"]]
+        #perfs = [cost for cost in result["inc_costs"]]
+        perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*25
         print(f"{perfs=}")
         ax.plot(perfs)
-    plt.show()
+        ax.plot([0, len(perfs)], [bcq_baselines[i], bcq_baselines[i]], "r--") 
+        ax.legend(["Ours", "BCQ Baseline"])
+        plt.tight_layout()
+        plt.show()
 
 def make_figure_sysid2():
     setting1 = ("cartpole-swingup", "mlp-ilqr", 1, 100, 42)
@@ -105,7 +119,10 @@ def make_figure_sysid2():
     smac_res2, (rmses2, horizs2) = load_result("sysid2", *setting2)
     smac_res3, (rmses3, horizs3) = load_result("sysid2", *setting3)
 
-    fig = plt.figure()
+    set_trace()
+
+    matplotlib.rcParams.update({'font.size': 12})
+    fig = plt.figure(figsize=(4,4))
     ax = fig.gca()
     ax.set_xlabel("Prediction Horizon")
     ax.set_ylabel("RMSE")
@@ -115,16 +132,17 @@ def make_figure_sysid2():
     ax.plot(horizs3, rmses3)
     ax.legend(["1-step train", "Multi-step train", "Pipeline train"])
 
-    fig = plt.figure()
-    ax = fig.gca()
-    ax.set_xlabel("Tuning Iterations")
-    ax.set_ylabel("Performance")
-    ax.set_title("Pipeline Performance vs Sys ID Strategy")
-    ax.plot(smac_res1["inc_truedyn_costs"])
-    ax.plot(smac_res2["inc_truedyn_costs"])
-    ax.plot(smac_res3["inc_truedyn_costs"])
-    ax.legend(["1-step train", "Multi-step train", "Pipeline train"])
+    #fig = plt.figure(figsize=(4,4))
+    #ax = fig.gca()
+    #ax.set_xlabel("Tuning Iterations")
+    #ax.set_ylabel("Performance")
+    #ax.set_title("Pipeline Performance of Sys ID")
+    #ax.plot(smac_res1["inc_truedyn_costs"])
+    #ax.plot(smac_res2["inc_truedyn_costs"])
+    #ax.plot(smac_res3["inc_truedyn_costs"])
+    #ax.legend(["1-step train", "Multi-step train", "Pipeline train"])
 
+    plt.tight_layout()
     plt.show()
 
 

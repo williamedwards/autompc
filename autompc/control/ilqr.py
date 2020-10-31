@@ -56,7 +56,7 @@ class IterativeLQR(Controller):
     def get_configuration_space(system, task, model):
         cs = ConfigurationSpace()
         horizon = UniformIntegerHyperparameter(name="horizon",
-                lower=19, upper=21, default_value=20)
+                lower=5, upper=25, default_value=20)
         cs.add_hyperparameter(horizon)
         return cs
 

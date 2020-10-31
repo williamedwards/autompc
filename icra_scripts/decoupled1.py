@@ -61,8 +61,7 @@ def runsim(tinf, simsteps, sim_model, controller, dynamics=None):
             x = dynamics(x, u)
         print(f"{u=} {x=}")
         sim_traj[-1].ctrl[:] = u
-        sim_traj = ampc.extend(sim_traj, [x], 
-                np.zeros((1, tinf.system.ctrl_dim)))
+        sim_traj = ampc.extend(sim_traj, [x], [[0.0]])
     return sim_traj
 
 def run_smac(cs, eval_cfg, tune_iters, seed):
@@ -111,7 +110,7 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
 
     return ret_value
 
-def runexp_tuning1(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
+def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None):
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
     surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
@@ -120,11 +119,40 @@ def runexp_tuning1(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     surrogate = train_mlp(tinf.system, surr_trajs)
     eval_seed = rng.integers(1 << 30)
 
+    root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+    root_pipeline_cfg["_model:n_hidden_layers"] = "3"
+    root_pipeline_cfg["_model:hidden_size_1"] = 69
+    root_pipeline_cfg["_model:hidden_size_2"] = 256
+    root_pipeline_cfg["_model:hidden_size_3"] = 256
+    root_pipeline_cfg["_model:lr_log10"] = -3.323534
+    root_pipeline_cfg["_model:nonlintype"] = "tanh"
+    #cs = pipeline.get_configuration_space_fixed_model()
+    #cfg = cs.get_default_configuration()
+    #cfg["_controller:horizon"] = 25
+    #cfg["_task_transformer_0:x_log10Qgain"] = 1.0
+    #print(pipeline.set_configuration_fixed_model(root_pipeline_cfg, cfg))
+    #set_trace()
+
+    @memory.cache
+    def train_model():
+        model = ampc.make_model(tinf.system, pipeline.Model, 
+                pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=50,
+                use_cuda=False)
+        torch.manual_seed(eval_seed)
+        model.train(sysid_trajs)
+        return model.get_parameters()
+    model = ampc.make_model(tinf.system, pipeline.Model, 
+            pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=5,
+            use_cuda=False)
+    model_params = train_model()
+    model.set_parameters(model_params)
     def eval_cfg(cfg):
         torch.manual_seed(eval_seed)
-        controller, model = pipeline(cfg, sysid_trajs)
-        surr_traj = runsim(tinf, simsteps, surrogate, controller)
-        truedyn_traj = runsim(tinf, simsteps, None, controller, tinf.dynamics)
+        #pipeline_cfg = pipeline.set_tt_cfg(root_pipeline_cfg, 0, cfg)
+        pipeline_cfg = pipeline.set_configuration_fixed_model(root_pipeline_cfg, cfg)
+        controller, _ = pipeline(pipeline_cfg, sysid_trajs, model=model)
+        surr_traj = runsim(tinf, 200, surrogate, controller)
+        truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
         surr_score = tinf.perf_metric(surr_traj)
         truedyn_score = tinf.perf_metric(truedyn_traj)
         if not int_file is None:
@@ -135,18 +163,9 @@ def runexp_tuning1(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
                 print("==========\n\n", file=f)
         return surr_score, truedyn_score
 
-    #cfg1 = pipeline.get_configuration_space().get_default_configuration()
-    #cfg1["_task_transformer_0:u_log10Rgain"] = -2
-    #cfg1["_task_transformer_0:theta_log10Fgain"] = 2 
-    #cfg1["_task_transformer_0:omega_log10Fgain"] = 2 
-    #cfg1["_task_transformer_0:x_log10Fgain"] = 2 
-    #cfg1["_task_transformer_0:dx_log10Fgain"] = 2 
-    #cfg1["_controller:horizon"] = 20
-    #cfg1["_model:n_hidden_layers"] = "3"
-    #cfg1["_model:hidden_size_1"] = 128
-    #cfg1["_model:hidden_size_2"] = 128
-    #cfg1["_model:hidden_size_3"] = 128
-
-    result = run_smac(pipeline.get_configuration_space(), eval_cfg, 
-            tune_iters, rng.integers(1 << 30))
-    return result
+    #cs = pipeline.task_transformers[0].get_configuration_space(tinf.system)
+    cs = pipeline.get_configuration_space_fixed_model()
+    set_trace()
+    result = run_smac(cs, eval_cfg, tune_iters, rng.integers(1 << 30))
+    baseline_res = eval_cfg(cs.get_default_configuration())
+    return result, baseline_res

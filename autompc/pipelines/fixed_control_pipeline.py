@@ -10,13 +10,15 @@ from ..cs_utils import *
 from ..utils import *
 
 class FixedControlPipeline:
-    def __init__(self, system, task, Model, Controller, task_transformers, controller_kwargs=dict()):
+    def __init__(self, system, task, Model, Controller, task_transformers, 
+            controller_kwargs=dict(), use_cuda=False):
         self.system = system
         self.task = task
         self.Model = Model
         self.Controller = Controller
         self.task_transformers = task_transformers[:]
         self.controller_kwargs = controller_kwargs
+        self.use_cuda = use_cuda
 
 
     def get_configuration_space(self):
@@ -30,6 +32,25 @@ class FixedControlPipeline:
             trans_cs = trans.get_configuration_space(self.system)
             add_configuration_space(cs, "_task_transformer_{}".format(i), trans_cs)
         return cs
+
+    def get_configuration_space_fixed_model(self):
+        cs = CS.ConfigurationSpace()
+        contr_cs = self.Controller.get_configuration_space(self.system, self.task,
+                self.Model)
+        add_configuration_space(cs, "_controller", contr_cs)
+        for i, trans in enumerate(self.task_transformers):
+            trans_cs = trans.get_configuration_space(self.system)
+            add_configuration_space(cs, "_task_transformer_{}".format(i), trans_cs)
+        return cs
+
+    def set_configuration_fixed_model(self, root_cfg, child_cfg):
+        cfg = copy.deepcopy(root_cfg)
+        transfer_subspace_configuration(child_cfg, "_controller", cfg,
+                "_controller")
+        for i, trans in enumerate(self.task_transformers):
+            transfer_subspace_configuration(child_cfg, f"_task_transformer_{i}", 
+                    cfg, f"_task_transformer_{i}")
+        return cfg
 
 
     def set_model_cfg(self, pipeline_cfg, model_cfg):
@@ -58,10 +79,11 @@ class FixedControlPipeline:
         print(cfg)
         print("-----")
         # First instantiate and train the model
+        print(f"{self.use_cuda=}")
         if model is None:
             model_cfg = self.get_model_cfg(cfg)
             model = make_model(self.system, self.Model, model_cfg,
-                    use_cuda=False)
+                    use_cuda=self.use_cuda)
             model.train(trajs)
             print("Exit training.")
 

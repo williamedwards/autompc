@@ -54,6 +54,8 @@ class ModelTuner:
             return model, cfg
 
     def _evaluate(self, cfg_combined):
+        print("Evaluating cfg:")
+        print(cfg_combined)
         model, cfg = self._get_model_cfg(cfg_combined)
         return self.evaluator(model, cfg)[0]
 

@@ -29,6 +29,15 @@ def set_subspace_configuration(cfg, prefix, sub_cfg, delimiter=":"):
         if key[:len(prefix)] == prefix:
             sub_cfg[key.split(delimiter)[1]] = val
 
+def transfer_subspace_configuration(source_cfg, source_prefix, dest_cfg, dest_prefix,
+        delimiter=":"):
+    source_prefix = source_prefix + delimiter
+    dest_prefix = dest_prefix + delimiter
+    for source_key, source_val in source_cfg.get_dictionary().items():
+        if source_key[:len(source_prefix)] == source_prefix:
+            key = source_key.split(delimiter)[1]
+            dest_cfg[dest_prefix + key] = source_val
+
 def set_parent_configuration(cfg, prefix, sub_cfg, delimiter=":"):
     prefix = prefix + delimiter
     for key, val in sub_cfg.get_dictionary().items():

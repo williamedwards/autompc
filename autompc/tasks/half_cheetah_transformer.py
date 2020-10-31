@@ -35,12 +35,12 @@ class HalfCheetahTransformer(TaskTransformer):
     def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
         for obsname in system.observations:
-            if obsname in ["x0", "x5", "x6", "x7", "x8"]:
+            if obsname in ["x1", "x6", "x7", "x8", "x9"]:
                 obsgain = CSH.UniformFloatHyperparameter("{}_log10Qgain".format(obsname),
                         lower=-3.0, upper=4.0, default_value=0.0)
                 cs.add_hyperparameter(obsgain)
         for obsname in system.observations:
-            if obsname in ["x0",  "x8"]:
+            if obsname in ["x1",  "x9"]:
                 obsgain = CSH.UniformFloatHyperparameter("{}_log10Fgain".format(obsname),
                         lower=-3.0, upper=4.0, default_value=0.0)
                 cs.add_hyperparameter(obsgain)
@@ -67,7 +67,7 @@ class HalfCheetahTransformer(TaskTransformer):
         for i in range(len(self.Fgains)):
             F[i,i] *= self.Fgains[i]
         x0 = np.zeros(self.system.obs_dim)
-        x0[8] = self.target_velocity
+        x0[9] = self.target_velocity
         newcost = QuadCost(self.system, Q, R, F, x0=x0)
         newtask.set_cost(newcost)
         return newtask
