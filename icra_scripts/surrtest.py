@@ -222,7 +222,7 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     true_scores = []
     for cfg in cfgs:
         torch.manual_seed(eval_seed)
-        controller, model = pipeline(controller, model, sysid_trajs)
+        controller, model = pipeline(cfg, model, sysid_trajs)
         surr_scores = []
         _, true_score = eval_cfg(controller, model, surrogates[0])
         true_scores.append(true_score)

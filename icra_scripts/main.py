@@ -24,6 +24,7 @@ from sysid2 import runexp_sysid2
 from tuning1 import runexp_tuning1
 from surrtest import runexp_surrtest
 from decoupled1 import runexp_decoupled1
+from controllers import runexp_controllers
 from cost_tuning import runexp_cost_tuning
 from utils import *
 
@@ -106,10 +107,10 @@ def main(args):
     elif args.command == "controllers":
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
-        result = runexp_tuning1(pipeline, tinf, tune_iters=args.tuneiters,
+        result = runexp_controllers(pipeline, tinf, tune_iters=args.tuneiters,
                 seed=args.seed, int_file=args.intfile, simsteps=args.simsteps)
-        save_result(result, "tuning1", args.task, args.pipeline,
-                args.tuneiters, args.seed)
+        save_result(result, "controllers", args.task, args.pipeline,
+                args.tuneiters, args.controller, args.seed)
 
     else:
         raise ValueError("Command not recognized.")
@@ -125,5 +126,6 @@ if __name__ == "__main__":
     parser.add_argument("--subexp", default=1, type=int)
     parser.add_argument("--intfile", default=None, type=str)
     parser.add_argument("--simsteps", default=200, type=int)
+    parser.add_argument("--controller", default="", type=str)
     args = parser.parse_args()
     main(args)

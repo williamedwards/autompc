@@ -250,7 +250,7 @@ def run_experiment(model_name, controller_name, init_state):
     cost2 = QuadCost(cartpole, Q2, R2, F2)
     task1.set_cost(cost)
     task1.set_ctrl_bound("u", -20, 20)
-    def perf_metric(traj, threshold=0.1):
+    def perf_metric(traj, threshold=0.2):
         cost = 0.0
         for i in range(len(traj)):
             if la.norm(traj[i].obs, 2) > threshold:

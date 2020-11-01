@@ -16,7 +16,8 @@ def make_figure_sysid1():
     models = [("ARX", "arx"), ("Koopman", "koop"),
             ("SINDy", "sindy"), ("MLP", "mlp")]
     tasks = [("Pendulum swing-up", "pendulum-swingup"),
-            ( "Cartpole swing-up", "cartpole-swingup")]
+            ( "Cartpole swing-up", "cartpole-swingup"),
+            ("HalfCheetah", "halfcheetah")]
     settings = [
             ["cartpole-swingup", "arx", 10, 42],
             ["cartpole-swingup", "mlp", 100, 42],
@@ -27,7 +28,13 @@ def make_figure_sysid1():
             ["pendulum-swingup", "mlp", 100, 42],
             ["pendulum-swingup", "koop", 40, 42],
             ["pendulum-swingup", "sindy", 100, 42],
-            ["pendulum-swingup", "approxgp", 100, 42]]
+            ["pendulum-swingup", "approxgp", 100, 42],
+            ["halfcheetah", "arx", 9, 42],
+            ["halfcheetah", "mlp", 100, 42],
+            ["halfcheetah", "koop", 40, 42],
+            ["halfcheetah", "sindy", 40, 42],
+            ["halfcheetah", "approxgp", 100, 42],
+            ]
     print("SysID Figure")
     print("============")
     print("SystemID ", end="")
@@ -66,25 +73,25 @@ def make_figure_cost_tuning():
     plt.show()
 
 def make_figure_tuning1():
-    #experiments = [
-    #        (("MLP-iLQR", "Pendulum"),
-    #         ("pendulum-swingup", "mlp-ilqr", 100, 42)),
-    #        (("MLP-iLQR", "Cartpole"),
-    #         ("cartpole-swingup", "mlp-ilqr", 100, 42)),
+    experiments = [
+            (("MLP-iLQR", "Pendulum"),
+             ("pendulum-swingup", "mlp-ilqr", 100, 42)),
+            (("MLP-iLQR", "Cartpole"),
+             ("cartpole-swingup", "mlp-ilqr", 100, 42))]
     #        (("MLP-iLQR", "Acrobot"),
     #            ("acrobot-swingup", "mlp-ilqr", 100, 42))
     #        ]
-    experiments = [
-            (("MLP-iLQR", "Half-Cheetah"),
-             ("halfcheetah", "mlp-ilqr", 100, 42)),
-            ]
-    #bcq_baselines = [24, 37, 1000]
-    bcq_baselines = [-1000]
+    #experiments = [
+    #        (("MLP-iLQR", "Half-Cheetah"),
+    #         ("halfcheetah", "mlp-ilqr", 100, 42)),
+    #        ]
+    bcq_baselines = [73, 130]
+    #bcq_baselines = [200]
     for i, ((pipeline_label, task_label), setting) in enumerate(experiments):
-        #if not result_exists("tuning1", *setting):
-        #    print(f"Skipping {pipeline_label}, {task_label}")
-        #    continue
-        #result = load_result("tuning1", *setting)
+        if not result_exists("tuning1", *setting):
+            print(f"Skipping {pipeline_label}, {task_label}")
+            continue
+        result = load_result("tuning1", *setting)
 
         matplotlib.rcParams.update({'font.size': 12})
         fig = plt.figure(figsize=(4,4))
@@ -101,14 +108,66 @@ def make_figure_tuning1():
         #    ax.plot(perfs)
         #    labels.append(label)
         #ax.legend(labels)
-        #perfs = [cost for cost in result["inc_costs"]]
-        perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*25
+        perfs = [cost for cost in result["inc_costs"]]
+        #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*68
         print(f"{perfs=}")
         ax.plot(perfs)
         ax.plot([0, len(perfs)], [bcq_baselines[i], bcq_baselines[i]], "r--") 
         ax.legend(["Ours", "BCQ Baseline"])
         plt.tight_layout()
         plt.show()
+
+def make_figure_cartpole_final():
+    experiments = [
+            (("MLP-iLQR", "Half-Cheetah"),
+             ("halfcheetah", "mlp-ilqr", 100, 42)),
+            ]
+    #bcq_baselines = [24, 37, 1000]
+    baselines = [83]
+    experiments = [
+            (("Tune SysID on Data", "Cartpole Swingup"),
+                ("sysid2", "cartpole-swingup", 
+                    "mlp-ilqr", 2, 100, 42)),
+            (("Tune SysID on Perf.", "Cartpole Swingup"),
+                ("sysid2", "cartpole-swingup", 
+                    "mlp-ilqr", 3, 100, 42)),
+            (("Tune Obj/Opt, Pre-tuned SysID", "Cartpole Swingup"),
+                ("decoupled1", "cartpole-swingup", 
+                    "mlp-ilqr", 100, 42)),
+            (("Full Pipeline Tune", "Cartpole Swingup"),
+                ("tuning1", "cartpole-swingup", 
+                    "mlp-ilqr", 100, 42))
+            ]
+
+    matplotlib.rcParams.update({'font.size': 12})
+    fig = plt.figure(figsize=(6,4))
+    ax = fig.gca()
+    ax.set_title("Tuning MLP-iLQR on Cartpole")
+    ax.set_xlabel("Tuning iterations")
+    ax.set_ylabel("True Dyn Perf.")
+    labels = []
+    for i, ((label1, label2), setting) in enumerate(experiments):
+        #labels = []
+        #for label, value in baselines:
+        #    ax.plot([0.0, n_iters], [value, value], "--")
+        #    labels.append(label)
+        #for label, res in tuning_results:
+        #    perfs = [-cost for cost in res["inc_truedyn_costs"]]
+        #    ax.plot(perfs)
+        #    labels.append(label)
+        #ax.legend(labels)
+        result = load_result(setting[0], *setting[1:])
+        if isinstance(result, tuple):
+            result = result[0]
+        perfs = [cost for cost in result["inc_truedyn_costs"]]
+        print(f"{perfs=}")
+        ax.plot(perfs)
+        labels.append(label1)
+    ax.plot([0, len(perfs)], [baselines[0], baselines[0]], "r--") 
+    ax.legend(labels + ["Hand-tuned Baseline"], prop={'size':11})
+    plt.tight_layout()
+    plt.show()
+
 
 def make_figure_decoupled1():
     result = load_result("decoupled1", "cartpole-swingup", "mlp-ilqr", 100,
@@ -117,7 +176,7 @@ def make_figure_decoupled1():
     matplotlib.rcParams.update({'font.size': 12})
     fig = plt.figure(figsize=(4,4))
     ax = fig.gca()
-    ax.set_title(f"MLP-iLQR on Half-cheetah")
+    ax.set_title(f"MLP-iLQR on Cartpole")
     ax.set_xlabel("Tuning iterations")
     ax.set_ylabel("True Perf.")
     #labels = []
@@ -130,7 +189,7 @@ def make_figure_decoupled1():
     #    labels.append(label)
     #ax.legend(labels)
     #perfs = [cost for cost in result["inc_costs"]]
-    perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*25
+    #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*25
     print(f"{perfs=}")
     ax.plot(perfs)
     ax.plot([0, len(perfs)], [37, 37], "r--") 
@@ -185,6 +244,8 @@ def main(command):
         make_figure_cost_tuning()
     elif command == "decoupled":
         make_figure_decoupled1()
+    elif command == "cartpole-final":
+        make_figure_cartpole_final()
     else:
         raise Exception("Unrecognized command")
 
