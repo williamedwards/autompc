@@ -7,7 +7,9 @@ import numpy.linalg as la
 from control.matlab import dare
 
 from ConfigSpace import ConfigurationSpace
-from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
+from ConfigSpace.hyperparameters import (UniformIntegerHyperparameter, 
+        CategoricalHyperparameter)
+import ConfigSpace.conditions as CSC
 
 from ..controller import Controller
 
@@ -68,7 +70,7 @@ class InfiniteHorizonLQR(Controller):
         super().__init__(system, task, model)
         A, B = model.to_linear()
         state_dim = model.state_dim
-        Q, R, F = task.get_quad_cost()
+        Q, R, F = task.get_cost().get_cost_matrices()
         Qp = np.zeros((state_dim, state_dim))
         Qp[:Q.shape[0], :Q.shape[1]] = Q
         X, L, K = dare(A, B, Qp, R)
@@ -102,7 +104,7 @@ class InfiniteHorizonLQR(Controller):
         # Implement control logic here
         modelstate = self.model.update_state(state[:-self.system.ctrl_dim],
                 state[-self.system.ctrl_dim:], new_obs)
-        u = self.K @ modelstate
+        u = np.array(self.K @ modelstate).flatten()
         print("state={}".format(state))
         print("u={}".format(u))
         print("state_cost={}".format(modelstate.T @ self.Qp @ modelstate))
@@ -173,3 +175,44 @@ class FiniteHorizonLQR(Controller):
         statenew = np.concatenate([modelstate, u])
 
         return u, statenew
+
+class LQR(Controller):
+    def __init__(self, system, task, model, finite_horizon, horizon=None):
+        if not isinstance(finite_horizon, bool):
+            finite_horizon = True if finite_horizon == "true" else False
+        if finite_horizon:
+            self._controller = FiniteHorizonLQR(system, task, model, horizon)
+        else:
+            self._controller = InfiniteHorizonLQR(system, task, model)
+
+    @staticmethod
+    def get_configuration_space(system, task, model):
+        cs = ConfigurationSpace()
+        finite_horizon = CategoricalHyperparameter(name="finite_horizon",
+                choices=["true", "false"], default_value="true")
+        horizon = UniformIntegerHyperparameter(name="horizon",
+                lower=1, upper=1000, default_value=10)
+        use_horizon = CSC.InCondition(child=horizon, parent=finite_horizon,
+                values=["true"])
+        cs.add_hyperparameters([horizon, finite_horizon])
+        cs.add_condition(use_horizon)
+        return cs
+
+    @property
+    def state_dim(self):
+        return self._controller.state_dim
+
+    @staticmethod
+    def is_compatible(system, task, model):
+        return (model.is_linear 
+                and task.is_cost_quad()
+                and not task.are_obs_bounded()
+                #and not task.are_ctrl_bounded()
+                and not task.eq_cons_present()
+                and not task.ineq_cons_present())
+
+    def traj_to_state(self, traj):
+        return self._controller.traj_to_state(traj)
+
+    def run(self, state, new_obs):
+        return self._controller.run(state, new_obs)

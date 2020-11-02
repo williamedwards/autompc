@@ -4,6 +4,8 @@ from ..constraint import Constraint
 from ..hyper import IntRangeHyperparam
 from ..cost import Cost
 from pdb import set_trace
+import ConfigSpace as CS
+import ConfigSpace.hyperparameters as CSH
 
 import cvxpy as cp
 import numpy as np
@@ -86,7 +88,7 @@ class NonLinearMPCProblem(TrajOptProblem):
     """Just write the NonLinear MPC problem in the OptProblem style.
     """
     def __init__(self, system, model, task, horizon):
-        assert task.is_cost_diff()
+        assert task.get_cost().is_diff()
         self.system = system
         self.task = task
         self.model = model
@@ -96,8 +98,10 @@ class NonLinearMPCProblem(TrajOptProblem):
         self.ctrl_dim = dc
         self.obs_dim = ds
         # now I can get the size of the problem
+        eq_cons = task.get_eq_constraints()
+        ineq_cons = task.get_eq_constraints()
         nx = ds * (horizon + 1) + dc * horizon  # x0 to xN, u0 to u_{N-1}
-        nf = horizon * (task.eq_cons_dim + task.ineq_cons_dim) + horizon * ds  # for dynamics and other constraints
+        nf = horizon * (eq_cons.dim + ineq_cons.dim) + horizon * ds  # for dynamics and other constraints
         TrajOptProblem.__init__(self, nx, nf)
         self._create_cache()
 
@@ -122,14 +126,14 @@ class NonLinearMPCProblem(TrajOptProblem):
 
     def get_cost(self, x):
         # compute the cost function, not sure how it's gonna be written though
-        add_obs_cost, add_ctrl_cost, term_obs_cost = self.task.get_costs_diff()
+        cost = self.task.get_cost()
         self._x[:] = x  # copy contents in
         dt = self.system.dt
-        tc, _ = term_obs_cost(self._state[-1])
+        tc = cost.eval_term_obs_cost(self._state[-1])
         for i in range(self.horizon + 1):
-            tc += add_obs_cost(self._state[i])[0] * dt
+            tc += cost.eval_obs_cost(self._state[i]) * dt
         for i in range(self.horizon):
-            tc += add_ctrl_cost(self._ctrl[i])[0] * dt
+            tc += cost.eval_ctrl_cost(self._ctrl[i]) * dt
         return tc
 
     def get_gradient(self, x):
@@ -137,15 +141,15 @@ class NonLinearMPCProblem(TrajOptProblem):
         self._x[:] = x
         self._grad[:] = 0  # reset just in case
         # terminal one
-        add_obs_cost, add_ctrl_cost, term_obs_cost = self.task.get_costs_diff()
-        _, gradtc = term_obs_cost(self._state[-1])
+        cost = self.task.get_cost()
+        _, gradtc = cost.eval_term_obs_cost_diff(self._state[-1])
         self._grad_state[-1] = gradtc
         dt = self.system.dt
         for i in range(self.horizon + 1):
-            _, gradx = add_obs_cost(self._state[i])
+            _, gradx = cost.eval_obs_cost_diff(self._state[i])
             self._grad_state[i] += gradx * dt
         for i in range(self.horizon):
-            _, gradu = add_ctrl_cost(self._ctrl[i])
+            _, gradu = cost.eval_ctrl_cost_diff(self._ctrl[i])
             self._grad_ctrl[i] = gradu * dt
         return self._grad
 
@@ -158,11 +162,13 @@ class NonLinearMPCProblem(TrajOptProblem):
             self._c_dyn[i] = -self._state[i + 1] + self.model.pred(self._state[i], self._ctrl[i])
         # then path constraints
         cr = 0  # means currow
+        eq_cons = self.task.get_eq_constraints()
+        ineq_cons = self.task.get_ineq_constraints()
         for i in range(self.horizon):
-            v, j = self.task.eval_diff_eq_cons(self._state[1 + i])
+            v, j = eq_cons.eval_diff(self._state[1 + i])
             self._c[cr: cr + v.size] = v
             cr += v.size
-            v2, j2 = self.task.eval_diff_ineq_cons(self._state[1 + i])
+            v2, j2 = ineq_cons.eval_diff(self._state[1 + i])
             self._c[cr: cr + v2.size] = v2
             cr += v2.size
         # currently we do not have terminal constraint so let it be, we will come back later
@@ -173,12 +179,14 @@ class NonLinearMPCProblem(TrajOptProblem):
         clb, cub = np.zeros((2, self.dimc))
         # start from terminal_constrs
         cr = 0
+        eq_cons = self.task.get_eq_constraints()
+        ineq_cons = self.task.get_eq_constraints()
         for i in range(self.horizon):
             # v, j = self.task.eval_diff_eq_cons(obs[1 + i])
             # self._c[cr: cr + v.size] = v
-            cr += self.task.eq_cons_dim
+            cr += eq_cons.dim
             # v2, j2 = self.task.eval_diff_ineq_cons(obs[1 + i])
-            crv = cr + self.task.ineq_cons_dim
+            crv = cr + ineq_cons.dim
             clb[cr: crv] = -1e10
             cr = crv
         return clb, cub
@@ -218,16 +226,18 @@ class NonLinearMPCProblem(TrajOptProblem):
             row = []
             col = []
             # just routinely evalute equality and inequality constraints
-            rowjac1, coljac1 = self._dense_to_rowcol((self.task.eq_cons_dim, dims), 0, 0)
-            rowjac2, coljac2 = self._dense_to_rowcol((self.task.ineq_cons_dim, dims), 0, 0)
+            eq_cons = self.task.get_eq_constraints()
+            ineq_cons = self.task.get_eq_constraints()
+            rowjac1, coljac1 = self._dense_to_rowcol((eq_cons.dim, dims), 0, 0)
+            rowjac2, coljac2 = self._dense_to_rowcol((ineq_cons.dim, dims), 0, 0)
             base_x_idx = dims  # starts from the second point...
             for i in range(self.horizon):
                 row.append(rowjac1 + cr)
                 col.append(coljac1 + base_x_idx + i * dims)
-                cr += self.task.eq_cons_dim
+                cr += eq_cons.dim
                 row.append(rowjac2 + cr)
                 col.append(coljac2 + base_x_idx + i * dims)
-                cr += self.task.ineq_cons_dim
+                cr += ineq_cons.dim
             # finally for dynamics
             _, mat1, mat2 = self.model.pred_diff(self._state[0], self._ctrl[0])
             srowptn, scolptn = self._dense_to_rowcol(mat1.shape, 0, 0)
@@ -253,11 +263,13 @@ class NonLinearMPCProblem(TrajOptProblem):
             # for terminal constraints first
             ###### Placeholder for terminal constraints
             # then other point constraints
+            eq_cons = self.task.get_eq_constraints()
+            ineq_cons = self.task.get_ineq_constraints()
             for i in range(self.horizon):
-                v, j = self.task.eval_diff_eq_cons(self._state[1 + i])
+                v, j = eq_cons.eval_diff(self._state[1 + i])
                 self._jac[cg: cg + j.size] = j.flat
                 cg += j.size
-                v2, j2 = self.task.eval_diff_ineq_cons(self._state[1 + i])
+                v2, j2 = ineq_cons.eval_diff(self._state[1 + i])
                 self._jac[cg: cg + j2.size] = j2.flat
                 cg += j2.size
             # finally for dynamics
@@ -311,7 +323,7 @@ class NonLinearMPC(Controller):
     """
     def __init__(self, system, model, task, horizon):
         # I prefer type checking, but clearly current API does not allow me so
-        Controller.__init__(self, system, task, model)
+        Controller.__init__(self, system, model, task)
         self.horizon = int(np.ceil(horizon / system.dt))
         self._built = False
         self._guess = None
@@ -334,7 +346,7 @@ class NonLinearMPC(Controller):
             self._build_problem()
         dims = self.problem.obs_dim
         self.wrapper.get_xlb()[:dims] = self.wrapper.get_xub()[:dims] = x0  # so I set this one
-        config = OptConfig(backend='ipopt', print_level=0)
+        config = OptConfig(backend='ipopt', print_level=5, opt_tol=1e-3)
         solver = OptSolver(self.wrapper, config)
         if self._guess is None:
             rst = solver.solve_rand()
@@ -348,9 +360,9 @@ class NonLinearMPC(Controller):
 
     @staticmethod
     def get_configuration_space(system, task, model):
-        cs = ConfigurationSpace()
-        horizon = UniformIntegerHyperparameter(name="horizon",
-                lower=1, upper=100, default_value=10)
+        cs = CS.ConfigurationSpace()
+        horizon = CSH.UniformIntegerHyperparameter(name="horizon",
+                lower=1, upper=30, default_value=10)
         cs.add_hyperparameter(horizon)
         return cs
 

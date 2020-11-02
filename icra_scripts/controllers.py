@@ -13,10 +13,11 @@ memory = Memory("cache")
 
 # Internal project includes
 import autompc as ampc
+import sys
 from autompc.evaluators import FixedSetEvaluator
 from autompc.metrics import RmseKstepMetric
-from autompc.sysid import MLP, SINDy
-from autompc.control import FiniteHorizonLQR, IterativeLQR, NonLinearMPC, MPPI
+from autompc.sysid import MLP, SINDy, LinearizedModel
+from autompc.control import FiniteHorizonLQR, IterativeLQR, NonLinearMPC, MPPI, LQR
 from autompc.tasks import QuadCost, Task
 
 
@@ -135,6 +136,10 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
     model = make_sysid(tinf.system, sysid_trajs)
     if controller_name == "ilqr":
         Controller = IterativeLQR
+    elif controller_name == "lqr":
+        Controller = LQR
+        model = LinearizedModel(tinf.system, np.zeros(tinf.system.obs_dim),
+                model)
     elif controller_name == "dt":
         Controller = NonLinearMPC
 
@@ -149,8 +154,10 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
 
 
     def eval_cfg(cfg):
+        print("Making controller")
         controller = ampc.make_controller(tinf.system, task, model, Controller,
                 cfg)
+        print("Entering simulation")
         surr_traj = runsim(tinf, simsteps, surrogate, controller)
         truedyn_traj = runsim(tinf, simsteps, None, controller, tinf.dynamics)
         surr_score = tinf.perf_metric(surr_traj)
@@ -163,6 +170,12 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
                 print("==========\n\n", file=f)
         return surr_score, truedyn_score
 
-    result = run_smac(Controller.get_configuration_space(tinf.system, task, model), 
-            eval_cfg, tune_iters, rng.integers(1 << 30))
+    # Debug
+    cs = Controller.get_configuration_space(tinf.system, task, model)
+    #cfg = cs.get_default_configuration()
+    #cfg["finite_horizon"] = "false"
+    #eval_cfg(cfg)
+    #sys.exit(0)
+
+    result = run_smac(cs, eval_cfg, tune_iters, rng.integers(1 << 30))
     return result

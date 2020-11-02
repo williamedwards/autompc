@@ -66,7 +66,10 @@ class Constraints:
             val, jac = cons.eval_diff(state)
             vals.append(val)
             jacs.append(jac)
-        return np.concatenate(vals), np.concatenate(jacs)
+        if len(vals) > 0:
+            return np.concatenate(vals), np.concatenate(jacs)
+        else:
+            return np.array([]), np.array([[]])
 
     def get_matrix(self):
         if not self.is_affine():

@@ -1,6 +1,6 @@
 from .example import ExampleController
 from .mpc import LinearMPC
-from .lqr import FiniteHorizonLQR, InfiniteHorizonLQR
+from .lqr import LQR, FiniteHorizonLQR, InfiniteHorizonLQR
 from .ilqr import IterativeLQR
 from .nmpc import NonLinearMPC
 from .mppi import MPPI
