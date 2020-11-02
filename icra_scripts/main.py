@@ -108,7 +108,8 @@ def main(args):
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
         result = runexp_controllers(pipeline, tinf, tune_iters=args.tuneiters,
-                seed=args.seed, int_file=args.intfile, simsteps=args.simsteps)
+                seed=args.seed, int_file=args.intfile, simsteps=args.simsteps,
+                controller_name=args.controller)
         save_result(result, "controllers", args.task, args.pipeline,
                 args.tuneiters, args.controller, args.seed)
 

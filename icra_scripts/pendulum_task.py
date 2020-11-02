@@ -15,6 +15,8 @@ import autompc as ampc
 from autompc.tasks import Task, QuadCost
 
 from collections import namedtuple
+from joblib import Memory
+memory = Memory("cache")
 
 TaskInfo = namedtuple("TaskInfo", ["name", "system", "task", "init_obs", 
     "dynamics", "perf_metric", "gen_sysid_trajs", "gen_surr_trajs"])
@@ -36,6 +38,7 @@ def dt_pendulum_dynamics(y,u,dt,g=9.8,m=1,L=1,b=0.1):
     y[0] -= np.pi
     return sol.y.reshape((2,))
 
+@memory.cache
 def gen_trajs(traj_len, num_trajs, dt, seed=42,
         init_min = [-1.0, 0.0], init_max=[1.0, 0.0],
         umin=-2.0, umax=2.0):
