@@ -73,30 +73,30 @@ def make_figure_cost_tuning():
     plt.show()
 
 def make_figure_tuning1():
-    experiments = [
-            (("MLP-iLQR", "Pendulum"),
-             ("pendulum-swingup", "mlp-ilqr", 100, 42)),
-            (("MLP-iLQR", "Cartpole"),
-             ("cartpole-swingup", "mlp-ilqr", 100, 42))]
-    #        (("MLP-iLQR", "Acrobot"),
-    #            ("acrobot-swingup", "mlp-ilqr", 100, 42))
-    #        ]
     #experiments = [
-    #        (("MLP-iLQR", "Half-Cheetah"),
-    #         ("halfcheetah", "mlp-ilqr", 100, 42)),
-    #        ]
-    bcq_baselines = [73, 130]
-    #bcq_baselines = [200]
+    #        (("MLP-iLQR-Quad", "Pendulum"),
+    #         ("pendulum-swingup", "mlp-ilqr", 100, 42)),
+    #        (("MLP-iLQR-Quad", "Cart-pole"),
+    #         ("cartpole-swingup", "mlp-ilqr", 100, 42))]
+            #(("MLP-iLQR", "Acrobot"),
+            #    ("acrobot-swingup", "mlp-ilqr", 100, 42))
+            #]
+    experiments = [
+            (("MLP-iLQR-CustQuad", "Half-Cheetah"),
+             ("halfcheetah", "mlp-ilqr", 100, 42)),
+            ]
+    #bcq_baselines = [73, 148]
+    bcq_baselines = [200]
     for i, ((pipeline_label, task_label), setting) in enumerate(experiments):
-        if not result_exists("tuning1", *setting):
-            print(f"Skipping {pipeline_label}, {task_label}")
-            continue
-        result = load_result("tuning1", *setting)
+        #if not result_exists("tuning1", *setting):
+        #    print(f"Skipping {pipeline_label}, {task_label}")
+        #    continue
+        #result = load_result("tuning1", *setting)
 
-        matplotlib.rcParams.update({'font.size': 12})
+        matplotlib.rcParams.update({'font.size': 17})
         fig = plt.figure(figsize=(4,4))
         ax = fig.gca()
-        ax.set_title(f"{pipeline_label} on {task_label}")
+        ax.set_title(f"Tuning {task_label}")
         ax.set_xlabel("Tuning iterations")
         ax.set_ylabel("True Perf.")
         #labels = []
@@ -108,12 +108,12 @@ def make_figure_tuning1():
         #    ax.plot(perfs)
         #    labels.append(label)
         #ax.legend(labels)
-        perfs = [cost for cost in result["inc_costs"]]
-        #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*68
+        #perfs = [cost for cost in result["inc_costs"]]
+        perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*68
         print(f"{perfs=}")
         ax.plot(perfs)
         ax.plot([0, len(perfs)], [bcq_baselines[i], bcq_baselines[i]], "r--") 
-        ax.legend(["Ours", "BCQ Baseline"])
+        ax.legend(["Ours", "BCQ"], prop={"size":16})
         plt.tight_layout()
         plt.show()
 
@@ -142,7 +142,7 @@ def make_figure_cartpole_final():
     matplotlib.rcParams.update({'font.size': 12})
     fig = plt.figure(figsize=(6,4))
     ax = fig.gca()
-    ax.set_title("Tuning MLP-iLQR on Cartpole")
+    ax.set_title("Tuning MLP-iLQR-Quad on Cartpole")
     ax.set_xlabel("Tuning iterations")
     ax.set_ylabel("True Dyn Perf.")
     labels = []
@@ -232,6 +232,41 @@ def make_figure_sysid2():
     plt.tight_layout()
     plt.show()
 
+def make_figure_surrtest():
+    #setting = ("cartpole-swingup", "mlp-ilqr", 5, 42)
+    true_scores =[201.0, 43.0, 49.0, 49.0, 125.0, 180.0, 39.0, 67.0] 
+    surr_scoress = [
+        [201.0, 201.0, 201.0, 201.0, 201.0, 201.0, 201.0, 201.0, 201.0, 201.0], 
+        [39.0, 41.0, 43.0, 41.0, 43.0, 43.0, 44.0, 38.0, 43.0, 43.0], 
+        [53.0, 51.0, 57.0, 54.0, 51.0, 49.0, 57.0, 50.0, 50.0, 56.0], 
+        [53.0, 51.0, 57.0, 54.0, 51.0, 49.0, 57.0, 50.0, 50.0, 56.0], 
+        [181.0, 155.0, 148.0, 161.0, 174.0, 150.0, 149.0, 133.0, 173.0, 141.0], 
+        [201.0, 166.0, 201.0, 201.0, 201.0, 127.0, 201.0, 199.0, 201.0, 185.0], 
+        [40.0, 39.0, 39.0, 38.0, 41.0, 39.0, 40.0, 41.0, 40.0, 40.0],
+        [104.0, 54.0, 122.0, 56.0, 124.0, 120.0, 62.0, 118.0, 64.0, 130.0]
+        ]
+    medians = []
+    errs = np.zeros((2, len(surr_scoress)))
+    for i, surr_scores in enumerate(surr_scoress):
+        surr_scores.sort()
+        medians.append(surr_scores[5])
+        errs[1, i] = surr_scores[7] - surr_scores[5]
+        errs[0, i] = surr_scores[5] - surr_scores[2]
+
+
+    fig = plt.figure(figsize=(4,4))
+    ax = fig.gca()
+    ax.set_title("Surr. vs True for MLP-iLQR-Quad on Cart-Pole")
+    ax.set_xlabel("Surrogate Perf")
+    ax.set_ylabel("True Perf")
+    ax.errorbar(medians, true_scores, xerr=errs, fmt="yo", ecolor="k",
+        capsize=2)
+
+    xmin, xmax = ax.get_xlim()
+    ax.plot([xmin, xmax], [xmin, xmax], "--", color="grey")
+
+    plt.tight_layout()
+    plt.show()
 
 def main(command):
     if command == "sysid1":
@@ -246,6 +281,8 @@ def main(command):
         make_figure_decoupled1()
     elif command == "cartpole-final":
         make_figure_cartpole_final()
+    elif command == "surrtest":
+        make_figure_surrtest()
     else:
         raise Exception("Unrecognized command")
 

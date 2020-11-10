@@ -26,24 +26,39 @@ class MultivariateNormal:
 
 
 class MPPI:
-    def __init__(self, dyn_eqn, cost_eqn, terminal_cost, model, **kwargs):
+    def __init__(self, system, task, model, **kwargs):
+    #def __init__(self, dyn_eqn, cost_eqn, terminal_cost, model, **kwargs):
         self.model = model
-        self.dyn_eqn = dyn_eqn
+        self.dyn_eqn = model.pred_parallel
+        cost = task.get_cost()
+        def cost_eqn(path, actions):
+            costs = np.zeros(path.shape[0])
+            for i in range(path.shape[0]):
+                costs[i] += cost.eval_obs_cost(path[i,:])
+                costs[i] += cost.eval_ctrl_cost(actions[i,:])
+            return costs
+        def terminal_cost(path):
+            return cost.eval_term_obs_cost(path[-1])
         self.cost_eqn = cost_eqn
         self.terminal_cost = terminal_cost
         system = model.system
         self.dim_state, self.dim_ctrl = system.obs_dim, system.ctrl_dim
         self.seed = kwargs.get('seed', 0)
-        self.H = kwargs.get('H', 20)
+        self.H = kwargs.get('horizon', 20)
+        print(f"H={self.H}")
         self.num_path = kwargs.get('num_path', 1000)  # how many paths are generated in parallel
+        print(f"num_path={self.num_path}")
         self.num_iter = kwargs.get('niter', 1)
         self.sigma = kwargs.get('sigma', 1)  # sigma of the normal distribution
         self.lmda = kwargs.get('lmda', 1.0)  # scale the cost...
+        print(f"sigma={self.sigma}")
+        print(f"lmda={self.lmda}")
         self.act_sequence = np.zeros((self.H, self.dim_ctrl))  # set initial default action as zero
         self.noise_dist = MultivariateNormal(0, self.sigma)
         self.act_sequence = self.noise_dist.sample((self.H,))
-        self.umin = kwargs.get('umin', None)
-        self.umax = kwargs.get('umax', None)
+        self.umin = task.get_ctrl_bounds()[:,0]
+        self.umax = task.get_ctrl_bounds()[:,1]
+        self.ctrl_scale = self.umax
         # for the seed
         self.cur_step = 0
         self.niter = 1
@@ -76,13 +91,14 @@ class MPPI:
             actions = eps[i] + self.act_sequence[i]
             # bound actions if necessary
             if self.umin is not None and self.umax is not None:
-                actions = np.minimum(self.umax, np.maximum(self.umin, actions))
+                actions = np.minimum(self.umax/self.ctrl_scale, 
+                        np.maximum(self.umin/self.ctrl_scale, actions))
                 eps[i] = actions - self.act_sequence[i]
             # costs += self.cost_eqn(path[i], actions) + self.lmda / self.sigma * np.einsum('ij,ij->i', actions, eps[i])
             # path[i + 1] = self.dyn_eqn(path[i], actions)
-            costs += self.cost_eqn(path, actions)
+            costs += self.cost_eqn(path, actions*self.ctrl_scale)
             action_cost += self.lmda / self.sigma * np.einsum('ij,ij->i', actions, eps[i])
-            path = self.dyn_eqn(path, actions)
+            path = self.dyn_eqn(path, actions*self.ctrl_scale)
         # the final cost
         if self.terminal_cost:
             # costs += self.terminal_cost(path[-1])
@@ -92,9 +108,16 @@ class MPPI:
         # import pdb; pdb.set_trace()
         return costs, eps
 
-    def run(self, traj, latent=None):
+    @property
+    def state_dim(self):
+        return 0
+
+    def traj_to_state(self, traj):
+        return np.array([])
+
+    def run(self, constate, new_obs):
         # first is to extract current state
-        x0 = self.model.traj_to_state(traj)
+        x0 = new_obs
         # then collect trajectories...
         for _ in range(self.niter):
             costs, eps = self.do_rollouts(x0, self.seed + self.cur_step)
@@ -102,7 +125,8 @@ class MPPI:
         self.cur_step += 1
         # update the cached action sequence
         ret_action = self.act_sequence[0].copy()
-        return ret_action, None
+        ret_action *= self.ctrl_scale
+        return ret_action, np.array([])
 
     def traj_to_state(self, traj):
         return self.model.traj_to_state(traj)
@@ -115,12 +139,17 @@ class MPPI:
     def get_configuration_space(system, task, model):
         cs = CS.ConfigurationSpace()
         horizon = CSH.UniformIntegerHyperparameter(name="horizon",
-                lower=10, upper=100, default_value=10)
+                lower=5, upper=30, default_value=20)
         cs.add_hyperparameter(horizon)
-        kappa = CSH.UniformFloatHyperparameter(name='kappa', lower=0.1, upper=1.0, default_value=1.0)
-        cs.add_hyperparameter(kappa)
-        num_traj = CSH.UniformIntegerHyperparameter(name='num_traj', lower=100, upper=1000, default_value=200)
-        cs.add_hyperparameter(num_traj)
+        sigma = CSH.UniformFloatHyperparameter(name='sigma', lower=0.1, upper=2.0, 
+                default_value=1.0)
+        cs.add_hyperparameter(sigma)
+        lmda = CSH.UniformFloatHyperparameter(name='lmda', lower=0.1, upper=2.0, 
+                default_value=1.0)
+        cs.add_hyperparameter(lmda)
+        num_path = CSH.UniformIntegerHyperparameter(name='num_path', lower=100, 
+                upper=1000, default_value=200)
+        cs.add_hyperparameter(num_path)
         return cs
 
     @staticmethod

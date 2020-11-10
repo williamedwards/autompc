@@ -346,7 +346,8 @@ class NonLinearMPC(Controller):
             self._build_problem()
         dims = self.problem.obs_dim
         self.wrapper.get_xlb()[:dims] = self.wrapper.get_xub()[:dims] = x0  # so I set this one
-        config = OptConfig(backend='ipopt', print_level=5, opt_tol=1e-3)
+        config = OptConfig(backend='ipopt', print_level=5, opt_tol=1e-3,
+                max_iter=100)
         solver = OptSolver(self.wrapper, config)
         if self._guess is None:
             rst = solver.solve_rand()

@@ -7,6 +7,8 @@ import numpy as np
 import torch
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
+#from smac.facade.roar_facade import ROAR
+from smac.intensification.successive_halving import SuccessiveHalving
 from joblib import Memory
 from pdb import set_trace
 memory = Memory("cache")
@@ -48,6 +50,7 @@ def train_mlp(system, trajs):
     return model
 
 def runsim(tinf, simsteps, sim_model, controller, dynamics=None):
+    print("Enetering RunSim")
     sim_traj = ampc.zeros(tinf.system, 1)
     x = np.copy(tinf.init_obs)
     sim_traj[0].obs[:] = x
@@ -77,8 +80,14 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
                          "execdir" : "./smac"
                          })
 
+    intensifier_kwargs = {'initial_budget': 5, 'max_budget': 25, 'eta': 3,
+                              'min_chall': 1, 'instance_order': 'shuffle_once'}
+
     smac = SMAC4HPO(scenario=scenario, rng=rng,
-            tae_runner=eval_cfg)
+            tae_runner=eval_cfg) 
+            #intensifier = SuccessiveHalving,
+            #intensifier_kwargs = intensifier_kwargs,
+            #n_jobs=10)
     
     incumbent = smac.optimize()
 
@@ -134,6 +143,7 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
     eval_seed = rng.integers(1 << 30)
 
     model = make_sysid(tinf.system, sysid_trajs)
+    #model = train_mlp(tinf.system, sysid_trajs)
     if controller_name == "ilqr":
         Controller = IterativeLQR
     elif controller_name == "lqr":
@@ -142,12 +152,19 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
                 model)
     elif controller_name == "dt":
         Controller = NonLinearMPC
+    elif controller_name == "mppi":
+        Controller = MPPI
 
 
     # Initialize tuned objecive function
-    Q = np.eye(2)
-    R = 0.001 * np.eye(1)
-    F = np.eye(2)
+    if tinf.name=="Pendulum-Swingup":
+        Q = np.eye(2)
+        R = 0.001 * np.eye(1)
+        F = np.eye(2)
+    elif tinf.name=="CartPole-Swingup":
+        Q = np.eye(4)
+        R = 0.01 * np.eye(1)
+        F = 10.0 * np.eye(4)
     cost = QuadCost(tinf.system, Q, R, F)
     task = tinf.task
     task.set_cost(cost)
@@ -173,7 +190,7 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
     # Debug
     cs = Controller.get_configuration_space(tinf.system, task, model)
     #cfg = cs.get_default_configuration()
-    #cfg["finite_horizon"] = "false"
+    ##cfg["finite_horizon"] = "false"
     #eval_cfg(cfg)
     #sys.exit(0)
 

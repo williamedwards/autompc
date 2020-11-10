@@ -147,6 +147,10 @@ class SINDy(Model):
                 ctrl.reshape((1,ctrl.size)))[0,:]
         return xpred
 
+    def pred_parallel(self, states, ctrls):
+        xpreds = self.model.predict(states, ctrls)
+        return xpreds
+
     def pred_diff(self, state, ctrl):
         xpred = self.model.predict(state.reshape((1,state.size)), 
                 ctrl.reshape((1,ctrl.size)))[0,:]

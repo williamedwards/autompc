@@ -69,6 +69,7 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
 
+    rng.integers(1 << 30)
     torch.manual_seed(rng.integers(1 << 30))
     eval_seed = rng.integers(1 << 30)
 
@@ -78,7 +79,7 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
         surrogate = train_mlp(tinf.system, surr_trajs)
         surrogates.append(surrogate)
 
-    def eval_cfg(controller, model, surrogate, eval_true=True):
+    def eval_cfg(controller, surrogate, eval_true=True):
         surr_traj = runsim(tinf, simsteps, surrogate, controller)
         if eval_true:
             truedyn_traj = runsim(tinf, simsteps, None, controller, tinf.dynamics)
@@ -216,19 +217,42 @@ def runexp_surrtest(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     cfg7["_task_transformer_0:x_log10Fgain"] = -2.125
     cfg7["_task_transformer_0:x_log10Qgain"] = -0.24223917125694516
 
-    cfgs = [cfg1, cfg2, cfg3, cfg3, cfg5, cfg6, cfg7]
+    cfg8 = pipeline.get_configuration_space().get_default_configuration()
+    cfg8["_controller:horizon"] = 21
+    cfg8["_model:n_hidden_layers"] = '4'
+    cfg8["_model:hidden_size_1"] = 84
+    cfg8["_model:hidden_size_2"] = 56
+    cfg8["_model:hidden_size_3"] = 16
+    cfg8["_model:hidden_size_4"] = 104
+    cfg8["_model:lr_log10"] = -1.9033981276100183
+    cfg8["_model:nonlintype"] = 'selu'
+    cfg8["_task_transformer_0:dx_log10Fgain"] = 3.3696258925921327
+    cfg8["_task_transformer_0:dx_log10Qgain"] = -2.194632487556923
+    cfg8["_task_transformer_0:omega_log10Fgain"] = 1.3657341596284427
+    cfg8["_task_transformer_0:omega_log10Qgain"] = -2.133358882125932
+    cfg8["_task_transformer_0:theta_log10Fgain"] = 3.9922873251800253
+    cfg8["_task_transformer_0:theta_log10Qgain"] = -0.4656027648595278
+    cfg8["_task_transformer_0:u_log10Rgain"] = 2.4240761738900503
+    cfg8["_task_transformer_0:x_log10Fgain"] = -2.125
+    cfg8["_task_transformer_0:x_log10Qgain"] = 0.4572362741149525
+
+    #cfgs = [cfg1, cfg2, cfg3, cfg3, cfg5, cfg6, cfg7]
+    cfgs = [cfg8]
 
     surr_scoress = []
     true_scores = []
     for cfg in cfgs:
         torch.manual_seed(eval_seed)
-        controller, model = pipeline(cfg, model, sysid_trajs)
+        controller, model = pipeline(cfg, sysid_trajs)
         surr_scores = []
-        _, true_score = eval_cfg(controller, model, surrogates[0])
+        _, true_score = eval_cfg(controller, surrogates[0])
         true_scores.append(true_score)
         for surrogate in surrogates:
-            surr_score = eval_cfg(cfg, surrogate, eval_true=False)
+            controller, _ = pipeline(cfg, sysid_trajs, model=model)
+            surr_score = eval_cfg(controller, surrogate, eval_true=False)
             surr_scores.append(surr_score)
-        surr_scoress.appen(sur_scores)
+        surr_scoress.append(surr_scores)
 
-    return true_scores, surr_scores
+    set_trace()
+
+    return true_scores, surr_scoress
