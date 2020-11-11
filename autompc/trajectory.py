@@ -63,8 +63,9 @@ class Trajectory:
 
     def __setitem__(self, idx, val):
         if isinstance(idx, tuple):
-            if idx[0] < -self.size or idx[0] >= self.size:
-                raise IndexError("Time index out of range.")
+            if isinstance(idx[0], int):
+                if idx[0] < -self.size or idx[0] >= self.size:
+                    raise IndexError("Time index out of range.")
             if idx[1] in self._system.observations:
                 obs_idx = self._system.observations.index(idx[1])
                 self._obs[idx[0], obs_idx] = val
