@@ -158,8 +158,9 @@ class NonLinearMPCProblem(TrajOptProblem):
         self._x[:] = x
         self._c[:] = 0
         # first compute for dynamics
+        pred_states = self.model.pred_parallel(self._state[:self.horizon], self._ctrl[:self.horizon])
         for i in range(self.horizon):
-            self._c_dyn[i] = -self._state[i + 1] + self.model.pred(self._state[i], self._ctrl[i])
+            self._c_dyn[i] = -self._state[i + 1] + pred_states[i]
         # then path constraints
         cr = 0  # means currow
         eq_cons = self.task.get_eq_constraints()
@@ -273,8 +274,9 @@ class NonLinearMPCProblem(TrajOptProblem):
                 self._jac[cg: cg + j2.size] = j2.flat
                 cg += j2.size
             # finally for dynamics
+            _, matss, matus = self.model.pred_diff_parallel(self._state[:self.horizon], self._ctrl[:self.horizon])
             for i in range(self.horizon):
-                _, mats, matu = self.model.pred_diff(self._state[i], self._ctrl[i])
+                mats, matu = matss[i], matus[i]
                 self._jac[cg: cg + mats.size] = mats.flat
                 cg += mats.size
                 self._jac[cg: cg + matu.size] = matu.flat
@@ -347,7 +349,7 @@ class NonLinearMPC(Controller):
         dims = self.problem.obs_dim
         self.wrapper.get_xlb()[:dims] = self.wrapper.get_xub()[:dims] = x0  # so I set this one
         config = OptConfig(backend='ipopt', print_level=5, opt_tol=1e-3,
-                max_iter=100)
+                max_iter=10)
         solver = OptSolver(self.wrapper, config)
         if self._guess is None:
             rst = solver.solve_rand()

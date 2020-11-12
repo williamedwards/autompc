@@ -190,6 +190,48 @@ class SINDy(Model):
 
         return xpred, state_jac, ctrl_jac
 
+    def pred_diff_parallel(self, states, ctrls):
+        xpred = self.model.predict(states, ctrls)
+        p = states.shape[0]
+        state_jac = np.zeros((p, self.state_dim, self.state_dim))
+        ctrl_jac = np.zeros((p, self.state_dim, self.system.ctrl_dim))
+        coeff = self.model.coefficients()
+        for i in range(self.state_dim):
+            coeff_idx = 0
+            for gr in self.function_gradients:
+                for j in range(self.state_dim):
+                    state_jac[:,i, j] += coeff[i,coeff_idx] * gr(states[:,j])
+                    coeff_idx += 1
+                for j in range(self.system.ctrl_dim):
+                    ctrl_jac[:,i, j] += coeff[i,coeff_idx] * gr(ctrls[:,j])
+                    coeff_idx += 1
+            for gr in self.function_gradients2:
+                for j in range(self.state_dim+self.system.ctrl_dim):
+                    for k in range(j+1, self.state_dim+self.system.ctrl_dim):
+                        if j < self.state_dim:
+                            val1 = states[:,j]
+                        else:
+                            val1 = ctrls[:,j-self.state_dim]
+                        if k < self.state_dim:
+                            val2 = states[:,k]
+                        else:
+                            val2 = ctrls[:,k-self.state_dim]
+                        gr1, gr2 = gr(val1, val2)
+                        if j < self.state_dim:
+                            state_jac[:,i, j] += coeff[i,coeff_idx] * gr1
+                        else:
+                            ctrl_jac[:,i, j-self.state_dim] += coeff[i,coeff_idx] * gr1
+                        if k < self.state_dim:
+                            state_jac[:,i, k] += coeff[i,coeff_idx] * gr2
+                        else:
+                            ctrl_jac[:,i, k-self.state_dim] += coeff[i,coeff_idx] * gr2
+                        coeff_idx += 1
+
+        return xpred, state_jac, ctrl_jac
+
+
+
+
 
     def get_parameters(self):
         return {"A" : np.copy(self.A),

@@ -1,6 +1,7 @@
 # Created by William Edwards
 
 from pdb import set_trace
+import sys
 import numpy as np
 import autompc as ampc
 from autompc.tasks.quad_cost import QuadCost
@@ -97,7 +98,7 @@ from autompc.control import FiniteHorizonLQR, IterativeLQR
 #pipeline = FixedControlPipeline(cartpole, task, Koopman, FiniteHorizonLQR, 
 #    [QuadCostTransformer])
 pipeline = FixedControlPipeline(cartpole, task, MLP, IterativeLQR, 
-    [QuadCostTransformer])
+        [QuadCostTransformer], model_kwargs={"n_train_iters" : 3})
 
 from autompc.control_evaluation import FixedModelEvaluator
 from autompc.control_evaluation import FixedInitialMetric
@@ -167,10 +168,10 @@ if __name__ == "__main__":
             noise_factor=0.1)
     high_noise = NoisyCartpoleModel(cartpole, np.random.default_rng(rng.integers(1 << 30)), 
             noise_factor=0.4)
-    low_data_gp = sample_approx_gp(10, 601)
-    high_data_gp = sample_approx_gp(80, 602)
+    #low_data_gp = sample_approx_gp(10, 601)
+    #high_data_gp = sample_approx_gp(80, 602)
     import torch
-    low_data_mlp = sample_mlp(10, 603)
+    #low_data_mlp = sample_mlp(10, 603)
     high_data_mlp = sample_mlp(80, 604)
     #a = torch.zeros(100000)
     #del a
@@ -182,7 +183,8 @@ if __name__ == "__main__":
     smac.multiprocessing = tmul
     #tmul.set_start_method("spawn")
 
-    surrogates = [("true_dyn", true_dyn),
+    surrogates = [
+            #("true_dyn", true_dyn),
             #("low_noise", low_noise),
             #("high_noise", high_noise),
             #("low_data_gp", low_data_gp),
@@ -200,12 +202,16 @@ if __name__ == "__main__":
 
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
-@memory.cache
-def run_smac(pipeline, label, seed, runcount_limit=5, n_jobs=1):
+#@memory.cache
+def run_smac(pipeline, label, seed, index="", runcount_limit=5, n_jobs=1):
     evaluator = evaluators[label]
     rng = np.random.RandomState(seed)
     cs = pipeline.get_configuration_space()
+    print(f"{runcount_limit=}")
     scenario = Scenario({"run_obj": "quality",  
+                         "shared_model" : True,
+                         "output_dir" : f"smac_out_{index}",
+                         "input_psmac_dirs" : "smac_out_*",
                          "runcount-limit": runcount_limit,  
                          "cs": cs,  
                          "deterministic": "true",
@@ -276,12 +282,13 @@ def reevealuate(smac_retval):
         new_scores.append(score)
     return new_scores
 
-if __name__ == "___main__":
+if __name__ == "__main__":
     rets = []
     for label, _ in surrogates:
         smac_seed = rng.integers(1 << 30)
+        smac_seed += int(sys.argv[1])
         ret = run_smac(pipeline, label, smac_seed, 
-                runcount_limit=100)
+                runcount_limit=20, index=sys.argv[1])
         rets.append(ret)
     from joblib import Parallel, delayed
     #rets = Parallel(n_jobs=10)(delayed(run_smac)(pipeline, label,
