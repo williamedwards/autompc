@@ -112,6 +112,7 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
 
 def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None,
         subexp=1):
+    print(f"{seed=}")
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
     surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
@@ -119,6 +120,7 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None,
     torch.manual_seed(rng.integers(1 << 30))
     surrogate = train_mlp(tinf.system, surr_trajs)
     eval_seed = rng.integers(1 << 30)
+    print(f"{eval_seed=}")
 
     if subexp == 1:
         root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()

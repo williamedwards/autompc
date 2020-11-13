@@ -60,8 +60,9 @@ def perf_metric(traj):
 def gen_trajs(num_trajs=1000, traj_len=1000, seed=42):
     rng = np.random.default_rng(seed)
     trajs = []
+    env.seed(int(rng.integers(1 << 30)))
+    env.action_space.seed(int(rng.integers(1 << 30)))
     for i in range(num_trajs):
-        env.seed(int(rng.integers(1 << 30)))
         init_obs = env.reset()
         traj = ampc.zeros(halfcheetah, traj_len)
         traj[0].obs[:] = np.concatenate([[0], init_obs])

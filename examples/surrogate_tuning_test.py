@@ -134,7 +134,7 @@ def sample_approx_gp(num_trajs, seed):
     model.device = "cpu"
     return model
 
-@memory.cache
+#@memory.cache
 def sample_mlp_inner(num_trajs, seed):
     cs = MLP.get_configuration_space(cartpole)
     cfg = cs.get_default_configuration()
@@ -203,18 +203,17 @@ if __name__ == "__main__":
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
 #@memory.cache
-def run_smac(pipeline, label, seed, index="", runcount_limit=5, n_jobs=1):
+def run_smac(pipeline, label, seed, runcount_limit=5, n_jobs=1):
     evaluator = evaluators[label]
     rng = np.random.RandomState(seed)
     cs = pipeline.get_configuration_space()
     print(f"{runcount_limit=}")
     scenario = Scenario({"run_obj": "quality",  
-                         "shared_model" : True,
-                         "output_dir" : f"smac_out_{index}",
-                         "input_psmac_dirs" : "smac_out_*",
+                         "output_dir" : "smac_out",
                          "runcount-limit": runcount_limit,  
                          "cs": cs,  
                          "deterministic": "true",
+                         "limit_resources" : False,
                          })
 
     eval_cfg = evaluator(pipeline)
@@ -286,9 +285,8 @@ if __name__ == "__main__":
     rets = []
     for label, _ in surrogates:
         smac_seed = rng.integers(1 << 30)
-        smac_seed += int(sys.argv[1])
         ret = run_smac(pipeline, label, smac_seed, 
-                runcount_limit=20, index=sys.argv[1])
+                runcount_limit=20)
         rets.append(ret)
     from joblib import Parallel, delayed
     #rets = Parallel(n_jobs=10)(delayed(run_smac)(pipeline, label,

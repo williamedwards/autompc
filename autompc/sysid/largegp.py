@@ -321,15 +321,15 @@ class LargeGaussianProcess(GPytorchGP):
 
 # this part implements the approximate GP
 class ApproximateGaussianProcess(GPytorchGP):
-    def __init__(self, system, mean='constant', kernel='RBF', niter=40, lr=0.1, batch_size=1024, induce_count=500, **kwargs):
+    def __init__(self, system, mean='constant', kernel='RBF', niter=5, lr=0.1, batch_size=1024, induce_count=500, **kwargs):
         super().__init__(system, mean, kernel, niter, lr, **kwargs)
         self.batch_size = batch_size
         self.induce_count = induce_count
 
     def get_configuration_space(cartpole):
         cs = ConfigurationSpace()
-        induce_count = UniformIntegerHyperparameter("induce_count", lower=100,
-                upper=600, default_value=500)
+        induce_count = UniformIntegerHyperparameter("induce_count", lower=50,
+                upper=200, default_value=100)
         cs.add_hyperparameter(induce_count)
         return cs
 
