@@ -74,7 +74,7 @@ def runsim(controller, simsteps=200, init_obs=np.array([3.1,0.0,0.0,0.0])):
     for _  in range(simsteps):
         u, constate = controller.run(constate, sim_traj[-1].obs)
         x = dt_cartpole_dynamics(x, u, cartpole.dt)
-        print(f"{u=} {x=}")
+        print(f"u={u} x={x}")
         sim_traj[-1].ctrl[:] = u
         sim_traj = ampc.extend(sim_traj, [x], 
                 np.zeros((1, cartpole.ctrl_dim)))
@@ -126,7 +126,8 @@ def main():
     # Initialize pipeline
     pipeline = FixedControlPipeline(cartpole, task, MLP,
             IterativeLQR, [QuadCostTransformer],
-            controller_kwargs={"reuse_feedback" : -1})
+            controller_kwargs={"reuse_feedback" : -1},
+            use_cuda=True)
 
     # Generate trajectories
     init_max = np.array([1.0, 10.0, 1.0, 10.0])

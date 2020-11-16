@@ -80,7 +80,6 @@ class FixedControlPipeline:
         print(cfg)
         print("-----")
         # First instantiate and train the model
-        print(f"{self.use_cuda=}")
         if model is None:
             model_cfg = self.get_model_cfg(cfg)
             model = make_model(self.system, self.Model, model_cfg,
