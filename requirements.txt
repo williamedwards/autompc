@@ -1,0 +1,8 @@
+numpy
+scipy
+smac
+cvxpy
+control
+pysindy
+tqdm
+gpytorch
