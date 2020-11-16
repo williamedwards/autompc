@@ -172,9 +172,12 @@ def make_figure_cartpole_final():
 def make_figure_decoupled1():
     result = load_result("decoupled1", "cartpole-swingup", "mlp-ilqr", 100,
             42)
+    #result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 42)
+    set_trace()
 
-    matplotlib.rcParams.update({'font.size': 12})
-    fig = plt.figure(figsize=(4,4))
+    #matplotlib.rcParams.update({'font.size': 12})
+    #fig = plt.figure(figsize=(4,4))
+    fig = plt.figure()
     ax = fig.gca()
     ax.set_title(f"MLP-iLQR on Cartpole")
     ax.set_xlabel("Tuning iterations")
@@ -190,10 +193,11 @@ def make_figure_decoupled1():
     #ax.legend(labels)
     #perfs = [cost for cost in result["inc_costs"]]
     #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*25
-    print(f"{perfs=}")
-    ax.plot(perfs)
-    ax.plot([0, len(perfs)], [37, 37], "r--") 
-    ax.legend(["Decoupled tune", "BCQ Baseline"])
+    #print(f"{perfs=}")
+    ax.plot(result[0]["truedyn_costs"])
+    ax.plot(result[0]["costs"])
+    #ax.plot([0, len(perfs)], [37, 37], "r--") 
+    ax.legend(["True cost", "Surr. cost"])
     plt.tight_layout()
     plt.show()
 

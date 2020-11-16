@@ -6,6 +6,7 @@ from joblib import Memory
 memory = Memory("cache")
 import autompc as ampc
 from ConfigSpace import Configuration
+import matplotlib.pyplot as plt
 
 sys.path.append("../icra_scripts")
 
@@ -118,14 +119,15 @@ def get_cfgs(cs):
     cfg6["_task_transformer_0:x9_log10Fgain"] = -2.78125
     cfg6["_task_transformer_0:x9_log10Qgain"] = 1.59375
 
-    return [cfg1, cfg2, cfg3, cfg4, cfg5, cfg6]
+    #return [cfg1, cfg2, cfg3, cfg4, cfg5, cfg6]
+    return [cfg2, cfg5, cfg6]
 
 def main():
     tinf = halfcheetah_task()
     pipeline = init_halfcheetah(tinf)
     seed = 42
     subexp = 2
-    new_surr_count = 10
+    new_surr_count = 15
 
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
@@ -137,7 +139,8 @@ def main():
     print(f"{eval_seed=}")
 
     surrogates = [surrogate]
-    for _ in range(new_surr_count):
+    for i in range(new_surr_count):
+        print(f"Training surrogate {i}")
         new_surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
         torch.manual_seed(rng.integers(1 << 30))
         new_surr = train_mlp(tinf.system, new_surr_trajs)
@@ -198,8 +201,22 @@ def main():
         true_scores.append(eval_cfg(cfg.get_array()))
         surr_scores.append([eval_cfg(cfg.get_array(), surr_idx=i) 
             for i in range(new_surr_count+1)])
+
     print(f"{true_scores=}")
     print(f"{surr_scores=}")
+    for true_score, surr_score in zip(true_scores, surr_scores):
+        fig = plt.figure()
+        ax = fig.gca()
+
+        ax.set_title(f"Cost Distribution")
+        ax.set_xlabel("Cost")
+        ax.set_ylabel("Count")
+        ax.axvline(x=true_score, color="r", label="True dynamics cost")
+        ax.axvline(x=surr_score[0], color="y", label="Original surrogate")
+        ax.hist(surr_score[1:], bins=np.arange(0, 300, 25))
+        ax.legend()
+
+        plt.show()
 
 if __name__ == "__main__":
     main()
