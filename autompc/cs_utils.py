@@ -10,6 +10,10 @@ from ConfigSpace.hyperparameters import (
     Hyperparameter,
     Constant,
     FloatHyperparameter,
+    NumericalHyperparameter,
+    UniformFloatHyperparameter,
+    UniformIntegerHyperparameter,
+    CategoricalHyperparameter,
 )
 from ConfigSpace.conditions import (
     ConditionComponent,
@@ -142,3 +146,36 @@ def add_configuration_space(self,
                                         parent_hyperparameter['value'])
             conditions_to_add.append(condition)
     self.add_conditions(conditions_to_add)
+
+def set_hyper_bounds(cs, hp_name, lower, upper):
+    hp = cs.get_hyperparameter(hp_name)
+    if not isinstance(hp, NumericalHyperparameter):
+        raise ValueError("Can only call set_hyper_bounds for NumericalHyperparameter")
+    name = hp.name
+    default_value = hp.default_value
+    if not (lower < default_value < upper):
+        default_value = lower
+    if isinstance(hp, UniformFloatHyperparameter):
+        new_hp = CS.UniformFloatHyperparameter(name=name, lower=lower,
+                upper=upper, default_value=default_value)
+    if isinstance(hp, UniformIntegerHyperparameter):
+        new_hp = CS.UniformIntegerHyperparameter(name=name, lower=lower,
+                upper=upper, default_value=default_value)
+    cs._hyperparameters[name] = new_hp
+
+def set_hyper_choices(cs, hp_name, choices):
+    hp = cs.get_hyperparameter(hp_name)
+    if not isinstance(hp, CategoricalHyperparameter):
+        raise ValueError("Can only call set_hyper_choices for CategoricalHyperparameter")
+    name = hp.name
+    default_value = hp.default_value
+    if not default_value in choices:
+        default_value = choices[0]
+    new_hp = CS.CategoricalHyperparameter(name=name, choices=choices, default_value=default_value)
+    cs._hyperparameters[name] = new_hp
+
+def set_hyper_constant(cs, hp_name, value):
+    hp = cs.get_hyperparameter(hp_name)
+    name = hp.name
+    new_hp = CS.Constant(name=name, value=value)
+    cs._hyperparameters[name] = new_hp

@@ -4,6 +4,7 @@
 import numpy as np
 import torch
 from joblib import Memory
+from pdb import set_trace
 
 # Autompc Includes
 import autompc as ampc
@@ -11,6 +12,7 @@ from autompc.pipelines import FixedControlPipeline
 from autompc.control import IterativeLQR
 from autompc.tasks import Task, QuadCost, QuadCostTransformer
 from autompc.sysid import MLP
+from autompc.cs_utils import set_hyper_bounds, set_hyper_choices, set_hyper_constant
 
 memory = Memory("cache")
 cartpole = ampc.System(["theta", "omega", "x", "dx"], ["u"])
@@ -138,19 +140,40 @@ def main():
     cs.seed(42)
     bad_cfg = get_bad_cfg(cs)
     good_cfg = get_good_cfg(cs)
+
+    # Sample config from full configuration sapce
     rand1_cfg = cs.sample_configuration()
-    rand2_cfg = cs.sample_configuration()
-    rand3_cfg = cs.sample_configuration()
+
+    # Restrict horizon range range
+    cs2 = pipeline.get_configuration_space()
+    set_hyper_bounds(cs2, "_controller:horizon", 18, 22)
+    rand2_cfg = cs2.sample_configuration()
+
+    # Fix horizon
+    cs3 = pipeline.get_configuration_space()
+    set_hyper_constant(cs3, "_controller:horizon", 15)
+    rand3_cfg = cs3.sample_configuration()
+
+    # Restrict number of hidden layers in the model
+    #     Unfortuantely due to buggy behavior, n_hidden_layers
+    #     is a categorical hyperparameter, so the syntax is a
+    #     little different.
+    cs4 = pipeline.get_configuration_space()
+    set_hyper_choices(cs4, "_model:n_hidden_layers", ["1","2"])
+    rand4_cfg = cs4.sample_configuration()
+
     bad_cfg_eval = eval_cfg(pipeline, trajs, bad_cfg)
     good_cfg_eval = eval_cfg(pipeline, trajs, good_cfg)
     rand1_cfg_eval = eval_cfg(pipeline, trajs, rand1_cfg)
     rand2_cfg_eval = eval_cfg(pipeline, trajs, rand2_cfg)
     rand3_cfg_eval = eval_cfg(pipeline, trajs, rand3_cfg)
+    rand4_cfg_eval = eval_cfg(pipeline, trajs, rand4_cfg)
     print("Eval bad_cfg=", bad_cfg_eval)
     print("Eval good_cfg=", good_cfg_eval)
     print("Eval rand1_cfg=", rand1_cfg_eval)
     print("Eval rand2_cfg=", rand2_cfg_eval)
     print("Eval rand3_cfg=", rand3_cfg_eval)
+    print("Eval rand4_cfg=", rand4_cfg_eval)
 
 if __name__ == "__main__":
     main()
