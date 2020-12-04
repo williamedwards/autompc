@@ -211,6 +211,37 @@ def make_figure_decoupled1():
     plt.tight_layout()
     plt.show()
 
+def pca_decoupled1():
+    result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 44)
+    true_perfs = np.array(result[0]["truedyn_costs"])
+    cfgs = result[0]["cfgs"]
+    hyper_names = list(cfgs[0].get_dictionary().keys())
+    hyper_vals = np.zeros((len(cfgs), len(hyper_names)))
+    for i, cfg in enumerate(cfgs):
+        for j, name in enumerate(hyper_names):
+            hyper_vals[i, j] = cfg[name]
+
+    from sklearn.decomposition import PCA
+
+    pca = PCA(n_components=5)
+    pca.fit(hyper_vals, true_perfs)
+
+    hyper_hr_names = ["horiz", "targvel", "u_bthigh_R", "u_bshin_R",
+            "u_bfoot_R", "u_fthigh_R", "u_fhsin_R", "u_ffoot_R",
+            "zpos_F", "zpos_Q", "fthigh_Q", "fshin_Q", "ffoot_Q",
+            "xvel_F", "xvel_q"]
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.imshow(np.abs(pca.components_.T), cmap="Reds")
+    comp_labels = ["{:.2f}%".format(i, ratio) 
+            for i, ratio in enumerate(pca.explained_variance_ratio_)]
+    plt.xticks(np.arange(0.0, len(comp_labels), 1), comp_labels)
+    plt.yticks(np.arange(0.0, len(hyper_hr_names), 1), hyper_hr_names)
+    plt.show()
+
+    set_trace()
+
+
 def make_figure_sysid2():
     setting1 = ("cartpole-swingup", "mlp-ilqr", 1, 100, 42)
     setting2 = ("cartpole-swingup", "mlp-ilqr", 2, 100, 42)
@@ -317,6 +348,8 @@ def main(command):
         make_figure_cost_tuning()
     elif command == "decoupled":
         make_figure_decoupled1()
+    elif command == "decoupled-pca":
+        pca_decoupled1()
     elif command == "cartpole-final":
         make_figure_cartpole_final()
     elif command == "surrtest":

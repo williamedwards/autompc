@@ -169,21 +169,25 @@ def get_variance_score(tinf, models, trajs):
     pred_deltas = np.concatenate(pred_deltass)
     pred_std = np.std(pred_deltas, axis=2)
     pred_std_mean = np.mean(pred_std, axis=0)
+
+    print("Score: ", np.mean(pred_std_mean / baseline_std))
         
     set_trace()
 
 
-def main(sysname, seed, n_models=2):
+def main(sysname, seed, n_models=10):
     rng = np.random.default_rng(seed)
     holdout_seed = rng.integers(1 << 30)
     model_seeds = [rng.integers(1 << 30) for _ in range(n_models)]
     if sysname == "cartpole":
         tinf = cartpole_swingup_task()
+    elif sysname == "halfcheetah":
+        tinf = halfcheetah_task()
     holdout_set = tinf.gen_surr_trajs(seed)
     trajss = [tinf.gen_surr_trajs(seed) for seed in model_seeds]
     models = [train_mlp(tinf.system, trajs) for trajs in trajss]
-    get_variance_score(tinf, models, trajss[0])
+    get_variance_score(tinf, models, holdout_set)
 
 if __name__ == "__main__":
-    main("cartpole", 80)
+    main("halfcheetah", 80)
 
