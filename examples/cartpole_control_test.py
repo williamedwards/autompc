@@ -163,17 +163,17 @@ def gen_trajs(traj_len, num_trajs=num_trajs, dt=dt, rand_contr_prob=1.0,
             traj[i].ctrl[:] = u
         trajs.append(traj)
     return trajs
-trajs = gen_trajs(4)
-trajs2 = gen_trajs(200)
-trajs3 = gen_trajs(200, rand_contr_prob = 0.5)
-trajs4 = gen_trajs(200, init_min=[-1.0, -10.0, -1.0, -10.0],
-        init_max=[1.0, 10.0, 1.0, 10.0])
-trajs5 = gen_trajs(200, num_trajs=2000, init_min=[-3.0, -12.0, -5.0, -20.0],
-        init_max=[3.0, 12.0, 5.0, 20.0])
 
-from autompc.sysid import (GaussianProcess, 
-        LargeGaussianProcess, 
-        ApproximateGaussianProcess, MLP)
+if __name__ == "__main__":
+    trajs = gen_trajs(4)
+    trajs2 = gen_trajs(200)
+    trajs3 = gen_trajs(200, rand_contr_prob = 0.5)
+    trajs4 = gen_trajs(200, init_min=[-1.0, -10.0, -1.0, -10.0],
+            init_max=[1.0, 10.0, 1.0, 10.0])
+    trajs5 = gen_trajs(200, num_trajs=2000, init_min=[-3.0, -12.0, -5.0, -20.0],
+            init_max=[3.0, 12.0, 5.0, 20.0])
+
+from autompc.sysid import (ApproximateGaussianProcess, MLP)
 from autompc.control import IterativeLQR
 
 @memory.cache

@@ -18,6 +18,9 @@ import autompc as ampc
 from autompc.tasks import Task, QuadCost
 
 from collections import namedtuple
+from joblib import Memory
+
+memory = Memory("cache")
 
 TaskInfo = namedtuple("TaskInfo", ["name", "system", "task", "init_obs", 
     "dynamics", "perf_metric", "gen_sysid_trajs", "gen_surr_trajs"])
@@ -46,6 +49,7 @@ def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
     return y
 
+@memory.cache
 def gen_trajs(traj_len, num_trajs, dt, seed=42,
         init_min = [-1.0, 0.0, 0.0, 0.0], init_max=[1.0, 0.0, 0.0, 0.0],
         umin=-20.0, umax=20.0):

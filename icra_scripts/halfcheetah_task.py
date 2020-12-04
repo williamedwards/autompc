@@ -86,8 +86,8 @@ def halfcheetah_task():
     task.set_cost(cost)
     task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
     init_obs = np.concatenate([env.init_qpos, env.init_qvel])
-    gen_sysid_trajs = lambda seed: gen_trajs(500, 200, seed=seed)
-    gen_surr_trajs = lambda seed: gen_trajs(500, 200,  seed=seed)
+    gen_sysid_trajs = lambda seed, n_trajs=500: gen_trajs(n_trajs, 200, seed=seed)
+    gen_surr_trajs = lambda seed, n_trajs=500: gen_trajs(n_trajs, 200,  seed=seed)
     return TaskInfo(name="CartPole-Swingup",
             system=system, 
             task=task, 

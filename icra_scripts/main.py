@@ -23,7 +23,7 @@ from sysid1 import runexp_sysid1
 from sysid2 import runexp_sysid2
 from tuning1 import runexp_tuning1
 from surrtest import runexp_surrtest
-from decoupled1 import runexp_decoupled1
+from decoupled1 import runexp_decoupled1, runexp_decoupled2
 from controllers import runexp_controllers
 from cost_tuning import runexp_cost_tuning
 from utils import *
@@ -101,9 +101,17 @@ def main(args):
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
         result = runexp_decoupled1(pipeline, tinf, tune_iters=args.tuneiters,
-                seed=args.seed, int_file=args.intfile, subexp=args.subexp)
+                ensemble_size=args.ensemble, seed=args.seed, 
+                int_file=args.intfile, subexp=args.subexp, n_trajs=args.ntrajs)
         save_result(result, "decoupled1", args.task, args.pipeline,
-                args.tuneiters, args.seed)
+                args.tuneiters, args.ensemble, args.seed)
+    elif args.command == "decoupled2":
+        tinf = init_task(args.task)
+        pipeline = init_pipeline(tinf, args.pipeline)
+        result = runexp_decoupled2(pipeline, tinf, tune_iters=args.tuneiters,
+                seed=args.seed, int_file=args.intfile)
+        save_result(result, "decoupled1", args.task, args.pipeline,
+                args.tuneiters, args.ensemble, args.seed)
     elif args.command == "controllers":
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
@@ -128,5 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--intfile", default=None, type=str)
     parser.add_argument("--simsteps", default=200, type=int)
     parser.add_argument("--controller", default="", type=str)
+    parser.add_argument("--ensemble", default=1, type=int)
+    parser.add_argument("--ntrajs", default=500, type=int)
     args = parser.parse_args()
     main(args)

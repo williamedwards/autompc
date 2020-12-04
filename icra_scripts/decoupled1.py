@@ -16,16 +16,17 @@ import autompc as ampc
 from autompc.evaluators import FixedSetEvaluator
 from autompc.metrics import RmseKstepMetric
 from autompc.sysid import MLP
+from utils import save_result
 
 
 @memory.cache
 def train_mlp_inner(system, trajs):
     cs = MLP.get_configuration_space(system)
     cfg = cs.get_default_configuration()
-    cfg["n_hidden_layers"] = "3"
-    cfg["hidden_size_1"] = 128
-    cfg["hidden_size_2"] = 128
-    cfg["hidden_size_3"] = 128
+    cfg["n_hidden_layers"] = "2"
+    cfg["hidden_size_1"] = 64
+    cfg["hidden_size_2"] = 64
+    #cfg["hidden_size_3"] = 128
     model = ampc.make_model(system, MLP, cfg, use_cuda=False)
     model.train(trajs)
     return model.get_parameters()
@@ -33,10 +34,10 @@ def train_mlp_inner(system, trajs):
 def train_mlp(system, trajs):
     cs = MLP.get_configuration_space(system)
     cfg = cs.get_default_configuration()
-    cfg["n_hidden_layers"] = "3"
-    cfg["hidden_size_1"] = 128
-    cfg["hidden_size_2"] = 128
-    cfg["hidden_size_3"] = 128
+    cfg["n_hidden_layers"] = "2"
+    cfg["hidden_size_1"] = 64
+    cfg["hidden_size_2"] = 64
+    #cfg["hidden_size_3"] = 128
     model = ampc.make_model(system, MLP, cfg, use_cuda=False)
     params = train_mlp_inner(system, trajs)
     model.set_parameters(params)
@@ -70,6 +71,7 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
                          "runcount-limit": tune_iters,  
                          "cs": cs,  
                          "deterministic": "true",
+                         "limit_resources" : False,
                          "execdir" : "./smac"
                          })
 
@@ -110,16 +112,19 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
 
     return ret_value
 
-def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None,
-        subexp=1):
+def runexp_decoupled1(pipeline, tinf, tune_iters, ensemble_size, seed, 
+        n_trajs, int_file=None, subexp=1):
     print(f"{seed=}")
     rng = np.random.default_rng(seed)
-    sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
-    surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
+    sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30), n_trajs=n_trajs)
 
-    torch.manual_seed(rng.integers(1 << 30))
-    surrogate = train_mlp(tinf.system, surr_trajs)
     eval_seed = rng.integers(1 << 30)
+    surrogates = []
+    for _ in range(ensemble_size):
+        surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30), n_trajs=n_trajs)
+        torch.manual_seed(rng.integers(1 << 30))
+        surrogate = train_mlp(tinf.system, surr_trajs)
+        surrogates.append(surrogate)
     print(f"{eval_seed=}")
 
     if subexp == 1:
@@ -155,7 +160,7 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None,
         return model.get_parameters()
     model = ampc.make_model(tinf.system, pipeline.Model, 
             pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=5,
-            use_cuda=False)
+            use_cuda=True)
     model_params = train_model(sysid_trajs)
     model.set_parameters(model_params)
     def eval_cfg(cfg):
@@ -163,9 +168,80 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None,
         #pipeline_cfg = pipeline.set_tt_cfg(root_pipeline_cfg, 0, cfg)
         pipeline_cfg = pipeline.set_configuration_fixed_model(root_pipeline_cfg, cfg)
         controller, _ = pipeline(pipeline_cfg, sysid_trajs, model=model)
-        surr_traj = runsim(tinf, 200, surrogate, controller)
+        surr_scores = []
+        for surrogate in surrogates:
+            surr_traj = runsim(tinf, 200, surrogate, controller)
+            surr_score = tinf.perf_metric(surr_traj)
+            surr_scores.append(surr_score)
         truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
+        truedyn_score = tinf.perf_metric(truedyn_traj)
+        if not int_file is None:
+            with open(int_file, "a") as f:
+                print(cfg, file=f)
+                print(f"Surrogate score is {surr_score}", file=f)
+                print(f"True dynamics score is {truedyn_score}", file=f)
+                print("==========\n\n", file=f)
+        return max(surr_scores), (truedyn_score, surr_scores)
+
+    #cs = pipeline.task_transformers[0].get_configuration_space(tinf.system)
+    cs = pipeline.get_configuration_space_fixed_model()
+    result = run_smac(cs, eval_cfg, tune_iters, rng.integers(1 << 30))
+    baseline_res = eval_cfg(cs.get_default_configuration())
+    return result, baseline_res
+
+def runexp_decoupled2(pipeline, tinf, tune_iters, seed, int_file=None):
+    print(f"{seed=}")
+    rng = np.random.default_rng(seed)
+    sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
+    surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
+
+    #sysid_torch_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
+    sysid_torch_seed = rng.integers(1 << 30)
+    surr_torch_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
+    smac_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
+
+    surrogates = []
+    for surr_torch_seed in surr_torch_seeds:
+        torch.manual_seed(surr_torch_seed)
+        surrogate = train_mlp(tinf.system, surr_trajs)
+        surrogates.append(surrogate)
+
+    root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+    root_pipeline_cfg["_model:n_hidden_layers"] = "3"
+    root_pipeline_cfg["_model:hidden_size_1"] = 69
+    root_pipeline_cfg["_model:hidden_size_2"] = 256
+    root_pipeline_cfg["_model:hidden_size_3"] = 256
+    root_pipeline_cfg["_model:lr_log10"] = -3.323534
+    root_pipeline_cfg["_model:nonlintype"] = "tanh"
+    cs = pipeline.get_configuration_space_fixed_model()
+    #cfg = cs.get_default_configuration()
+    #cfg["_controller:horizon"] = 25
+    #cfg["_task_transformer_0:x_log10Qgain"] = 1.0
+    #print(pipeline.set_configuration_fixed_model(root_pipeline_cfg, cfg))
+    #set_trace()
+
+    @memory.cache
+    def train_model(sysid_trajs):
+        model = ampc.make_model(tinf.system, pipeline.Model, 
+                pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=50,
+                use_cuda=False)
+        torch.manual_seed(sysid_torch_seed)
+        model.train(sysid_trajs)
+        return model.get_parameters()
+    model = ampc.make_model(tinf.system, pipeline.Model, 
+            pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=5,
+            use_cuda=True)
+    model_params = train_model(sysid_trajs)
+    model.set_parameters(model_params)
+    def eval_cfg(cfg, surr_idx):
+        surrogate = surrogates[surr_idx]
+        torch.manual_seed(sysid_torch_seed)
+        #pipeline_cfg = pipeline.set_tt_cfg(root_pipeline_cfg, 0, cfg)
+        pipeline_cfg = pipeline.set_configuration_fixed_model(root_pipeline_cfg, cfg)
+        controller, _ = pipeline(pipeline_cfg, sysid_trajs, model=model)
+        surr_traj = runsim(tinf, 200, surrogate, controller)
         surr_score = tinf.perf_metric(surr_traj)
+        truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
         truedyn_score = tinf.perf_metric(truedyn_traj)
         if not int_file is None:
             with open(int_file, "a") as f:
@@ -177,7 +253,11 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, seed, int_file=None,
 
     #cs = pipeline.task_transformers[0].get_configuration_space(tinf.system)
     cs = pipeline.get_configuration_space_fixed_model()
-    result = run_smac(cs, eval_cfg, tune_iters, rng.integers(1 << 30))
-    baseline_res = eval_cfg(cs.get_default_configuration())
-    return result, baseline_res
-v
+    results = []
+    for surr_idx in range(len(surrogates)):
+        for i, smac_seed in enumerate(smac_seeds):
+            result = run_smac(cs, lambda cfg: eval_cfg(cfg, surr_idx), 
+                    tune_iters, smac_seed)
+            save_result(result, "decoupled2_int", seed, surr_idx, i)
+            results.append(result)
+    return results

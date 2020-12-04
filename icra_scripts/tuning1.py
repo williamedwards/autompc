@@ -1,6 +1,8 @@
 # Created by William Edwards
 
 # Standard library includes
+from pdb import set_trace
+import time
 
 # External project includes
 import numpy as np
@@ -8,7 +10,6 @@ import torch
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
 from joblib import Memory
-from pdb import set_trace
 memory = Memory("cache")
 
 # Internal project includes
@@ -71,7 +72,8 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
                          "runcount-limit": tune_iters,  
                          "cs": cs,  
                          "deterministic": "true",
-                         "execdir" : "./smac"
+                         "execdir" : "./smac",
+                         "limit_resources" : False
                          })
 
     smac = SMAC4HPO(scenario=scenario, rng=rng,
@@ -90,24 +92,27 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
     cfgs = []
     costs = []
     truedyn_costs = []
+    addinfos = []
     for key, val in smac.runhistory.data.items():
         cfg = smac.runhistory.ids_config[key.config_id]
         if val.cost < inc_cost:
             inc_cost = val.cost
-            inc_truedyn_cost = val.additional_info
+            inc_truedyn_cost = val.additional_info["truedyn_score"]
             inc_cfg = cfg
         inc_costs.append(inc_cost)
         inc_truedyn_costs.append(inc_truedyn_cost)
         inc_cfgs.append(inc_cfg)
         cfgs.append(cfg)
         costs.append(val.cost)
-        truedyn_costs.append(val.additional_info)
+        truedyn_costs.append(val.additional_info["truedyn_score"])
+        addinfos.append(val.additional_info)
     ret_value["inc_costs"] = inc_costs
     ret_value["inc_truedyn_costs"] = inc_truedyn_costs
     ret_value["inc_cfgs"] = inc_cfgs
     ret_value["cfgs"] = cfgs
     ret_value["costs"] = costs
     ret_value["truedyn_costs"] = truedyn_costs
+    ret_value["addinfos"] = addinfos
 
     return ret_value
 
@@ -119,12 +124,19 @@ def runexp_tuning1(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
     torch.manual_seed(rng.integers(1 << 30))
     surrogate = train_mlp(tinf.system, surr_trajs)
     eval_seed = rng.integers(1 << 30)
+    print(f"{eval_seed=}")
 
     def eval_cfg(cfg):
+        start_time = time.time()
         torch.manual_seed(eval_seed)
         controller, model = pipeline(cfg, sysid_trajs)
+        sysid_time = time.time() - start_time
+        start_time = time.time()
         surr_traj = runsim(tinf, simsteps, surrogate, controller)
+        surr_traj_time = time.time() - start_time
+        start_time = time.time()
         truedyn_traj = runsim(tinf, simsteps, None, controller, tinf.dynamics)
+        truedyn_traj_time = time.time() - start_time
         surr_score = tinf.perf_metric(surr_traj)
         truedyn_score = tinf.perf_metric(truedyn_traj)
         if not int_file is None:
@@ -133,7 +145,10 @@ def runexp_tuning1(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
                 print(f"Surrogate score is {surr_score}", file=f)
                 print(f"True dynamics score is {truedyn_score}", file=f)
                 print("==========\n\n", file=f)
-        return surr_score, truedyn_score
+        return surr_score, {"truedyn_score" : truedyn_score,
+                "sysid_time" : sysid_time,
+                "surr_traj_time" : surr_traj_time,
+                "truedyn_traj_time" : truedyn_traj_time}
 
     #cfg1 = pipeline.get_configuration_space().get_default_configuration()
     #cfg1["_task_transformer_0:u_log10Rgain"] = -2

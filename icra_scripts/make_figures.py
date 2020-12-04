@@ -2,6 +2,7 @@
 
 # Standard project includes
 import sys
+from numbers import Number
 from pdb import set_trace
 import matplotlib
 
@@ -73,28 +74,28 @@ def make_figure_cost_tuning():
     plt.show()
 
 def make_figure_tuning1():
-    #experiments = [
-    #        (("MLP-iLQR-Quad", "Pendulum"),
-    #         ("pendulum-swingup", "mlp-ilqr", 100, 42)),
-    #        (("MLP-iLQR-Quad", "Cart-pole"),
-    #         ("cartpole-swingup", "mlp-ilqr", 100, 42))]
+    experiments = [
+            (("MLP-iLQR-Quad", "Pendulum"),
+             ("pendulum-swingup", "mlp-ilqr", 100, 42)),
+            (("MLP-iLQR-Quad", "Cart-pole"),
+             ("cartpole-swingup", "mlp-ilqr", 100, 42))]
             #(("MLP-iLQR", "Acrobot"),
             #    ("acrobot-swingup", "mlp-ilqr", 100, 42))
             #]
-    experiments = [
-            (("MLP-iLQR-CustQuad", "Half-Cheetah"),
-             ("halfcheetah", "mlp-ilqr", 100, 42)),
-            ]
-    #bcq_baselines = [73, 148]
-    bcq_baselines = [200]
+    #experiments = [
+    #        (("MLP-iLQR-CustQuad", "Half-Cheetah"),
+    #         ("halfcheetah", "mlp-ilqr", 100, 42)),
+    #        ]
+    bcq_baselines = [73, 148]
+    #bcq_baselines = [200]
     for i, ((pipeline_label, task_label), setting) in enumerate(experiments):
         #if not result_exists("tuning1", *setting):
         #    print(f"Skipping {pipeline_label}, {task_label}")
         #    continue
-        #result = load_result("tuning1", *setting)
+        result = load_result("tuning1", *setting)
 
-        matplotlib.rcParams.update({'font.size': 17})
-        fig = plt.figure(figsize=(4,4))
+        #matplotlib.rcParams.update({'font.size': 17})
+        fig = plt.figure()
         ax = fig.gca()
         ax.set_title(f"Tuning {task_label}")
         ax.set_xlabel("Tuning iterations")
@@ -108,12 +109,13 @@ def make_figure_tuning1():
         #    ax.plot(perfs)
         #    labels.append(label)
         #ax.legend(labels)
-        #perfs = [cost for cost in result["inc_costs"]]
-        perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*68
-        print(f"{perfs=}")
-        ax.plot(perfs)
-        ax.plot([0, len(perfs)], [bcq_baselines[i], bcq_baselines[i]], "r--") 
-        ax.legend(["Ours", "BCQ"], prop={"size":16})
+        truedyn_perfs = [cost for cost in result["inc_truedyn_costs"]]
+        set_trace()
+        #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*68
+        #print(f"{perfs=}")
+        ax.plot(truedyn_perfs)
+        ax.plot([0, len(truedyn_perfs)], [bcq_baselines[i], bcq_baselines[i]], "r--") 
+        ax.legend(["AutoMPC", "BCQ"])#, prop={"size":16})
         plt.tight_layout()
         plt.show()
 
@@ -170,18 +172,20 @@ def make_figure_cartpole_final():
 
 
 def make_figure_decoupled1():
-    result = load_result("decoupled1", "cartpole-swingup", "mlp-ilqr", 100,
-            42)
-    #result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 42)
-    set_trace()
+    #result = load_result("decoupled1", "cartpole-swingup", "mlp-ilqr", 100,
+    #        42)
+    #result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 43)
+    result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 4, 44)
 
     #matplotlib.rcParams.update({'font.size': 12})
     #fig = plt.figure(figsize=(4,4))
     fig = plt.figure()
     ax = fig.gca()
-    ax.set_title(f"MLP-iLQR on Cartpole")
+    ax.set_title(f"MLP-iLQR on Halfcheetah")
     ax.set_xlabel("Tuning iterations")
     ax.set_ylabel("True Perf.")
+    ax.set_ylim([-220, 400])
+    bcq_baseline = 200
     #labels = []
     #for label, value in baselines:
     #    ax.plot([0.0, n_iters], [value, value], "--")
@@ -194,10 +198,16 @@ def make_figure_decoupled1():
     #perfs = [cost for cost in result["inc_costs"]]
     #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*25
     #print(f"{perfs=}")
-    ax.plot(result[0]["truedyn_costs"])
-    ax.plot(result[0]["costs"])
+    set_trace()
+    ax.plot([c for c, _ in result[0]["inc_truedyn_costs"]])
+    ax.plot([s for _, (_,s,_,_) in result[0]["inc_truedyn_costs"]])
+    #ax.plot([c for c, _ in result[0]["inc_costs"]])
+    #ax.plot(result[0]["inc_truedyn_costs"])
+    #ax.plot(result[0]["costs"])
     #ax.plot([0, len(perfs)], [37, 37], "r--") 
-    ax.legend(["True cost", "Surr. cost"])
+    #ax.plot([0, len(result[0]["costs"])], [bcq_baseline, bcq_baseline], "r--") 
+    ax.legend(["True Dyn.", "Surr Cost 1"])#, prop={"size":16})
+    #ax.legend(["true cost", "surr. cost"])
     plt.tight_layout()
     plt.show()
 
@@ -272,6 +282,30 @@ def make_figure_surrtest():
     plt.tight_layout()
     plt.show()
 
+def make_figure_hyper_vals():
+    seed = int(sys.argv[2])
+    #result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, seed)
+    result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 4, seed)
+    cfgs = result[0]["cfgs"]
+    cs = cfgs[0].configuration_space
+    for hp in cs.get_hyperparameters():
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.set_title(hp.name + " (" + str(seed) + ")")
+        ax.set_xlabel("Tuning iteration")
+        hp_vals = []
+        for cfg in cfgs:
+            if hp.name in cs.get_active_hyperparameters(cfg):
+                val = cfg[hp.name]
+                if isinstance(val, Number):
+                    hp_vals.append(val)
+                else:
+                    hp_vals.append(hp.choices.index(val))
+            else:
+                hp_vals.append(np.nan)
+        ax.plot(hp_vals)
+        plt.show()
+
 def main(command):
     if command == "sysid1":
         make_figure_sysid1()
@@ -287,6 +321,8 @@ def main(command):
         make_figure_cartpole_final()
     elif command == "surrtest":
         make_figure_surrtest()
+    elif command == "hypervals":
+        make_figure_hyper_vals()
     else:
         raise Exception("Unrecognized command")
 

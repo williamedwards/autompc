@@ -161,6 +161,7 @@ def main():
     cs4 = pipeline.get_configuration_space()
     set_hyper_choices(cs4, "_model:n_hidden_layers", ["1","2"])
     rand4_cfg = cs4.sample_configuration()
+    set_trace()
 
     bad_cfg_eval = eval_cfg(pipeline, trajs, bad_cfg)
     good_cfg_eval = eval_cfg(pipeline, trajs, good_cfg)
