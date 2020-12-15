@@ -17,33 +17,58 @@ from autompc.evaluators import FixedSetEvaluator
 from autompc.metrics import RmseKstepMetric
 from autompc.sysid import MLP
 from utils import save_result
+import ConfigSpace as CS
+
+default_cfg_vals = {
+        "n_hidden_layers" : "2",
+        "hidden_size_1" : 64,
+        "hidden_size_2" : 64
+        }
 
 
 @memory.cache
-def train_mlp_inner(system, trajs):
+def train_mlp_inner(system, trajs, cfg_vals, torch_seed):
     cs = MLP.get_configuration_space(system)
-    cfg = cs.get_default_configuration()
-    cfg["n_hidden_layers"] = "2"
-    cfg["hidden_size_1"] = 64
-    cfg["hidden_size_2"] = 64
-    #cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=False)
+    cfg = CS.Configuration(cs, cfg_vals)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
     model.train(trajs)
     return model.get_parameters()
 
-def train_mlp(system, trajs):
+def train_mlp(system, trajs, cfg_vals=default_cfg_vals, torch_seed=0):
     cs = MLP.get_configuration_space(system)
-    cfg = cs.get_default_configuration()
-    cfg["n_hidden_layers"] = "2"
-    cfg["hidden_size_1"] = 64
-    cfg["hidden_size_2"] = 64
-    #cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=False)
-    params = train_mlp_inner(system, trajs)
+    cfg = CS.Configuration(cs, cfg_vals)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
+    params = train_mlp_inner(system, trajs, cfg_vals, torch_seed)
     model.set_parameters(params)
     model.net = model.net.to("cpu")
     model._device = "cpu"
     return model
+
+#@memory.cache
+#def train_mlp_inner(system, trajs, torch_seed=0):
+#    cs = MLP.get_configuration_space(system)
+#    cfg = cs.get_default_configuration()
+#    cfg["n_hidden_layers"] = "2"
+#    cfg["hidden_size_1"] = 64
+#    cfg["hidden_size_2"] = 64
+#    #cfg["hidden_size_3"] = 128
+#    model = ampc.make_model(system, MLP, cfg, use_cuda=False)
+#    model.train(trajs)
+#    return model.get_parameters()
+#
+#def train_mlp(system, trajs, torch_seed=0):
+#    cs = MLP.get_configuration_space(system)
+#    cfg = cs.get_default_configuration()
+#    cfg["n_hidden_layers"] = "2"
+#    cfg["hidden_size_1"] = 64
+#    cfg["hidden_size_2"] = 64
+#    #cfg["hidden_size_3"] = 128
+#    model = ampc.make_model(system, MLP, cfg, use_cuda=False)
+#    params = train_mlp_inner(system, trajs, torch_seed)
+#    model.set_parameters(params)
+#    model.net = model.net.to("cpu")
+#    model._device = "cpu"
+#    return model
 
 def runsim(tinf, simsteps, sim_model, controller, dynamics=None):
     sim_traj = ampc.zeros(tinf.system, 1)
@@ -118,16 +143,7 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, ensemble_size, seed,
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30), n_trajs=n_trajs)
 
-    eval_seed = rng.integers(1 << 30)
-    surrogates = []
-    for _ in range(ensemble_size):
-        surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30), n_trajs=n_trajs)
-        torch.manual_seed(rng.integers(1 << 30))
-        surrogate = train_mlp(tinf.system, surr_trajs)
-        surrogates.append(surrogate)
-    print(f"{eval_seed=}")
-
-    if subexp == 1:
+    if subexp == 1 or subexp in [3,4]:
         root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
         root_pipeline_cfg["_model:n_hidden_layers"] = "3"
         root_pipeline_cfg["_model:hidden_size_1"] = 69
@@ -143,6 +159,38 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, ensemble_size, seed,
         root_pipeline_cfg["_model:hidden_size_3"] = 128
     else:
         raise ValueError("Unrecognized sub experiment.")
+
+    if subexp in [1,2]:
+        surr_cfg_vals = default_cfg_vals
+    elif subexp == 3:
+        surr_cfg_vals = {
+                "n_hidden_layers" : "3",
+                "hidden_size_1" : 79,
+                "hidden_size_2" : 235,
+                "hidden_size_3" : 192,
+                "lr_log10" : -3.1869328418567755,
+                "nonlintype" : "sigmoid"
+                }
+    elif subexp == 4:
+        surr_cfg_vals = {
+                "n_hidden_layers" : "3",
+                "hidden_size_1" : 139,
+                "hidden_size_2" : 148,
+                "hidden_size_3" : 162,
+                "lr_log10" : -2.93579435372765,
+                "nonlintype" : "sigmoid"
+                }
+
+    eval_seed = rng.integers(1 << 30)
+    surrogates = []
+    for _ in range(ensemble_size):
+        surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30), n_trajs=n_trajs)
+        torch_seed = rng.integers(1 << 30)
+        torch.manual_seed(torch_seed)
+        surrogate = train_mlp(tinf.system, surr_trajs, surr_cfg_vals, torch_seed)
+        surrogates.append(surrogate)
+    print(f"{eval_seed=}")
+
     #cs = pipeline.get_configuration_space_fixed_model()
     #cfg = cs.get_default_configuration()
     #cfg["_controller:horizon"] = 25
@@ -203,7 +251,7 @@ def runexp_decoupled2(pipeline, tinf, tune_iters, seed, int_file=None):
     surrogates = []
     for surr_torch_seed in surr_torch_seeds:
         torch.manual_seed(surr_torch_seed)
-        surrogate = train_mlp(tinf.system, surr_trajs)
+        surrogate = train_mlp(tinf.system, surr_trajs, surr_torch_seed)
         surrogates.append(surrogate)
 
     root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
@@ -261,3 +309,38 @@ def runexp_decoupled2(pipeline, tinf, tune_iters, seed, int_file=None):
             save_result(result, "decoupled2_int", seed, surr_idx, i)
             results.append(result)
     return results
+
+def get_model_rmse(model, trajs):
+    sqerrss = []
+    for traj in trajs:
+        preds = model.pred_parallel(traj.obs[:-1, :], traj.ctrls[:-1, :])
+        sqerrs = (preds - traj.obs[1:]) ** 2
+        sqerrss.append(sqerrs)
+    np.concatenate(sqerrss)
+    rmse = np.sqrt(np.mean(sqerrs, axis=-1))
+    return rmse
+
+def dec2_surr_accuracy(pipeline, tinf, tune_iters, seed, int_file=None):
+    print(f"{seed=}")
+    rng = np.random.default_rng(seed)
+    sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
+    surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
+
+    #sysid_torch_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
+    sysid_torch_seed = rng.integers(1 << 30)
+    surr_torch_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
+    smac_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
+
+    surrogates = []
+    for surr_torch_seed in surr_torch_seeds[:1]:
+        torch.manual_seed(surr_torch_seed)
+        surrogate = train_mlp(tinf.system, surr_trajs)
+        surrogates.append(surrogate)
+
+    for i, surrogate in enumerate(surrogates):
+        train_err = get_model_rmse(surrogate, surr_trajs)
+        val_err = get_model_rmse(surrogate, sysid_trajs)
+        print("Surrogate {} has train_err={:.4f} and val_err={:.4f}"
+                .format(i, train_err[0], val_err[0]))
+
+

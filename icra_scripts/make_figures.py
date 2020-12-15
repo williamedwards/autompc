@@ -55,6 +55,22 @@ def make_figure_sysid1():
                 print("&          ", end="")
         print(r" \\")
 
+def make_figure_dalk1():
+    result = load_result("sysid1", "dalk", "mlp", 100, 42)
+    costs = result[1]["inc_costs"]
+    baseline = 0.0334935
+
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.plot(list(range(len(costs))), costs)
+    ax.plot([0, len(costs)], [baseline, baseline], "r--") 
+    ax.set_xlabel("Tuning Iterations")
+    ax.set_ylabel("Model Accuracy")
+    ax.set_title("Tuning MLP on DALK data")
+    ax.set_ylim([0.0, 0.05])
+    ax.legend(["MLP", "AR4"])
+    plt.show()
+
 def make_figure_cost_tuning():
     setting = ("cartpole-swingup", "mlp-ilqr", 100, 42)
     result, baseline_res = load_result("cost_tuning", *setting)
@@ -175,7 +191,8 @@ def make_figure_decoupled1():
     #result = load_result("decoupled1", "cartpole-swingup", "mlp-ilqr", 100,
     #        42)
     #result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 43)
-    result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 4, 44)
+    #result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 4, 44)
+    result = load_result("decoupled2_int", 80, 0, 1)
 
     #matplotlib.rcParams.update({'font.size': 12})
     #fig = plt.figure(figsize=(4,4))
@@ -184,8 +201,8 @@ def make_figure_decoupled1():
     ax.set_title(f"MLP-iLQR on Halfcheetah")
     ax.set_xlabel("Tuning iterations")
     ax.set_ylabel("True Perf.")
-    ax.set_ylim([-220, 400])
-    bcq_baseline = 200
+    ax.set_ylim([-275, 400])
+    #bcq_baseline = 200
     #labels = []
     #for label, value in baselines:
     #    ax.plot([0.0, n_iters], [value, value], "--")
@@ -198,23 +215,54 @@ def make_figure_decoupled1():
     #perfs = [cost for cost in result["inc_costs"]]
     #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*25
     #print(f"{perfs=}")
-    set_trace()
-    ax.plot([c for c, _ in result[0]["inc_truedyn_costs"]])
-    ax.plot([s for _, (_,s,_,_) in result[0]["inc_truedyn_costs"]])
+    #ax.plot([c for c, _ in result[0]["inc_truedyn_costs"]])
+    #ax.plot([s for _, (s,_,_,_) in result[0]["inc_truedyn_costs"]], "--")
+    #ax.plot([s for _, (_,s,_,_) in result[0]["inc_truedyn_costs"]], "--")
+    #ax.plot([s for _, (_,_,s,_) in result[0]["inc_truedyn_costs"]], "--")
+    #ax.plot([s for _, (_,_,_,s) in result[0]["inc_truedyn_costs"]], "--")
+    ax.plot(result["inc_truedyn_costs"])
+    ax.plot(result["inc_costs"])
     #ax.plot([c for c, _ in result[0]["inc_costs"]])
     #ax.plot(result[0]["inc_truedyn_costs"])
     #ax.plot(result[0]["costs"])
     #ax.plot([0, len(perfs)], [37, 37], "r--") 
     #ax.plot([0, len(result[0]["costs"])], [bcq_baseline, bcq_baseline], "r--") 
-    ax.legend(["True Dyn.", "Surr Cost 1"])#, prop={"size":16})
+    ax.legend(["True Dyn.", "Surr 1", "Surr 2", "Surr 3", "Surr 4"])#, prop={"size":16})
     #ax.legend(["true cost", "surr. cost"])
     plt.tight_layout()
     plt.show()
 
+def make_figure_decoupled2():
+    root_seeds = [80, 81, 82]
+    surr_idxs = [0, 1]
+    smac_idxs = [0, 1]
+    result = load_result("decoupled2_int", 80, 0, 1)
+
+    fig, axs = plt.subplots(len(root_seeds), len(surr_idxs) * len(smac_idxs),
+            figsize=(12,12))
+    i = 0
+    for seed in root_seeds:
+        for surr_idx in surr_idxs:
+            for smac_idx in smac_idxs:
+                result = load_result("decoupled2_int", seed, surr_idx, smac_idx)
+                ax = axs.flat[i]; i += 1
+                #ax.set_aspect(0.1)
+                ax.set_title("Seed {}, Surr {}, SMAC {}"
+                        .format(seed, surr_idx, smac_idx))
+                ax.set_xlabel("Tuning iterations")
+                ax.set_ylabel("True Perf.")
+                ax.set_ylim([-300, 400])
+                ax.plot(result["inc_truedyn_costs"])
+                ax.plot(result["inc_costs"])
+                ax.legend(["true cost", "surr. cost"])
+    plt.tight_layout()
+    plt.show()
+
 def pca_decoupled1():
-    result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 44)
-    true_perfs = np.array(result[0]["truedyn_costs"])
-    cfgs = result[0]["cfgs"]
+    #result = load_result("decoupled1", "halfcheetah", "halfcheetah", 100, 44)
+    result = load_result("decoupled2_int", 40, 0, 0)
+    true_perfs = np.array(result["truedyn_costs"])
+    cfgs = result["cfgs"]
     hyper_names = list(cfgs[0].get_dictionary().keys())
     hyper_vals = np.zeros((len(cfgs), len(hyper_names)))
     for i, cfg in enumerate(cfgs):
@@ -233,10 +281,20 @@ def pca_decoupled1():
     fig = plt.figure()
     ax = fig.gca()
     ax.imshow(np.abs(pca.components_.T), cmap="Reds")
-    comp_labels = ["{:.2f}%".format(i, ratio) 
+    comp_labels = ["{:.2f}%".format(100.0*ratio) 
             for i, ratio in enumerate(pca.explained_variance_ratio_)]
     plt.xticks(np.arange(0.0, len(comp_labels), 1), comp_labels)
     plt.yticks(np.arange(0.0, len(hyper_hr_names), 1), hyper_hr_names)
+    plt.show()
+
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.plot(true_perfs)
+    ax.set_ylabel("Perf")
+    ax2 = ax.twinx()
+    ax2.set_ylabel("Horizon")
+    ax2.plot(hyper_vals[:,0], color="r")
+    #ax.legend(["Performance", "Horizon")
     plt.show()
 
     set_trace()
@@ -340,6 +398,8 @@ def make_figure_hyper_vals():
 def main(command):
     if command == "sysid1":
         make_figure_sysid1()
+    elif command == "dalk1":
+        make_figure_dalk1()
     elif command == "tuning1":
         make_figure_tuning1()
     elif command == "sysid2":
@@ -348,6 +408,8 @@ def main(command):
         make_figure_cost_tuning()
     elif command == "decoupled":
         make_figure_decoupled1()
+    elif command == "decoupled2":
+        make_figure_decoupled2()
     elif command == "decoupled-pca":
         pca_decoupled1()
     elif command == "cartpole-final":

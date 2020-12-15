@@ -1,5 +1,6 @@
 import time
 from pdb import set_trace
+import ConfigSpace as CS
 import sys, os, io
 sys.path.append(os.getcwd() + "/..")
 sys.path.append(os.getcwd() + "/../icra_scripts")
@@ -26,129 +27,49 @@ from autompc.sysid import MLP
 
 memory = Memory("cache")
 
+def get_halfch_cfgs(tinf):
+    cs = MLP.get_configuration_space(tinf.system)
+    cfg1 = cs.get_default_configuration()
+    cfg1["n_hidden_layers"] = "3"
+    cfg1["hidden_size_1"] = 128
+    cfg1["hidden_size_2"] = 128
+    cfg1["hidden_size_3"] = 128
+
+    cfg2 = cs.get_default_configuration()
+    cfg2["n_hidden_layers"] = "3"
+    cfg2["hidden_size_1"] = 64
+    cfg2["hidden_size_2"] = 64
+    cfg2["hidden_size_3"] = 64
+
+    cfg3 = cs.get_default_configuration()
+    cfg3["n_hidden_layers"] = "2"
+    cfg3["hidden_size_1"] = 64
+    cfg3["hidden_size_2"] = 64
+
+    cfg4 = cs.get_default_configuration()
+    cfg4["n_hidden_layers"] = "2"
+    cfg4["hidden_size_1"] = 32
+    cfg4["hidden_size_2"] = 32
+
+    return [cfg1, cfg2, cfg3, cfg3]
+
 @memory.cache
-def train_mlp_inner(system, trajs):
+def train_mlp_inner(system, trajs, cfg_vals):
     cs = MLP.get_configuration_space(system)
-    cfg = cs.get_default_configuration()
-    cfg["n_hidden_layers"] = "2"
-    cfg["hidden_size_1"] = 64
-    cfg["hidden_size_2"] = 64
-    #cfg["hidden_size_3"] = 128
+    cfg = CS.Configuration(cs, cfg_vals)
     model = ampc.make_model(system, MLP, cfg, use_cuda=True)
     model.train(trajs)
     return model.get_parameters()
 
-def train_mlp(system, trajs):
+def train_mlp(system, trajs, cfg_vals):
     cs = MLP.get_configuration_space(system)
-    cfg = cs.get_default_configuration()
-    cfg["n_hidden_layers"] = "2"
-    cfg["hidden_size_1"] = 64
-    cfg["hidden_size_2"] = 64
-    #cfg["hidden_size_3"] = 128
+    cfg = CS.Configuration(cs, cfg_vals)
     model = ampc.make_model(system, MLP, cfg, use_cuda=True)
-    params = train_mlp_inner(system, trajs)
+    params = train_mlp_inner(system, trajs, cfg_vals)
     model.set_parameters(params)
     model.net = model.net.to("cpu")
     model._device = "cpu"
     return model
-
-@memory.cache
-def get_cartpole_traj():
-    eval_seed = 471242136 
-    sysid_seed = 95832482 
-    tinf = cartpole_swingup_task()
-    sysid_trajs = tinf.gen_sysid_trajs(sysid_seed)
-    pipeline = init_mlp_ilqr(tinf)
-    cs = pipeline.get_configuration_space()
-    cfg = cs.get_default_configuration()
-    cfg["_controller:horizon"] = 7
-    cfg["_model:n_hidden_layers"] = '3'
-    cfg["_model:hidden_size_1"] = 164
-    cfg["_model:hidden_size_2"] = 32
-    cfg["_model:hidden_size_3"] = 32
-    cfg["_model:lr_log10"] = -1.9849343199878176
-    cfg["_model:nonlintype"] = 'sigmoid'
-    cfg["_task_transformer_0:dx_log10Fgain"] = 2.3443526613082177
-    cfg["_task_transformer_0:dx_log10Qgain"] = -2.527453816285304
-    cfg["_task_transformer_0:omega_log10Fgain"] = 2.1122143039990195
-    cfg["_task_transformer_0:omega_log10Qgain"] = -2.951999061464214
-    cfg["_task_transformer_0:theta_log10Fgain"] = 3.9971799274332973
-    cfg["_task_transformer_0:theta_log10Qgain"] = -0.018173603865086374
-    cfg["_task_transformer_0:u_log10Rgain"] = 0.9340417319521195
-    cfg["_task_transformer_0:x_log10Fgain"] = -2.3903216713888717
-    cfg["_task_transformer_0:x_log10Qgain"] = -1.3294040483448015
-    torch.manual_seed(eval_seed)
-    controller, model = pipeline(cfg, sysid_trajs)
-    truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
-    print("True score is ", tinf.perf_metric(truedyn_traj))
-
-    return truedyn_traj
-
-@memory.cache
-def get_pendulum_traj():
-    eval_seed = 471242136 
-    sysid_seed = 95832482 
-    tinf = pendulum_swingup_task()
-    sysid_trajs = tinf.gen_sysid_trajs(sysid_seed)
-    pipeline = init_mlp_ilqr(tinf)
-    cs = pipeline.get_configuration_space()
-    cfg = cs.get_default_configuration()
-    cfg["_controller:horizon"] = 19
-    cfg["_model:n_hidden_layers"] = '4'
-    cfg["_model:hidden_size_1"] = 237
-    cfg["_model:hidden_size_2"] = 16
-    cfg["_model:hidden_size_3"] = 49
-    cfg["_model:hidden_size_4"] = 58
-    cfg["_model:lr_log10"] = -3.19686373088281
-    cfg["_model:nonlintype"] = 'tanh'
-    cfg["_task_transformer_0:ang_log10Fgain"] = -2.8258747593349773
-    cfg["_task_transformer_0:ang_log10Qgain"] = 2.2741663880622083
-    cfg["_task_transformer_0:angvel_log10Fgain"] = -2.0413800509631113
-    cfg["_task_transformer_0:angvel_log10Qgain"] = 0.03623480183756156
-    cfg["_task_transformer_0:torque_log10Rgain"] = -0.8660987537498146
-    torch.manual_seed(eval_seed)
-    controller, model = pipeline(cfg, sysid_trajs)
-    truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
-    print("True score is ", tinf.perf_metric(truedyn_traj))
-
-    return truedyn_traj
-
-@memory.cache
-def get_halfcheetah_traj():
-    eval_seed = 831028979 
-    sysid_seed = 95832482 
-    tinf = halfcheetah_task()
-    sysid_trajs = tinf.gen_sysid_trajs(sysid_seed)
-    pipeline = init_halfcheetah(tinf)
-    cs = pipeline.get_configuration_space()
-    cfg = cs.get_default_configuration()
-    cfg["_controller:horizon"] = 24
-    cfg["_model:n_hidden_layers"] = "3"
-    cfg["_model:hidden_size_1"] = 69
-    cfg["_model:hidden_size_2"] = 256
-    cfg["_model:hidden_size_3"] = 256
-    cfg["_model:lr_log10"] = -3.323534
-    cfg["_model:nonlintype"] = "tanh"
-    cfg["_task_transformer_0:target_velocity"] = 3.321886089075155
-    cfg["_task_transformer_0:u0_log10Rgain"] = 1.5017695879038584
-    cfg["_task_transformer_0:u1_log10Rgain"] = -0.5395536435085289
-    cfg["_task_transformer_0:u2_log10Rgain"] = 2.748537321425771
-    cfg["_task_transformer_0:u3_log10Rgain"] = 3.720361655907287
-    cfg["_task_transformer_0:u4_log10Rgain"] = -2.9800602041994115
-    cfg["_task_transformer_0:u5_log10Rgain"] = 0.48324062220374575
-    cfg["_task_transformer_0:x1_log10Fgain"] = -2.0506520078257227
-    cfg["_task_transformer_0:x1_log10Qgain"] = 3.998363281679719
-    cfg["_task_transformer_0:x6_log10Qgain"] = -2.9437444440024487
-    cfg["_task_transformer_0:x7_log10Qgain"] = -0.229595492726137
-    cfg["_task_transformer_0:x8_log10Qgain"] = -2.5092520566006327
-    cfg["_task_transformer_0:x9_log10Fgain"] = 1.496412254774678
-    cfg["_task_transformer_0:x9_log10Qgain"] = 1.9821459898060656
-    torch.manual_seed(eval_seed)
-    controller, model = pipeline(cfg, sysid_trajs)
-    truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
-    print("True score is ", tinf.perf_metric(truedyn_traj))
-
-    return truedyn_traj
 
 def get_variance_score(tinf, models, trajs):
     #baseline_std = np.zeros((tinf.system.obs_dim))
@@ -170,10 +91,67 @@ def get_variance_score(tinf, models, trajs):
     pred_std = np.std(pred_deltas, axis=2)
     pred_std_mean = np.mean(pred_std, axis=0)
 
-    print("Score: ", np.mean(pred_std_mean / baseline_std))
-        
-    set_trace()
+    score = np.mean(pred_std_mean / baseline_std)
+    print("Score: ", score)
+    return score
 
+def get_model_rmse(model, trajs):
+    sqerrss = []
+    for traj in trajs:
+        preds = model.pred_parallel(traj.obs[:-1, :], traj.ctrls[:-1, :])
+        sqerrs = (preds - traj.obs[1:]) ** 2
+        sqerrss.append(sqerrs)
+    np.concatenate(sqerrss)
+    rmse = np.sqrt(np.mean(sqerrs, axis=None))
+    return rmse
+
+@memory.cache
+def evaluate_halfch_cfg(cfg_vals, seed, n_models=10):
+    tinf = halfcheetah_task()
+    rng = np.random.default_rng(seed)
+    holdout_seed = rng.integers(1 << 30)
+    model_seeds = [rng.integers(1 << 30) for _ in range(n_models)]
+    holdout_set = tinf.gen_surr_trajs(seed)
+    trajss = [tinf.gen_surr_trajs(seed) for seed in model_seeds]
+    models = [train_mlp(tinf.system, trajs, cfg_vals) for trajs in trajss]
+    variance_score = get_variance_score(tinf, models, holdout_set)
+    model_accuracy = get_model_rmse(models[0], holdout_set)
+    return variance_score, model_accuracy
+
+def evaluate_random_cfgs(tinf, seed, n_cfgs):
+    rng = np.random.default_rng(seed)
+    traj_gen_seed = rng.integers(1 << 30)
+    cs = MLP.get_configuration_space(tinf.system)
+    cs.seed(rng.integers(1 << 30))
+    cfgs = []
+    scores = []
+    for _ in range(n_cfgs):
+        cfg = cs.sample_configuration()
+        cfg_vals = cfg.get_dictionary()
+        score = evaluate_halfch_cfg(cfg_vals, traj_gen_seed, n_models=10)
+        cfgs.append(cfg)
+        scores.append(score)
+
+    for cfg, (var_score, model_accuracy) in zip(cfgs, scores):
+        print("Cfg")
+        print(cfg)
+        print("Variance Score: ", var_score)
+        print("Model Accuracy", model_accuracy)
+        print("===============")
+
+    var_scores = [var_score for var_score, model_accuracy in scores]
+    model_accuracies = [model_accuracy for var_score, model_accuracy in scores]
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.set_title("Model Accuracy vs Variance")
+    ax.scatter(model_accuracies, var_scores)
+    ax.scatter([0.605], [0.0663], color="r")
+    ax.set_xlabel("Model Accuracy")
+    ax.set_ylabel("Variance Score")
+
+    plt.show()
+
+    set_trace()
 
 def main(sysname, seed, n_models=10):
     rng = np.random.default_rng(seed)
@@ -183,11 +161,22 @@ def main(sysname, seed, n_models=10):
         tinf = cartpole_swingup_task()
     elif sysname == "halfcheetah":
         tinf = halfcheetah_task()
+    elif sysname == "pendulum":
+        tinf = pendulum_swingup_task()
     holdout_set = tinf.gen_surr_trajs(seed)
     trajss = [tinf.gen_surr_trajs(seed) for seed in model_seeds]
     models = [train_mlp(tinf.system, trajs) for trajs in trajss]
     get_variance_score(tinf, models, holdout_set)
 
+def main2():
+    tinf = halfcheetah_task()
+    if len(sys.argv) == 1:
+        evaluate_random_cfgs(tinf, seed=101, n_cfgs=15)
+    else:
+        cfg = get_halfch_cfgs(halfcheetah_task())[int(sys.argv[1])]
+        print(evaluate_halfch_cfg(cfg.get_dictionary(), 220, n_models=10))
+
 if __name__ == "__main__":
-    main("halfcheetah", 80)
+    #main("pendulum", 80)
+    main2()
 

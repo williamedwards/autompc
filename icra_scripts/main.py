@@ -18,12 +18,13 @@ from pendulum_task import pendulum_swingup_task
 from acrobot_task import acrobot_swingup_task
 from halfcheetah_task import halfcheetah_task
 from halfcheetah_task_buffer import halfcheetah_task_buffer
+from dalk_task import dalk_task
 from pipelines import init_pipeline
 from sysid1 import runexp_sysid1
 from sysid2 import runexp_sysid2
 from tuning1 import runexp_tuning1
 from surrtest import runexp_surrtest
-from decoupled1 import runexp_decoupled1, runexp_decoupled2
+from decoupled1 import runexp_decoupled1, runexp_decoupled2, dec2_surr_accuracy
 from controllers import runexp_controllers
 from cost_tuning import runexp_cost_tuning
 from utils import *
@@ -57,6 +58,8 @@ def init_task(task_name):
         return halfcheetah_task_buffer(buff=1)
     elif task_name == "halfcheetah-buffer2":
         return halfcheetah_task_buffer(buff=2)
+    elif task_name == "dalk":
+        return dalk_task()
     else:
         raise ValueError("Task not found")
 
@@ -111,7 +114,12 @@ def main(args):
         result = runexp_decoupled2(pipeline, tinf, tune_iters=args.tuneiters,
                 seed=args.seed, int_file=args.intfile)
         save_result(result, "decoupled1", args.task, args.pipeline,
-                args.tuneiters, args.ensemble, args.seed)
+                args.tuneiters, args.ensemble, args.seed, args.subexp)
+    elif args.command == "decoupled2_surr_acc":
+        tinf = init_task(args.task)
+        pipeline = init_pipeline(tinf, args.pipeline)
+        result = dec2_surr_accuracy(pipeline, tinf, tune_iters=args.tuneiters,
+                seed=args.seed, int_file=args.intfile)
     elif args.command == "controllers":
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
@@ -125,6 +133,7 @@ def main(args):
         raise ValueError("Command not recognized.")
 
 if __name__ == "__main__":
+    dalk_task()
     parser = argparse.ArgumentParser()
     parser.add_argument("command", type=str)
     parser.add_argument("--task", default="cartpole-swingup")
