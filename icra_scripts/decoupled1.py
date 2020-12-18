@@ -7,7 +7,8 @@ import numpy as np
 import torch
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
-from joblib import Memory
+from joblib import Memory, Parallel, delayed
+import joblib
 from pdb import set_trace
 memory = Memory("cache")
 
@@ -16,13 +17,16 @@ import autompc as ampc
 from autompc.evaluators import FixedSetEvaluator
 from autompc.metrics import RmseKstepMetric
 from autompc.sysid import MLP
-from utils import save_result
+from autompc.misc.model_metrics import *
+from utils import save_result, load_result
 import ConfigSpace as CS
 
 default_cfg_vals = {
         "n_hidden_layers" : "2",
         "hidden_size_1" : 64,
-        "hidden_size_2" : 64
+        "hidden_size_2" : 64,
+        "nonlintype" : "relu",
+        "lr_log10" : -3
         }
 
 
@@ -310,37 +314,132 @@ def runexp_decoupled2(pipeline, tinf, tune_iters, seed, int_file=None):
             results.append(result)
     return results
 
-def get_model_rmse(model, trajs):
-    sqerrss = []
-    for traj in trajs:
-        preds = model.pred_parallel(traj.obs[:-1, :], traj.ctrls[:-1, :])
-        sqerrs = (preds - traj.obs[1:]) ** 2
-        sqerrss.append(sqerrs)
-    np.concatenate(sqerrss)
-    rmse = np.sqrt(np.mean(sqerrs, axis=-1))
-    return rmse
+#def get_model_rmse(model, trajs):
+#    sqerrss = []
+#    for traj in trajs:
+#        preds = model.pred_parallel(traj.obs[:-1, :], traj.ctrls[:-1, :])
+#        sqerrs = (preds - traj.obs[1:]) ** 2
+#        sqerrss.append(sqerrs)
+#    np.concatenate(sqerrss)
+#    rmse = np.sqrt(np.mean(sqerrs, axis=-1))
+#    return rmse
+#
+#def normalize(means, std, A):
+#    At = []
+#    for i in range(A.shape[1]):
+#        At.append((A[:,i] - means[i]) / std[i])
+#    return np.vstack(At).T
+#
+#def get_normalized_model_rmse(model, trajs, horiz=1):
+#    dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
+#    dy_means = np.mean(dY, axis=0)
+#    dy_std = np.std(dY, axis=0)
+#
+#    sqerrss = []
+#    for traj in trajs:
+#        state = traj.obs[:-horiz, :]
+#        for k in range(horiz):
+#            pstate = state
+#            state = model.pred_parallel(state, traj.ctrls[k:-(horiz-k), :])
+#        pred_deltas = state - pstate
+#        act_deltas = traj.obs[horiz:] - traj.obs[horiz-1:-1]
+#        norm_pred_deltas = normalize(dy_means, dy_std, pred_deltas)
+#        norm_act_deltas = normalize(dy_means, dy_std, act_deltas)
+#        sqerrs = (norm_pred_deltas - norm_act_deltas) ** 2
+#        sqerrss.append(sqerrs)
+#    sqerrs = np.concatenate(sqerrss)
+#    rmse = np.sqrt(np.mean(sqerrs, axis=None))
+#    return rmse
+
+@memory.cache(ignore=["tinf", "sysid_model"])
+def get_tune_trajs(pipeline, tinf, sysid_model, load_args):
+    def get_traj(cfg):
+        root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+        pipeline_cfg = pipeline.set_configuration_fixed_model(root_pipeline_cfg, cfg)
+        controller, _ = pipeline(pipeline_cfg, None, model=sysid_model)
+        truedyn_traj = runsim(tinf, 200, None, controller, tinf.dynamics)
+        return truedyn_traj
+    result = load_result(*load_args)
+    trajs = Parallel(n_jobs=8)(delayed(get_traj)(cfg) for cfg in result["cfgs"])
+    return trajs
 
 def dec2_surr_accuracy(pipeline, tinf, tune_iters, seed, int_file=None):
-    print(f"{seed=}")
     rng = np.random.default_rng(seed)
-    sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
-    surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
+    seed1 = rng.integers(1 << 30)
+    seed2 = rng.integers(1 << 30)
+    sysid_trajs = tinf.gen_sysid_trajs(seed1)
+    sysid_trajs = tinf.gen_sysid_trajs(seed1)
+    surr_trajs = tinf.gen_surr_trajs(seed2)
+    surr_trajs = tinf.gen_surr_trajs(seed2)
+
 
     #sysid_torch_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
     sysid_torch_seed = rng.integers(1 << 30)
     surr_torch_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
     smac_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
 
+
     surrogates = []
-    for surr_torch_seed in surr_torch_seeds[:1]:
+    for surr_torch_seed in surr_torch_seeds:
         torch.manual_seed(surr_torch_seed)
-        surrogate = train_mlp(tinf.system, surr_trajs)
+        surrogate = train_mlp(tinf.system, surr_trajs, default_cfg_vals,
+                surr_torch_seed)
         surrogates.append(surrogate)
 
+    root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+    root_pipeline_cfg["_model:n_hidden_layers"] = "3"
+    root_pipeline_cfg["_model:hidden_size_1"] = 69
+    root_pipeline_cfg["_model:hidden_size_2"] = 256
+    root_pipeline_cfg["_model:hidden_size_3"] = 256
+    root_pipeline_cfg["_model:lr_log10"] = -3.323534
+    root_pipeline_cfg["_model:nonlintype"] = "tanh"
+    cs = pipeline.get_configuration_space_fixed_model()
+    #cfg = cs.get_default_configuration()
+    #cfg["_controller:horizon"] = 25
+    #cfg["_task_transformer_0:x_log10Qgain"] = 1.0
+    #print(pipeline.set_configuration_fixed_model(root_pipeline_cfg, cfg))
+    #set_trace()
+
+    @memory.cache
+    def train_model(sysid_trajs):
+        model = ampc.make_model(tinf.system, pipeline.Model, 
+                pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=50,
+                use_cuda=False)
+        torch.manual_seed(sysid_torch_seed)
+        model.train(sysid_trajs)
+        return model.get_parameters()
+    model = ampc.make_model(tinf.system, pipeline.Model, 
+            pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=5,
+            use_cuda=True)
+    model_params = train_model(sysid_trajs)
+    model.set_parameters(model_params)
+
+
+    # Load in tune trajs
+    load_args = ("decoupled2_int", 82, 0, 0)
+    tune_trajs = get_tune_trajs(pipeline, tinf, model, load_args)
+    set_trace()
+
     for i, surrogate in enumerate(surrogates):
-        train_err = get_model_rmse(surrogate, surr_trajs)
-        val_err = get_model_rmse(surrogate, sysid_trajs)
-        print("Surrogate {} has train_err={:.4f} and val_err={:.4f}"
-                .format(i, train_err[0], val_err[0]))
+        train_dev = get_model_variance([surrogate, model], surr_trajs)
+        train_dev2 = get_variance_score([surrogate, model], surr_trajs)
+        val_dev = get_model_variance([surrogate, model], sysid_trajs)
+        val_dev2 = get_variance_score([surrogate, model], sysid_trajs)
+        print("train_dev = ", train_dev)
+        print("train_dev2 = ", train_dev2)
+        print("val_dev = ", val_dev)
+        print("val_dev2 = ", val_dev2)
+        for k in [1,5,10,15,20]:
+            train_err = get_normalized_model_rmse(surrogate, surr_trajs, horiz=k)
+            val_err = get_normalized_model_rmse(surrogate, sysid_trajs, horiz=k)
+            print("Surrogate {} has {}-step train_err={:.4f} and val_err={:.4f}"
+                    .format(i, k, train_err, val_err))
 
 
+def test_traj_hashing(pipeline, tinf, tune_iters, seed, int_file=None):
+    surr_trajs = tinf.gen_sysid_trajs(306)
+    surr_trajs2 = tinf.gen_sysid_trajs(306)
+    print("hash1=", joblib.hash(tinf.system))
+    print("hash2=", joblib.hash(surr_trajs))
+    set_trace()
+    surrogate = train_mlp(tinf.system, surr_trajs)

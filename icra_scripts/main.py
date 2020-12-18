@@ -24,7 +24,11 @@ from sysid1 import runexp_sysid1
 from sysid2 import runexp_sysid2
 from tuning1 import runexp_tuning1
 from surrtest import runexp_surrtest
-from decoupled1 import runexp_decoupled1, runexp_decoupled2, dec2_surr_accuracy
+from ideal_tune import runexp_ideal_tune
+from decoupled1 import (runexp_decoupled1, 
+        runexp_decoupled2, 
+        dec2_surr_accuracy,
+        test_traj_hashing)
 from controllers import runexp_controllers
 from cost_tuning import runexp_cost_tuning
 from utils import *
@@ -108,6 +112,14 @@ def main(args):
                 int_file=args.intfile, subexp=args.subexp, n_trajs=args.ntrajs)
         save_result(result, "decoupled1", args.task, args.pipeline,
                 args.tuneiters, args.ensemble, args.seed)
+    elif args.command == "ideal":
+        tinf = init_task(args.task)
+        pipeline = init_pipeline(tinf, args.pipeline)
+        result = runexp_ideal_tune(pipeline, tinf, tune_iters=args.tuneiters,
+                ensemble_size=args.ensemble, seed=args.seed, 
+                int_file=args.intfile, subexp=args.subexp, n_trajs=args.ntrajs)
+        save_result(result, "ideal", args.task, args.pipeline,
+                args.tuneiters, args.ensemble, args.seed)
     elif args.command == "decoupled2":
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
@@ -119,6 +131,11 @@ def main(args):
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
         result = dec2_surr_accuracy(pipeline, tinf, tune_iters=args.tuneiters,
+                seed=args.seed, int_file=args.intfile)
+    elif args.command == "test_hashing":
+        tinf = init_task(args.task)
+        pipeline = init_pipeline(tinf, args.pipeline)
+        result = test_traj_hashing(pipeline, tinf, tune_iters=args.tuneiters,
                 seed=args.seed, int_file=args.intfile)
     elif args.command == "controllers":
         tinf = init_task(args.task)

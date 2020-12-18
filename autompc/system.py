@@ -16,6 +16,10 @@ class System:
         self._controls = controls[:]
         self._observations = observations[:]
 
+    def __eq__(self, other):
+        return ((self.controls == other.controls) 
+                and (self.observations == other.observations))
+
     @property
     def controls(self):
         return self._controls[:]

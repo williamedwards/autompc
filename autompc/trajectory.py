@@ -34,6 +34,12 @@ class Trajectory:
         self._obs = obs
         self._ctrls = ctrls
 
+    def __eq__(self, other):
+        return (self._system == other.system
+                and self._size == other._size
+                and np.array_equal(self._obs, other._obs)
+                and np.array_equal(self._ctrls, other._ctrls))
+
     def __getitem__(self, idx):
         if isinstance(idx, tuple):
             if (not isinstance(idx[0], slice) and (idx[0] < -self.size 
