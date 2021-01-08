@@ -1,4 +1,6 @@
 import numpy as np
+from .. import zeros
+from pdb import set_trace
 
 
 def normalize(means, std, A):
@@ -27,6 +29,28 @@ def get_normalized_model_rmse(model, trajs, horiz=1):
     sqerrs = np.concatenate(sqerrss)
     rmse = np.sqrt(np.mean(sqerrs, axis=None))
     return rmse
+
+def get_model_metric_rmse(model, trajs, perf_metric):
+    X = np.vstack([traj.obs[0, :] for traj in trajs])
+    pred_trajs = [zeros(traj.system, len(traj)) for traj in trajs]
+    for i in range(len(trajs[0])-1):
+        U = np.vstack([traj.ctrls[0, :] for traj in trajs])
+        for j, ptraj in enumerate(pred_trajs):
+            ptraj.obs[i, :] = X[j, :]
+            ptraj.ctrls[i, :] = U[j, :]
+        X = model.pred_parallel(X, U)
+
+    for j, ptraj in enumerate(pred_trajs):
+        ptraj.obs[-1, :] = X[j, :]
+
+    sse = 0.0
+    for traj, ptraj in zip(trajs, pred_trajs):
+        true_metric = perf_metric(traj)
+        pred_metric = perf_metric(ptraj)
+        sse += (true_metric - pred_metric)**2
+
+    return np.sqrt(sse / len(trajs))
+
 
 def get_variance_score(models, trajs):
     #baseline_std = np.zeros((tinf.system.obs_dim))

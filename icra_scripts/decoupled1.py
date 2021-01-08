@@ -378,6 +378,10 @@ def dec2_surr_accuracy(pipeline, tinf, tune_iters, seed, int_file=None):
     surr_torch_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
     smac_seeds = [rng.integers(1 << 30), rng.integers(1 << 30)]
 
+    seed3 = rng.integers(1 << 30)
+    val_trajs = tinf.gen_sysid_trajs(seed3)
+    val_trajs = tinf.gen_sysid_trajs(seed3)
+
 
     surrogates = []
     for surr_torch_seed in surr_torch_seeds:
@@ -418,22 +422,24 @@ def dec2_surr_accuracy(pipeline, tinf, tune_iters, seed, int_file=None):
     # Load in tune trajs
     load_args = ("decoupled2_int", 82, 0, 0)
     tune_trajs = get_tune_trajs(pipeline, tinf, model, load_args)
-    set_trace()
 
     for i, surrogate in enumerate(surrogates):
-        train_dev = get_model_variance([surrogate, model], surr_trajs)
-        train_dev2 = get_variance_score([surrogate, model], surr_trajs)
-        val_dev = get_model_variance([surrogate, model], sysid_trajs)
-        val_dev2 = get_variance_score([surrogate, model], sysid_trajs)
-        print("train_dev = ", train_dev)
-        print("train_dev2 = ", train_dev2)
+        surr_perf_err = get_model_metric_rmse(surrogate, surr_trajs, tinf.perf_metric)
+        print("surr_perf_err=", surr_perf_err)
+        surr_dev = get_model_variance([surrogate, model], surr_trajs)
+        sysid_dev = get_model_variance([surrogate, model], sysid_trajs)
+        val_dev = get_model_variance([surrogate, model], val_trajs)
+        tune_dev = get_model_variance([surrogate, model], tune_trajs)
+        print("surr_dev = ", surr_dev)
+        print("sysid_dev = ", sysid_dev)
         print("val_dev = ", val_dev)
-        print("val_dev2 = ", val_dev2)
+        print("tune_dev = ", tune_dev)
         for k in [1,5,10,15,20]:
             train_err = get_normalized_model_rmse(surrogate, surr_trajs, horiz=k)
             val_err = get_normalized_model_rmse(surrogate, sysid_trajs, horiz=k)
-            print("Surrogate {} has {}-step train_err={:.4f} and val_err={:.4f}"
-                    .format(i, k, train_err, val_err))
+            tune_err = get_normalized_model_rmse(surrogate, tune_trajs, horiz=k)
+            print("Surrogate {},{}-step: train_err={:.4f}, val_err={:.4f}, tune_err={:.4f}"
+                    .format(i, k, train_err, val_err, tune_err))
 
 
 def test_traj_hashing(pipeline, tinf, tune_iters, seed, int_file=None):
