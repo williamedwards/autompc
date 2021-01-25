@@ -15,3 +15,10 @@ class CostFactory(ABC):
     @abstractmethod
     def __call__(self, system, task, model, trajs, cfg):
         raise NotImplementedError
+
+    def __add__(self, other):
+        from .sum_cost_factory import SumCostFactory
+        if isinstance(other, SumCostFactory):
+            return other.__radd__(self)
+        else:
+            return SumCostFactory([self, other])
