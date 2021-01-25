@@ -6,3 +6,4 @@ from .gradient import Gradient, gradzeros, gradempty
 from .task import Task
 from .utils import make_model, make_controller
 from .tuner import ModelTuner
+from .pipeline import Pipeline

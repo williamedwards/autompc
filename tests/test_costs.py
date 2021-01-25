@@ -8,6 +8,7 @@ import autompc as ampc
 from autompc.sysid import ARX
 from autompc.costs import QuadCostFactory, QuadCost, GaussRegFactory, SumCost
 from autompc.tasks import Task
+from autompc.control import IterativeLQR
 
 # External library includes
 import numpy as np
@@ -287,3 +288,56 @@ class SumCostFactoryTest(unittest.TestCase):
         val2 = cost2.eval_obs_cost(obs)
 
         self.assertEqual(val, val1+val2)
+
+class PipelineTest(unittest.TestCase):
+    def setUp(self):
+        double_int = ampc.System(["x", "y"], ["u"])
+        self.system = double_int
+        self.Model = ARX
+        self.Controller = IterativeLQR
+        self.model_cs = self.Model.get_configuration_space(self.system)
+        self.model_cfg = self.model_cs.get_default_configuration()
+        self.model = ampc.make_model(self.system, self.Model, self.model_cfg)
+        self.cost_factory = QuadCostFactory() + GaussRegFactory()
+
+        # Initialize task
+        Q = np.eye(2)
+        R = np.eye(1)
+        F = np.eye(2)
+        cost = QuadCost(self.system, Q, R, F, goal=[-1,0])
+        self.task = Task(self.system)
+        self.task.set_cost(cost)
+        self.task.set_ctrl_bound("u", -20.0, 20.0)
+
+        # Generate trajectories
+        self.trajs = uniform_random_generate(double_int, self.task,
+                lambda y,u: dt_doubleint_dynamics(y,u,dt=0.05),
+                np.random.default_rng(42), init_min=[-1.0, -1.0],
+                init_max=[1.0, 1.0], traj_len=20, n_trajs=20)
+
+    def test_config_space(self):
+        pipeline = ampc.Pipeline(self.Model, self.Controller, self.cost_factory, None)
+        cs = pipeline.get_configuration_space(self.system, self.task)
+        self.assertIsInstance(cs, CS.ConfigurationSpace)
+
+        cfg = cs.get_default_configuration()
+        cfg_dict = cfg.get_dictionary()
+        extr_dicts = []
+        for prfx in ["_model", "_ctrlr", "_cost"]:
+            extr_dict = dict()
+            for key, val in cfg_dict.items():
+                if key.startswith(prfx):
+                    extr_key = ":".join(key.split(":")[1:])
+                    extr_dict[extr_key] = val
+            extr_dicts.append(extr_dict)
+        model_cs = self.Model.get_configuration_space(self.system)
+        ctrlr_cs = self.Controller.get_configuration_space(self.system, self.task,
+                self.Model)
+        cost_fact_cs = self.cost_factory.get_configuration_space(self.system, self.task,
+                self.Model)
+        cfg1_dict = model_cs.get_default_configuration().get_dictionary()
+        cfg2_dict = ctrlr_cs.get_default_configuration().get_dictionary()
+        cfg3_dict = cost_fact_cs.get_default_configuration().get_dictionary()
+        self.assertEqual(extr_dicts[0], cfg1_dict)
+        self.assertEqual(extr_dicts[1], cfg2_dict)
+        self.assertEqual(extr_dicts[2], cfg3_dict)
