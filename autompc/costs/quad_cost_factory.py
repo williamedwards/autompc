@@ -1,4 +1,4 @@
-# Created by William Edwards (wre2@illinois.edu), 2021-0124
+# Created by William Edwards (wre2@illinois.edu), 2021-01-24
 
 # Internal library includes
 from .cost_factory import CostFactory
