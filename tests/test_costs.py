@@ -141,3 +141,72 @@ class GaussRegFactoryTest(unittest.TestCase):
         self.assertTrue((F == np.zeros((self.system.obs_dim, self.system.obs_dim))).all())
         self.assertTrue((R == np.zeros((self.system.ctrl_dim, 
             self.system.ctrl_dim))).all())
+
+class SumCostTest(unittest.TestCase):
+    def setUp(self):
+        double_int = ampc.System(["x", "y"], ["u"])
+        self.system = double_int
+
+        Q1 = np.eye(2)
+        R1 = np.eye(1)
+        F1 = np.eye(2)
+        goal1 = np.array([0.0, 0.0])
+        self.cost1 = QuadCost(self.system, Q1, R1, F1, goal1)
+
+        Q2 = np.diag([1.0, 2.0])
+        R2 = 0.1 * np.eye(1)
+        F2 = np.diag([1.0, 3.0])
+        goal2 = np.array([0.0, 0.0])
+        self.cost2 = QuadCost(self.system, Q2, R2, F2, goal2)
+
+        Q3 = np.diag([0.0, 3.0])
+        R3 = 0.5 * np.eye(1)
+        F3 = np.diag([3.0, 0.0])
+        goal3 = np.array([1.0, 0.0])
+        self.cost3 = QuadCost(self.system, Q3, R3, F3, goal3)
+
+    def test_operator_overload(self):
+        sum1 = (self.cost1 + self.cost2) + self.cost3
+        sum2 = self.cost1 + (self.cost2 + self.cost3)
+        sum3 = self.cost1 + self.cost2 + self.cost3
+
+        targ_costs = [self.cost1, self.cost2, self.cost3]
+        for sum_cost in (sum1, sum2, sum3):
+            self.assertEqual(len(sum_cost.costs), len(targ_costs))
+            for cost, targ_cost in zip(sum_cost.costs, targ_costs):
+                self.assertIs(cost, targ_cost)
+
+    def test_properties(self):
+        sum1 = self.cost1 + self.cost2
+        sum2 = self.cost1 + self.cost3
+
+        self.assertTrue(sum1.is_quad)
+        self.assertTrue(sum1.has_goal)
+        self.assertTrue(sum1.is_convex)
+        self.assertTrue(sum1.is_diff)
+        self.assertTrue(sum1.is_twice_diff)
+
+        self.assertFalse(sum2.is_quad)
+        self.assertFalse(sum2.has_goal)
+        self.assertTrue(sum2.is_convex)
+        self.assertTrue(sum2.is_diff)
+        self.assertTrue(sum2.is_twice_diff)
+
+    def test_evals(self):
+        sum1 = self.cost1 + self.cost2 + self.cost3
+
+        obs = np.array([-1, 1])
+
+        res = sum1.eval_obs_cost(obs)
+        self.assertEqual(res, 8)
+        res, jac = sum1.eval_obs_cost_diff(obs)
+        self.assertEqual(res, 8)
+        self.assertTrue((jac == np.array([-4,12])).all())
+        res, jac, hess = sum1.eval_obs_cost_hess(obs)
+        self.assertEqual(res, 8)
+        self.assertTrue((jac == np.array([-4,12])).all())
+        self.assertTrue((hess == np.diag([4,12])).all())
+
+
+        
+        

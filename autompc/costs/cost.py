@@ -10,6 +10,7 @@ class BaseCost(ABC):
         self._is_quad = False
         self._is_convex = False
         self._is_diff = False
+        self._is_twice_diff = False
         self._has_goal = False
 
     def __call__(self, traj):
@@ -42,7 +43,7 @@ class BaseCost(ABC):
         obs -> float.
         """
         if self.is_quad:
-            obst = obs - self._x0
+            obst = obs - self._goal
             return obst.T @ self._Q @ obst
         else:
             raise NotImplementedError
@@ -149,5 +150,16 @@ class BaseCost(ABC):
         return self._is_diff
 
     @property
+    def is_twice_diff(self):
+        return self._is_twice_diff
+
+    @property
     def has_goal(self):
         return self._has_goal
+
+    def __add__(self, other):
+        from .sum_cost import SumCost
+        if isinstance(other, SumCost):
+            return other.__radd__(self)
+        else:
+            return SumCost(self.system, [self, other])

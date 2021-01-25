@@ -6,6 +6,7 @@ from .cost import BaseCost
 
 class QuadCost(BaseCost):
     def __init__(self, system, Q, R, F=None, goal=None):
+        super().__init__(system)
         if Q.shape != (system.obs_dim, system.obs_dim):
             raise ValueError("Q is the wrong shape")
         if R.shape != (system.ctrl_dim, system.ctrl_dim):
@@ -26,4 +27,5 @@ class QuadCost(BaseCost):
         self._is_quad = True
         self._is_convex = True
         self._is_diff = True
+        self._is_twice_diff = True
         self._has_goal = True
