@@ -14,7 +14,7 @@ import pysindy as ps
 
 class SINDy(Model):
     def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
-            poly_degree=1, trig_basis=False, trig_freq=1):
+            poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1):
         super().__init__(system)
 
         self.method = method
@@ -26,6 +26,7 @@ class SINDy(Model):
             poly_basis = True if poly_basis == "true" else False
         self.poly_basis = poly_basis
         self.poly_degree = poly_degree
+        self.poly_cross_terms = poly_cross_terms
         if type(trig_basis) == str:
             trig_basis = True if trig_basis == "true" else False
         self.trig_basis = trig_basis
@@ -47,6 +48,8 @@ class SINDy(Model):
                 default_value=3)
         use_poly_degree = CSC.InCondition(child=poly_degree, parent=poly_basis,
                 values=["true"])
+        poly_cross_terms = CSH.CategoricalHyperparameter("poly_cross_terms",
+                choices=["true", "false"], default_value="false")
 
         trig_basis = CSH.CategoricalHyperparameter("trig_basis", 
                 choices=["true", "false"], default_value="false")
@@ -56,7 +59,7 @@ class SINDy(Model):
                 values=["true"])
 
         cs.add_hyperparameters([method, lasso_alpha_log10, poly_basis, poly_degree,
-            trig_basis, trig_freq])
+            trig_basis, trig_freq, poly_cross_terms])
         cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
 
         return cs
@@ -111,6 +114,18 @@ class SINDy(Model):
                 function_names += [
                     (lambda d: lambda x, d=d : "{}^{}".format(x, d))(deg)
                 ]
+            if self.poly_cross_terms:
+                for deg in range(2,self.poly_degree+1):
+                    for deg2 in range(1, deg):
+                        library_functions += [
+                            (lambda d, d2: lambda x,y : x ** d2 * y ** (d-d2))(deg, deg2)
+                        ]
+                        function_gradients2 += [
+                            (lambda d, d2: lambda x,y : (d2*x ** (d2-1) * y ** (d-d2), x ** d2 * (d-d2)*y ** (d-d2-1)))(deg, deg2)
+                        ]
+                        function_names += [
+                            (lambda d, d2: lambda x,y : "{}^{} {}^{}".format(x, d2, y, d-d2))(deg, deg2)
+                        ]
         if self.trig_interaction:
             library_functions += [
                     lambda x,y : x * np.sin(y),

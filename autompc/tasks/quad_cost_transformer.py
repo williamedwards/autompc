@@ -57,7 +57,7 @@ class QuadCostTransformer(TaskTransformer):
             R[i,i] *= self.Rgains[i]
         for i in range(len(self.Fgains)):
             F[i,i] *= self.Fgains[i]
-        newcost = QuadCost(self.system, Q, R, F)
+        newcost = QuadCost(self.system, Q, R, F, x0=cost.get_x0())
         newtask.set_cost(newcost)
         return newtask
 
