@@ -1,4 +1,3 @@
-from functools import partial
 import numpy as np
 import numpy.linalg as la
 import scipy.linalg as sla
@@ -12,9 +11,11 @@ import ConfigSpace.conditions as CSC
 
 import pysindy as ps
 
+from .basis_funcs import *
+
 class SINDy(Model):
     def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
-            poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1):
+            poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1, time_mode="discrete"):
         super().__init__(system)
 
         self.method = method
@@ -31,11 +32,14 @@ class SINDy(Model):
             trig_basis = True if trig_basis == "true" else False
         self.trig_basis = trig_basis
         self.trig_freq = trig_freq
-        self.trig_interaction = True
+        self.trig_interaction = False
+        self.time_mode = time_mode
 
     @staticmethod
     def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
+        time_mode = CSH.CategoricalHyperparameter("time_mode", 
+                choices=["discrete", "continuous"])
         method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
         lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
                 lower=-5.0, upper=2.0, default_value=0.0)
@@ -58,8 +62,9 @@ class SINDy(Model):
         use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
                 values=["true"])
 
-        cs.add_hyperparameters([method, lasso_alpha_log10, poly_basis, poly_degree,
-            trig_basis, trig_freq, poly_cross_terms])
+        cs.add_hyperparameters([method, lasso_alpha_log10, 
+            poly_basis, poly_degree, trig_basis, trig_freq, 
+            poly_cross_terms, time_mode])
         cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
 
         return cs
@@ -74,180 +79,123 @@ class SINDy(Model):
     def state_dim(self):
         return self.system.obs_dim
 
-    def train(self, trajs):
+    def train(self, trajs, xdot=None):
         X = [traj.obs for traj in trajs]
         U = [traj.ctrls for traj in trajs]
 
-        library_functions = [
-                lambda x : x
-        ]
-        function_gradients = [
-                lambda x : 1
-        ]
-        function_gradients2 = []
-        function_names = [
-                lambda x : x
-        ]
-
+        basis_funcs = [get_identity_basis_func()]
         if self.trig_basis:
             for freq in range(1,self.trig_freq+1):
-                library_functions += [
-                    (lambda f: lambda x : np.sin(f * x))(freq),
-                    (lambda f: lambda x : np.cos(f * x))(freq)
-                ]
-                function_gradients += [
-                    (lambda f: lambda x : f * np.cos(f * x))(freq),
-                    (lambda f: lambda x : f * -np.sin(f * x))(freq)
-                ]
-                function_names += [
-                    (lambda f: lambda x : "sin({} {})".format(f, x))(freq),
-                    (lambda f: lambda x : "cos({} {})".format(f, x))(freq),
-                ]
+                basis_funcs += get_trig_basis_funcs(freq)
+
         if self.poly_basis:
             for deg in range(2,self.poly_degree+1):
-                library_functions += [
-                    (lambda d: lambda x : x ** d)(deg)
-                ]
-                function_gradients += [
-                    (lambda d: lambda x : d * x ** (d-1))(deg)
-                ]
-                function_names += [
-                    (lambda d: lambda x, d=d : "{}^{}".format(x, d))(deg)
-                ]
+                basis_funcs.append(get_poly_basis_func(deg))
             if self.poly_cross_terms:
                 for deg in range(2,self.poly_degree+1):
-                    for deg2 in range(1, deg):
-                        library_functions += [
-                            (lambda d, d2: lambda x,y : x ** d2 * y ** (d-d2))(deg, deg2)
-                        ]
-                        function_gradients2 += [
-                            (lambda d, d2: lambda x,y : (d2*x ** (d2-1) * y ** (d-d2), x ** d2 * (d-d2)*y ** (d-d2-1)))(deg, deg2)
-                        ]
-                        function_names += [
-                            (lambda d, d2: lambda x,y : "{}^{} {}^{}".format(x, d2, y, d-d2))(deg, deg2)
-                        ]
-        if self.trig_interaction:
-            library_functions += [
-                    lambda x,y : x * np.sin(y),
-                    lambda x,y : x * np.cos(y),
-                    lambda x,y : y * np.sin(x),
-                    lambda x,y : y * np.cos(x)
-                    ]
-            function_gradients2 += [
-                    lambda x,y : (np.sin(y), x * np.cos(y)),
-                    lambda x,y : (np.cos(y), -x * np.sin(y)),
-                    lambda x,y : (y * np.cos(x), np.sin(x)),
-                    lambda x,y : (-y * np.sin(x), np.cos(x))
-                    ]
-            function_names += [
-                    lambda x,y : "{} sin({})".format(x,y),
-                    lambda x,y : "{} cos({})".format(x,y),
-                    lambda x,y : "{} sin({})".format(y,x),
-                    lambda x,y : "{} cos({})".format(y,x)
-                    ]
+                    basis_funcs += get_cross_term_basis_funcs(deg)
 
+        library_functions = [basis.func for basis in basis_funcs]
+        function_names = [basis.name_func for basis in basis_funcs]
         library = ps.CustomLibrary(library_functions=library_functions,
                 function_names=function_names)
-        self.function_gradients = function_gradients
-        self.function_gradients2 = function_gradients2
+        self.basis_funcs = basis_funcs
 
-        sindy_model = ps.SINDy(feature_library=library, discrete_time=True,
-                optimizer=ps.STLSQ(threshold=0.01))
-        sindy_model.fit(X, u=U, multiple_trajectories=True)
+        if self.time_mode == "continuous":
+            sindy_model = ps.SINDy(feature_library=library, 
+                    discrete_time=False,
+                    optimizer=ps.STLSQ(threshold=0.01))
+            sindy_model.fit(X, u=U, multiple_trajectories=True, 
+                    t=self.system.dt, x_dot=xdot)
+        elif self.time_mode == "discrete":
+            sindy_model = ps.SINDy(feature_library=library, 
+                    discrete_time=True,
+                    optimizer=ps.STLSQ(threshold=0.01))
+            sindy_model.fit(X, u=U, multiple_trajectories=True)
         self.model = sindy_model
 
-
     def pred(self, state, ctrl):
-        xpred = self.model.predict(state.reshape((1,state.size)), 
+        xpred = self.pred_parallel(state.reshape((1,state.size)), 
                 ctrl.reshape((1,ctrl.size)))[0,:]
         return xpred
 
     def pred_parallel(self, states, ctrls):
-        xpreds = self.model.predict(states, ctrls)
+        if self.time_mode == "discrete":
+            xpreds = self.model.predict(states, ctrls)
+        else:
+            pred_dxs = self.model.predict(states, ctrls)
+            xpreds = states + self.system.dt * pred_dxs
         return xpreds
 
     def pred_diff(self, state, ctrl):
-        xpred = self.model.predict(state.reshape((1,state.size)), 
-                ctrl.reshape((1,ctrl.size)))[0,:]
-        state_jac = np.zeros((self.state_dim, self.state_dim))
-        ctrl_jac = np.zeros((self.state_dim, self.system.ctrl_dim))
-        coeff = self.model.coefficients()
-        for i in range(self.state_dim):
-            coeff_idx = 0
-            for gr in self.function_gradients:
-                for j in range(self.state_dim):
-                    state_jac[i, j] += coeff[i,coeff_idx] * gr(state[j])
-                    coeff_idx += 1
-                for j in range(self.system.ctrl_dim):
-                    ctrl_jac[i, j] += coeff[i,coeff_idx] * gr(ctrl[j])
-                    coeff_idx += 1
-            for gr in self.function_gradients2:
-                for j in range(self.state_dim+self.system.ctrl_dim):
-                    for k in range(j+1, self.state_dim+self.system.ctrl_dim):
-                        if j < self.state_dim:
-                            val1 = state[j]
-                        else:
-                            val1 = ctrl[j-self.state_dim]
-                        if k < self.state_dim:
-                            val2 = state[k]
-                        else:
-                            val2 = ctrl[k-self.state_dim]
-                        gr1, gr2 = gr(val1, val2)
-                        if j < self.state_dim:
-                            state_jac[i, j] += coeff[i,coeff_idx] * gr1
-                        else:
-                            ctrl_jac[i, j-self.state_dim] += coeff[i,coeff_idx] * gr1
-                        if k < self.state_dim:
-                            state_jac[i, k] += coeff[i,coeff_idx] * gr2
-                        else:
-                            ctrl_jac[i, k-self.state_dim] += coeff[i,coeff_idx] * gr2
-                        coeff_idx += 1
+        pred, state_jac, ctrl_jac = self.pred_diff_parallel(
+                state.reshape((1,-1)), ctrl.reshape((1,-1)))
+        pred = pred[0]
+        state_jac = state_jac[0]
+        ctrl_jac = ctrl_jac[0]
+        return pred, state_jac, ctrl_jac
 
-        return xpred, state_jac, ctrl_jac
+    def compute_gradient(self, states, ctrls, basis, coeff, feat_names):
+        input_dim = self.state_dim + self.system.ctrl_dim
+        idxs = np.mgrid[tuple(slice(input_dim) 
+                                for _ in range(basis.n_args))]
+        idxs = idxs.reshape((basis.n_args, -1))
+        p = states.shape[0]
+        state_jac = np.zeros((p,self.state_dim))
+        ctrl_jac = np.zeros((p,self.system.ctrl_dim))
+        for i in range(idxs.shape[1]):
+            # Find feature
+            var_names = ["x{}".format(j) if j < self.state_dim else 
+                    "u{}".format(j-self.state_dim) for j in idxs[:,i]]
+            feat_name = basis.name_func(*var_names)
+            try:
+                coeff_idx = feat_names.index(feat_name)
+            except ValueError:
+                continue
+
+            # Compute gradient
+            vals = []
+            for j in range(idxs.shape[0]):
+                idx = idxs[j,i]
+                if idx < self.state_dim:
+                    val = states[:,idx]
+                else:
+                    val = ctrls[:,idx-self.state_dim]
+                vals.append(val)
+            grads = basis.grad_func(*vals)
+            grads = np.array(grads)
+            for j in range(idxs.shape[0]):
+                idx = idxs[j,i]
+                if idx < self.state_dim:
+                    state_jac[:,idx] += coeff[coeff_idx] * grads[j]
+                else:
+                    ctrl_jac[:,idx-self.state_dim] += coeff[coeff_idx] * grads[j]
+            print("basis.n_args=", basis.n_args)
+        return state_jac, ctrl_jac
 
     def pred_diff_parallel(self, states, ctrls):
-        xpred = self.model.predict(states, ctrls)
+        xpred = self.pred(states, ctrls)
         p = states.shape[0]
         state_jac = np.zeros((p, self.state_dim, self.state_dim))
         ctrl_jac = np.zeros((p, self.state_dim, self.system.ctrl_dim))
-        coeff = self.model.coefficients()
+        coeffs = self.model.coefficients()
+        feat_names = self.model.get_feature_names()
         for i in range(self.state_dim):
-            coeff_idx = 0
-            for gr in self.function_gradients:
-                for j in range(self.state_dim):
-                    state_jac[:,i, j] += coeff[i,coeff_idx] * gr(states[:,j])
-                    coeff_idx += 1
-                for j in range(self.system.ctrl_dim):
-                    ctrl_jac[:,i, j] += coeff[i,coeff_idx] * gr(ctrls[:,j])
-                    coeff_idx += 1
-            for gr in self.function_gradients2:
-                for j in range(self.state_dim+self.system.ctrl_dim):
-                    for k in range(j+1, self.state_dim+self.system.ctrl_dim):
-                        if j < self.state_dim:
-                            val1 = states[:,j]
-                        else:
-                            val1 = ctrls[:,j-self.state_dim]
-                        if k < self.state_dim:
-                            val2 = states[:,k]
-                        else:
-                            val2 = ctrls[:,k-self.state_dim]
-                        gr1, gr2 = gr(val1, val2)
-                        if j < self.state_dim:
-                            state_jac[:,i, j] += coeff[i,coeff_idx] * gr1
-                        else:
-                            ctrl_jac[:,i, j-self.state_dim] += coeff[i,coeff_idx] * gr1
-                        if k < self.state_dim:
-                            state_jac[:,i, k] += coeff[i,coeff_idx] * gr2
-                        else:
-                            ctrl_jac[:,i, k-self.state_dim] += coeff[i,coeff_idx] * gr2
-                        coeff_idx += 1
-
+            for basis in self.basis_funcs:
+                print("A:", basis.n_args)
+                sj, cj = self.compute_gradient(
+                        states, ctrls, basis, coeffs[i,:], feat_names)
+                state_jac[:,i,:] += sj
+                ctrl_jac[:,i,:] += cj
+        if self.time_mode == "continuous":
+            ident = np.array([np.eye(self.state_dim) for _ in
+                range(p)])
+            state_jac = ident + self.system.dt * state_jac
+            ctrl_jac = self.system.dt * ctrl_jac
+        set_trace()
         return xpred, state_jac, ctrl_jac
 
-
-
-
-
+    # TODO fix this
     def get_parameters(self):
         return {"A" : np.copy(self.A),
                 "B" : np.copy(self.B)}

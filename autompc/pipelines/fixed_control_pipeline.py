@@ -11,7 +11,7 @@ from ..utils import *
 
 class FixedControlPipeline:
     def __init__(self, system, task, Model, Controller, task_transformers, 
-            controller_kwargs=dict(), model_kwargs=dict(), use_cuda=False):
+            controller_kwargs=dict(), model_kwargs=dict(), use_cuda=None):
         self.system = system
         self.task = task
         self.Model = Model
@@ -82,8 +82,12 @@ class FixedControlPipeline:
         # First instantiate and train the model
         if model is None:
             model_cfg = self.get_model_cfg(cfg)
-            model = make_model(self.system, self.Model, model_cfg,
-                    use_cuda=self.use_cuda, **self.model_kwargs)
+            if not self.use_cuda is None:
+                model = make_model(self.system, self.Model, model_cfg,
+                        use_cuda=self.use_cuda, **self.model_kwargs)
+            else:
+                model = make_model(self.system, self.Model, model_cfg,
+                        **self.model_kwargs)
             model.train(trajs)
             print("Exit training.")
 
