@@ -10,11 +10,20 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 import pysindy as ps
+import pysindy.differentiation as psd
 
 from .basis_funcs import *
 
+class FourthOrderFiniteDifference(psd.base.BaseDifferentiation):
+    def _differentiate(self, x, t):
+        fd = psd.FiniteDifference(order=2)
+        xdot = fd._differentiate(x, t)
+        xdot[2:-2] = -x[4:] + 8 * x[3:-1] - 8 * x[1:-3] + x[:-4]
+        return xdot
+
+
 class SINDy(Model):
-    def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
+    def __init__(self, system, method, lasso_alpha_log10=None, threshold_log10=-2, poly_basis=False,
             poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1, time_mode="discrete"):
         super().__init__(system)
 
@@ -34,6 +43,7 @@ class SINDy(Model):
         self.trig_freq = trig_freq
         self.trig_interaction = False
         self.time_mode = time_mode
+        self.threshold = 10**threshold_log10
 
     @staticmethod
     def get_configuration_space(system):
@@ -41,6 +51,8 @@ class SINDy(Model):
         time_mode = CSH.CategoricalHyperparameter("time_mode", 
                 choices=["discrete", "continuous"])
         method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
+        threshold_log10 = CSH.UniformFloatHyperparameter("threshold_log10",
+                lower=-5.0, upper=1.0, default_value=-2.0)
         lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
                 lower=-5.0, upper=2.0, default_value=0.0)
         use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
@@ -62,7 +74,7 @@ class SINDy(Model):
         use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
                 values=["true"])
 
-        cs.add_hyperparameters([method, lasso_alpha_log10, 
+        cs.add_hyperparameters([method, lasso_alpha_log10, threshold_log10,
             poly_basis, poly_degree, trig_basis, trig_freq, 
             poly_cross_terms, time_mode])
         cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
@@ -83,6 +95,7 @@ class SINDy(Model):
         X = [traj.obs for traj in trajs]
         U = [traj.ctrls for traj in trajs]
 
+        #basis_funcs = [get_constant_basis_func(), get_identity_basis_func()]
         basis_funcs = [get_identity_basis_func()]
         if self.trig_basis:
             for freq in range(1,self.trig_freq+1):
@@ -104,13 +117,13 @@ class SINDy(Model):
         if self.time_mode == "continuous":
             sindy_model = ps.SINDy(feature_library=library, 
                     discrete_time=False,
-                    optimizer=ps.STLSQ(threshold=0.01))
+                    optimizer=ps.STLSQ(threshold=self.threshold))
             sindy_model.fit(X, u=U, multiple_trajectories=True, 
                     t=self.system.dt, x_dot=xdot)
         elif self.time_mode == "discrete":
             sindy_model = ps.SINDy(feature_library=library, 
                     discrete_time=True,
-                    optimizer=ps.STLSQ(threshold=0.01))
+                    optimizer=ps.STLSQ(threshold=self.threshold))
             sindy_model.fit(X, u=U, multiple_trajectories=True)
         self.model = sindy_model
 
@@ -170,11 +183,10 @@ class SINDy(Model):
                     state_jac[:,idx] += coeff[coeff_idx] * grads[j]
                 else:
                     ctrl_jac[:,idx-self.state_dim] += coeff[coeff_idx] * grads[j]
-            print("basis.n_args=", basis.n_args)
         return state_jac, ctrl_jac
 
     def pred_diff_parallel(self, states, ctrls):
-        xpred = self.pred(states, ctrls)
+        xpred = self.pred_parallel(states, ctrls)
         p = states.shape[0]
         state_jac = np.zeros((p, self.state_dim, self.state_dim))
         ctrl_jac = np.zeros((p, self.state_dim, self.system.ctrl_dim))
@@ -182,7 +194,6 @@ class SINDy(Model):
         feat_names = self.model.get_feature_names()
         for i in range(self.state_dim):
             for basis in self.basis_funcs:
-                print("A:", basis.n_args)
                 sj, cj = self.compute_gradient(
                         states, ctrls, basis, coeffs[i,:], feat_names)
                 state_jac[:,i,:] += sj
@@ -192,7 +203,6 @@ class SINDy(Model):
                 range(p)])
             state_jac = ident + self.system.dt * state_jac
             ctrl_jac = self.system.dt * ctrl_jac
-        set_trace()
         return xpred, state_jac, ctrl_jac
 
     # TODO fix this

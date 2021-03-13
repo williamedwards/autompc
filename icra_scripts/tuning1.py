@@ -93,6 +93,7 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
     costs = []
     truedyn_costs = []
     addinfos = []
+    surr_trajs = []
     for key, val in smac.runhistory.data.items():
         cfg = smac.runhistory.ids_config[key.config_id]
         if val.cost < inc_cost:
@@ -105,6 +106,7 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
         cfgs.append(cfg)
         costs.append(val.cost)
         truedyn_costs.append(val.additional_info["truedyn_score"])
+        surr_traj = val.additional_info["surr_traj"]
         addinfos.append(val.additional_info)
     ret_value["inc_costs"] = inc_costs
     ret_value["inc_truedyn_costs"] = inc_truedyn_costs
@@ -135,10 +137,14 @@ def runexp_tuning1(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
         surr_traj = runsim(tinf, simsteps, surrogate, controller)
         surr_traj_time = time.time() - start_time
         start_time = time.time()
-        truedyn_traj = runsim(tinf, simsteps, None, controller, tinf.dynamics)
-        truedyn_traj_time = time.time() - start_time
+        if tinf.dynamics is not None:
+            truedyn_traj = runsim(tinf, simsteps, None, controller, tinf.dynamics)
+            truedyn_traj_time = time.time() - start_time
+            truedyn_score = tinf.perf_metric(truedyn_traj)
+        else:
+            truedyn_score = np.nan
+            truedyn_traj_time = 0.0
         surr_score = tinf.perf_metric(surr_traj)
-        truedyn_score = tinf.perf_metric(truedyn_traj)
         if not int_file is None:
             with open(int_file, "a") as f:
                 print(cfg, file=f)
@@ -147,6 +153,7 @@ def runexp_tuning1(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
                 print("==========\n\n", file=f)
         return surr_score, {"truedyn_score" : truedyn_score,
                 "sysid_time" : sysid_time,
+                "surr_traj" : (surr_traj.obs.tolist(), surr_traj.ctrls.tolist()),
                 "surr_traj_time" : surr_traj_time,
                 "truedyn_traj_time" : truedyn_traj_time}
 

@@ -2,9 +2,16 @@
 
 import numpy as np
 import inspect
+from pdb import set_trace
 from collections import namedtuple
 
 BasisFunction = namedtuple("BasisFunction", ["n_args", "func", "grad_func", "name_func"])
+
+def get_constant_basis_func():
+    return BasisFunction(n_args=0,
+            func =      lambda : 1,
+            grad_func = lambda : [0],
+            name_func = lambda : "")
 
 def get_identity_basis_func():
     return BasisFunction(n_args=1,
@@ -23,7 +30,7 @@ def get_cross_term_basis_funcs(degree):
     exponents = np.mgrid[tuple(slice(degree) for _ in range(degree))]
     exponents = exponents.reshape((degree, -1))
     used_exps = set()
-    for exp in exponents:
+    for exp in exponents.T:
         if sum(exp) != degree:
             continue
         trimmed_exp = tuple(e for e in exp if e > 0)
@@ -32,41 +39,42 @@ def get_cross_term_basis_funcs(degree):
         used_exps.add(trimmed_exp)
         n_args = len(trimmed_exp)
         arg_str = ", ".join(["x{}".format(i) for i in range(n_args)])
-        def func_(*args):
+        def func_(*args, tr):
             val = 1.0
-            for arg, exp in zip(args, trimmed_exp):
+            for arg, exp in zip(args, tr):
                 val *= arg**exp
             return val
 
         if n_args == 1:
-            func = lambda x0: func_(x0)
+            func = lambda x0, *, tr=trimmed_exp: func_(x0, tr=tr)
         elif n_args == 2:
-            func = lambda x0, x1: func_(x0, x1)
+            func = lambda x0, x1, *, tr=trimmed_exp: func_(x0, x1, tr=tr)
         elif n_args == 3:
-            func = lambda x0, x1, x2: func_(x0, x1, x2)
+            func = lambda x0, x1, x2, *, tr=trimmed_exp: func_(x0, x1, x2, tr=tr)
         elif n_args == 4:
-            func = lambda x0, x1, x2, x3: func_(x0, x1, x2, x3)
+            func = lambda x0, x1, x2, x3, *, tr=trimmed_exp: func_(x0, x1, x2, x3, tr=tr)
         elif n_args == 5:
-            func = lambda x0, x1, x2, x3, x4: func_(x0, x1, x2, x3, x4)
+            func = lambda x0, x1, x2, x3, x4, *, tr=trimmed_exp: func_(x0, x1, x2, \
+                    x3, x4, tr=tr)
         elif n_args == 6:
-            func = lambda x0, x1, x2, x3, x4, x5: func_(x0, x1, \
-                    x2, x3, x4, x5)
+            func = lambda x0, x1, x2, x3, x4, x5, *, tr=trimmed_exp: func_(x0, x1, \
+                    x2, x3, x4, x5, tr=tr)
         elif n_args == 7:
-            func = lambda x0, x1, x2, x3, x4, x5, x6: func_(x0, x1, \
-                    x2, x3, x4, x5, x6)
+            func = lambda x0, x1, x2, x3, x4, x5, x6, *, tr=trimmed_exp: func_(x0, x1, \
+                    x2, x3, x4, x5, x6, tr=tr)
         elif n_args == 8:
-            func = lambda x0, x1, x2, x3, x4, x5, x6, x7: func_(x0, x1, \
-                    x2, x3, x4, x5, x6, x7)
+            func = lambda x0, x1, x2, x3, x4, x5, x6, x7, *,tr=trimmed_exp: func_(x0, x1, \
+                    x2, x3, x4, x5, x6, x7, tr=tr)
         elif n_args == 9:
-            func = lambda x0, x1, x2, x3, x4, x5, x6, x7, x8: func_(x0, \
-                    x1, x2, x3, x4, x5, x6, x7, x8)
+            func = lambda x0, x1, x2, x3, x4, x5, x6, x7, x8,*,tr=trimmed_exp: func_(x0, \
+                    x1, x2, x3, x4, x5, x6, x7, x8, tr=tr)
         elif n_args == 10:
-            func = lambda x0, x1, x2, x3, x4, x5, x6, x7, x8, x9: \
-                    func_(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9)
+            func = lambda x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, *, tr=trimmed_exp: \
+                    func_(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, tr=tr)
         else:
             raise ValueError("n_args > 10")
 
-        def grad_func(*args):
+        def grad_func(*args, trimmed_exp=trimmed_exp):
             grads = []
             for i in range(len(args)):
                 val = 1.0
@@ -77,7 +85,7 @@ def get_cross_term_basis_funcs(degree):
                         val *= exp * arg**(exp-1)
                 grads.append(val)
             return np.array(grads)
-        def name_func(*args):
+        def name_func(*args, trimmed_exp=trimmed_exp):
             name = ""
             for arg, exp in zip(args, trimmed_exp):
                 name += "{}^{} ".format(arg, exp)

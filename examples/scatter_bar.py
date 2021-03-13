@@ -180,9 +180,10 @@ def get_cross_data_evaluator(*args, **kwargs):
     return CrossDataEvaluator(*args, **kwargs)
 
 
-from autompc.sysid import (GaussianProcess, 
-        LargeGaussianProcess, 
-        ApproximateGaussianProcess, MLP)
+#from autompc.sysid import (GaussianProcess, 
+#        LargeGaussianProcess, 
+#        ApproximateGaussianProcess, MLP)
+from autompc.sysid import MLP
 from autompc.control import IterativeLQR
 
 @memory.cache

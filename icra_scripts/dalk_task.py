@@ -8,6 +8,7 @@ from collections import namedtuple
 
 # Internal project includes
 import autompc as ampc
+from autompc.tasks import Task, QuadCost
 
 # DALK includes
 sys.path.append("/home/william/proj/microsurgery_data/src")
@@ -21,7 +22,7 @@ from autoregression import AutoregModel
 with open("/home/william/proj/microsurgery_data/datasets/Automatic2/missing.json") as f:
     bad_perception_data = json.load(f)
 
-dalk = ampc.System(["x", "y", "pitch", "tx", "ty"], ["ux", "uy", "upicty"])
+dalk = ampc.System(["x", "y", "pitch", "tx", "ty", "x-tx", "y-ty"], ["ux", "uy", "upitch"])
 dalk.dt = 1.0
 
 TaskInfo = namedtuple("TaskInfo", ["name", "system", "task", "init_obs", 
@@ -31,7 +32,9 @@ def dalk_traj_to_ampc_traj(dalk_traj):
     ampc_traj = ampc.zeros(dalk, len(dalk_traj))
     for i, step in enumerate(dalk_traj):
         ampc_traj[i].obs[:2] = step.get_observations()
-        ampc_traj[i].obs[2:] = step.get_features()
+        ampc_traj[i].obs[2:-2] = step.get_features()
+        ampc_traj[i].obs[-2] = ampc_traj[i, "x"] - ampc_traj[i, "tx"]
+        ampc_traj[i].obs[-1] = ampc_traj[i, "y"] - ampc_traj[i, "ty"]
         ampc_traj[i].ctrl[:] = step.get_controls()
     return ampc_traj
 
@@ -53,12 +56,33 @@ def dalk_task():
     surr_trajs = [dalk_traj_to_ampc_traj(traj) for traj in dalk_trajs2]
     gen_sysid_trajs = lambda s: sysid_trajs
     gen_surr_trajs = lambda s: surr_trajs
+    Q = np.zeros((7,7))
+    Q[-2,-2] = 1.0
+    Q[-1,-1] = 1.0
+    R = np.eye(3)
+    F = np.zeros((7,7))
+    F[-2,-2] = 1.0
+    F[-1,-1] = 1.0
+    cost = QuadCost(dalk, Q, R, F)
+    task = Task(dalk)
+    task.set_cost(cost)
+    task.set_ctrl_bound("ux", -0.1, 0.1)
+    task.set_ctrl_bound("uy", -0.1, 0.1)
+    task.set_ctrl_bound("upitch", -0.1, 0.1)
+    init_obs = sysid_trajs[0][0].obs
+    def perf_metric(traj, threshold=0.2):
+        cost = 0.0
+        for i in range(len(traj)):
+            if (np.abs(traj[i].obs[-1]) > threshold 
+                    or np.abs(traj[i].obs[-2]) > threshold):
+                cost += 1
+        return cost
 
     return TaskInfo(name="DALK",
             system=dalk,
-            task=None,
-            init_obs=None,
+            task=task,
+            init_obs=init_obs,
             dynamics=None,
-            perf_metric=None,
+            perf_metric=perf_metric,
             gen_sysid_trajs=gen_sysid_trajs,
             gen_surr_trajs=gen_surr_trajs)

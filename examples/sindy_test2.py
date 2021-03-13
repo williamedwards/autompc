@@ -83,11 +83,11 @@ s["time_mode"] = "continuous"
 model = ampc.make_model(pendulum, SINDy, s)
 xdot = [np.array([dynamics(traj[i].obs,traj[i].ctrl) for i in range(len(traj))])
                 for traj in trajs]
-model.train(trajs, xdot=xdot)
+model.train(trajs)
 state = np.array([1.0, 2.0])
 ctrl = np.array([3.0])
 print("model.pred")
 print(model.pred(state.copy(), ctrl))
 print("model.pred_diff")
-print(model.pred_diff(state.copy(), ctrl))
+print(model.pred_diff_parallel(state.reshape((1,-1)), ctrl.reshape((1,-1))))
 set_trace()
