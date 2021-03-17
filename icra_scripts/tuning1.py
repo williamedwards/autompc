@@ -27,7 +27,7 @@ def train_mlp_inner(system, trajs):
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=False)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
     model.train(trajs)
     return model.get_parameters()
 
@@ -38,7 +38,7 @@ def train_mlp(system, trajs):
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=False)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
     params = train_mlp_inner(system, trajs)
     model.set_parameters(params)
     model.net = model.net.to("cpu")

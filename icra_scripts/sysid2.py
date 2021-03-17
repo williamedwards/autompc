@@ -11,7 +11,7 @@ from smac.facade.smac_hpo_facade import SMAC4HPO
 
 # Internal project includes
 import autompc as ampc
-from autompc.evaluators import FixedSetEvaluator
+from autompc.evaluators import FixedSetEvaluator, SimpleEvaluator
 from autompc.graphs import KstepGrapher
 from autompc.metrics import RmseKstepMetric
 from tuning1 import runsim, train_mlp
@@ -22,7 +22,8 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
                          "runcount-limit": tune_iters,  
                          "cs": cs,  
                          "deterministic": "true",
-                         "execdir" : "./smac"
+                         "execdir" : "./smac",
+                         "limit_resources" : False
                          })
 
     smac = SMAC4HPO(scenario=scenario, rng=rng,
@@ -77,17 +78,21 @@ def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed, int_file=None):
     testing_set = sysid_trajs[int(0.85*len(sysid_trajs)):]
     surrogate = train_mlp(tinf.system, surr_trajs)
     
-    metric1 = RmseKstepMetric(tinf.system, k=1)
-    metric2 = RmseKstepMetric(tinf.system, k=int(1/tinf.system.dt))
-    tuning_evaluator1 = FixedSetEvaluator(tinf.system, training_set + validation_set, 
-            metric1, rng, training_trajs=training_set)
-    tuning_evaluator2 = FixedSetEvaluator(tinf.system, training_set + validation_set, 
-            metric2, rng, training_trajs=training_set)
-    final_evaluator = FixedSetEvaluator(tinf.system, training_set + testing_set, 
-            metric2, rng, training_trajs=training_set)
+    # metric1 = RmseKstepMetric(tinf.system, k=1)
+    # metric2 = RmseKstepMetric(tinf.system, k=int(1/tinf.system.dt))
+    # tuning_evaluator1 = FixedSetEvaluator(tinf.system, training_set + validation_set, 
+    #         metric1, rng, training_trajs=training_set)
+    # tuning_evaluator2 = FixedSetEvaluator(tinf.system, training_set + validation_set, 
+    #         metric2, rng, training_trajs=training_set)
+    # final_evaluator = FixedSetEvaluator(tinf.system, training_set + testing_set, 
+    #         metric2, rng, training_trajs=training_set)
+    tuning_evaluator2 = SimpleEvaluator(tinf.system, training_set, validation_set,
+            horiz=int(1/tinf.system.dt))
+    final_evaluator = SimpleEvaluator(tinf.system, training_set, testing_set,
+            horiz=int(1/tinf.system.dt))
     kstep_grapher = KstepGrapher(tinf.system, kmax=int(3/tinf.system.dt), kstep=2,
             evalstep=5)
-    final_evaluator.add_grapher(kstep_grapher)
+    #final_evaluator.add_grapher(kstep_grapher)
 
     root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
     root_pipeline_cfg["_task_transformer_0:u_log10Rgain"] = -2
@@ -168,7 +173,7 @@ def runexp_sysid2(pipeline, tinf, tune_iters, sub_exp, seed, int_file=None):
     inc_seed = result["inc_model_seeds"][-1]
 
     torch.manual_seed(inc_seed)
-    _, _, graphs = final_evaluator(pipeline.Model, inc_cfg, use_cuda=False)
-    rmses, _, horizs = graphs[0].get_rmses()
+    #_, _, graphs = final_evaluator(pipeline.Model, inc_cfg, use_cuda=False)
+    #rmses, _, horizs = graphs[0].get_rmses()
 
-    return result, (rmses, horizs)
+    return result

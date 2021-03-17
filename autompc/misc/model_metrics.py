@@ -30,6 +30,19 @@ def get_normalized_model_rmse(model, trajs, horiz=1):
     rmse = np.sqrt(np.mean(sqerrs, axis=None))
     return rmse
 
+def get_model_rmse(model, trajs, horiz=1):
+    sqerrss = []
+    for traj in trajs:
+        state = traj.obs[:-horiz, :]
+        for k in range(horiz):
+            state = model.pred_parallel(state, traj.ctrls[k:-(horiz-k), :])
+        actual = traj.obs[horiz:]
+        sqerrs = (state - actual) ** 2
+        sqerrss.append(sqerrs)
+    sqerrs = np.concatenate(sqerrss)
+    rmse = np.sqrt(np.mean(sqerrs, axis=None))
+    return rmse
+
 def get_model_metric_rmse(model, trajs, perf_metric):
     X = np.vstack([traj.obs[0, :] for traj in trajs])
     pred_trajs = [zeros(traj.system, len(traj)) for traj in trajs]

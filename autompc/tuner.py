@@ -77,7 +77,8 @@ class ModelTuner:
         scenario = Scenario({"run_obj": "quality",  
                              "runcount-limit": runcount_limit,  
                              "cs": cs_combined,  
-                             "deterministic": "true"
+                             "deterministic": "true",
+                             "limit_resources" : False
                              })
 
         smac = SMAC4HPO(scenario=scenario, rng=rng,

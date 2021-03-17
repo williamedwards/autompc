@@ -24,7 +24,7 @@ class FourthOrderFiniteDifference(psd.base.BaseDifferentiation):
 
 class SINDy(Model):
     def __init__(self, system, method, lasso_alpha_log10=None, threshold_log10=-2, poly_basis=False,
-            poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1, time_mode="discrete"):
+            poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1, trig_interaction=False, time_mode="discrete"):
         super().__init__(system)
 
         self.method = method
@@ -41,7 +41,9 @@ class SINDy(Model):
             trig_basis = True if trig_basis == "true" else False
         self.trig_basis = trig_basis
         self.trig_freq = trig_freq
-        self.trig_interaction = False
+        self.trig_interaction = trig_interaction
+        if type(trig_interaction) == str:
+            self.trig_interaction = True if trig_interaction == "true" else False
         self.time_mode = time_mode
         self.threshold = 10**threshold_log10
 
@@ -71,13 +73,17 @@ class SINDy(Model):
                 choices=["true", "false"], default_value="false")
         trig_freq = CSH.UniformIntegerHyperparameter("trig_freq", lower=1, upper=8,
                 default_value=1)
+        trig_interaction = CSH.CategoricalHyperparameter("trig_interaction", 
+                choices=["true", "false"], default_value="false")
         use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
+                values=["true"])
+        use_trig_interaction = CSC.InCondition(child=trig_interaction, parent=trig_basis,
                 values=["true"])
 
         cs.add_hyperparameters([method, lasso_alpha_log10, threshold_log10,
-            poly_basis, poly_degree, trig_basis, trig_freq, 
+            poly_basis, poly_degree, trig_basis, trig_freq, trig_interaction, 
             poly_cross_terms, time_mode])
-        cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
+        cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq, use_trig_interaction])
 
         return cs
 
@@ -100,6 +106,8 @@ class SINDy(Model):
         if self.trig_basis:
             for freq in range(1,self.trig_freq+1):
                 basis_funcs += get_trig_basis_funcs(freq)
+                if self.trig_interaction:
+                    basis_funcs += get_trig_interaction_terms(freq)
 
         if self.poly_basis:
             for deg in range(2,self.poly_degree+1):

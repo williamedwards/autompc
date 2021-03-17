@@ -18,7 +18,7 @@ from pendulum_task import pendulum_swingup_task
 from acrobot_task import acrobot_swingup_task
 from halfcheetah_task import halfcheetah_task
 from halfcheetah_task_buffer import halfcheetah_task_buffer
-from dalk_task import dalk_task
+#from dalk_task import dalk_task
 from pipelines import init_pipeline
 from sysid1 import runexp_sysid1
 from sysid2 import runexp_sysid2
@@ -150,7 +150,6 @@ def main(args):
         raise ValueError("Command not recognized.")
 
 if __name__ == "__main__":
-    dalk_task()
     parser = argparse.ArgumentParser()
     parser.add_argument("command", type=str)
     parser.add_argument("--task", default="cartpole-swingup")

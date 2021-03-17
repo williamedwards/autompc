@@ -28,8 +28,27 @@ def make_figure_sysid1():
             ["pendulum-swingup", "arx", 10, 42],
             ["pendulum-swingup", "mlp", 100, 42],
             ["pendulum-swingup", "koop", 40, 42],
-            ["pendulum-swingup", "sindy", 100, 42],
-            ["pendulum-swingup", "approxgp", 100, 42],
+            ["pendulum-swingup", "sindy", 100, 100],
+            ["pendulum-swingup", "sindy", 100, 101],
+            ["pendulum-swingup", "sindy", 100, 102],
+            ["pendulum-swingup", "sindy", 100, 103],
+            ["pendulum-swingup", "sindy", 100, 104],
+            ["pendulum-swingup", "sindy", 100, 105],
+            ["pendulum-swingup", "sindy", 100, 106],
+            ["pendulum-swingup", "sindy", 100, 107],
+            ["pendulum-swingup", "sindy", 100, 108],
+            ["pendulum-swingup", "sindy", 100, 109],
+            # ["cartpole-swingup", "sindy", 100, 100],
+            # ["cartpole-swingup", "sindy", 100, 101],
+            # ["cartpole-swingup", "sindy", 100, 102],
+            # ["cartpole-swingup", "sindy", 100, 103],
+            # ["cartpole-swingup", "sindy", 100, 104],
+            # ["cartpole-swingup", "sindy", 100, 105],
+            # ["cartpole-swingup", "sindy", 100, 106],
+            # ["cartpole-swingup", "sindy", 100, 107],
+            # ["cartpole-swingup", "sindy", 100, 108],
+            # ["cartpole-swingup", "sindy", 100, 109],
+            ["cartpole-swingup", "approxgp", 100, 42],
             ["halfcheetah", "arx", 9, 42],
             ["halfcheetah", "mlp", 100, 42],
             ["halfcheetah", "koop", 40, 42],
@@ -45,15 +64,22 @@ def make_figure_sysid1():
     for model_label, model_id in models:
         print(f"{model_label:8} ", end="")
         for task_label, task_id in tasks:
+            scores = []
             for setting in settings:
                 if setting[0] == task_id and setting[1] == model_id:
                     if result_exists("sysid1", *setting):
                         final_score, _ = load_result("sysid1", *setting)
-                        print(f"& {final_score:8.2f} ", end="")
-                        break
+                        scores.append(final_score)
+                        #print(f"& {final_score:8.2f} ", end="")
+            if not scores:
+                print("& ", end="")
             else:
-                print("&          ", end="")
-        print(r" \\")
+                median_score = np.median(scores)
+                low_score = np.percentile(scores, 25)
+                high_score = np.percentile(scores, 75)
+                print(f"& {median_score:.2f} ({low_score:.2f}-{high_score:.2f})", 
+                        end="")
+        print("")
 
 def make_figure_dalk1():
     result = load_result("sysid1", "dalk", "mlp", 100, 42)
@@ -89,12 +115,31 @@ def make_figure_cost_tuning():
     plt.tight_layout()
     plt.show()
 
-def make_figure_tuning1():
+def make_figure_tuning1(plot_option=3):
     experiments = [
-            (("MLP-iLQR-Quad", "Pendulum"),
-             ("pendulum-swingup", "mlp-ilqr", 100, 42)),
+            #(("MLP-iLQR-Quad", "Pendulum"),
+            # [("pendulum-swingup", "mlp-ilqr", 100, 100),
+            #  ("pendulum-swingup", "mlp-ilqr", 100, 101),
+            #  ("pendulum-swingup", "mlp-ilqr", 100, 102)]
+            #     ),
             (("MLP-iLQR-Quad", "Cart-pole"),
-             ("cartpole-swingup", "mlp-ilqr", 100, 42))]
+             [("cartpole-swingup", "mlp-ilqr", 100, 100),
+              ("cartpole-swingup", "mlp-ilqr", 100, 101),
+              ("cartpole-swingup", "mlp-ilqr", 100, 102),
+              ("cartpole-swingup", "mlp-ilqr", 100, 103),
+              ("cartpole-swingup", "mlp-ilqr", 100, 104),
+              ("cartpole-swingup", "mlp-ilqr", 100, 105),
+              ("cartpole-swingup", "mlp-ilqr", 100, 106),
+              ("cartpole-swingup", "mlp-ilqr", 100, 107),
+              ("cartpole-swingup", "mlp-ilqr", 100, 108),
+              ("cartpole-swingup", "mlp-ilqr", 100, 109),
+              ]
+                 ),
+            #(("MLP-iLQR-Custom", "Half-cheetah"),
+            # [("halfcheetah", "halfcheetah", 100, 100),
+            #  ("halfcheetah", "halfcheetah", 100, 101)]
+            #     )
+            ]
             #(("MLP-iLQR", "Acrobot"),
             #    ("acrobot-swingup", "mlp-ilqr", 100, 42))
             #]
@@ -102,13 +147,14 @@ def make_figure_tuning1():
     #        (("MLP-iLQR-CustQuad", "Half-Cheetah"),
     #         ("halfcheetah", "mlp-ilqr", 100, 42)),
     #        ]
-    bcq_baselines = [73, 148]
+    #bcq_baselines = [73, 148, 200]
+    bcq_baselines = [148]
     #bcq_baselines = [200]
-    for i, ((pipeline_label, task_label), setting) in enumerate(experiments):
+    for i, ((pipeline_label, task_label), settings) in enumerate(experiments):
         #if not result_exists("tuning1", *setting):
         #    print(f"Skipping {pipeline_label}, {task_label}")
         #    continue
-        result = load_result("tuning1", *setting)
+        results = [load_result("tuning1", *setting) for setting in settings]
 
         #matplotlib.rcParams.update({'font.size': 17})
         fig = plt.figure()
@@ -125,12 +171,38 @@ def make_figure_tuning1():
         #    ax.plot(perfs)
         #    labels.append(label)
         #ax.legend(labels)
-        truedyn_perfs = [cost for cost in result["inc_truedyn_costs"]]
-        set_trace()
+        truedyn_perfss = [[cost for cost in result["inc_truedyn_costs"]] for result in results]
         #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*68
         #print(f"{perfs=}")
-        ax.plot(truedyn_perfs)
-        ax.plot([0, len(truedyn_perfs)], [bcq_baselines[i], bcq_baselines[i]], "r--") 
+        xs = list(range(len(truedyn_perfss[0])))
+        if plot_option == 1:
+            for truedyn_perfs in truedyn_perfss:
+                ax.plot(truedyn_perfs)
+        elif plot_option == 2:
+            high = []
+            middle = []
+            low = []
+            for j in range(len(truedyn_perfss[0])):
+                perfs = [truedyn_perfs[j] for truedyn_perfs in truedyn_perfss]
+                perfs.sort()
+                low.append(min(perfs))
+                middle.append(np.median(perfs))
+                high.append(np.max(perfs))
+            ax.plot(xs, middle, color="b")
+            ax.fill_between(xs, low, high, color="b", alpha=0.2)
+        elif plot_option == 3:
+            high = []
+            middle = []
+            low = []
+            for j in range(len(truedyn_perfss[0])):
+                perfs = [truedyn_perfs[j] for truedyn_perfs in truedyn_perfss]
+                perfs.sort()
+                low.append(np.percentile(perfs, 25))
+                middle.append(np.median(perfs))
+                high.append(np.percentile(perfs, 75))
+            ax.plot(xs, middle, color="b")
+            ax.fill_between(xs, low, high, color="b", alpha=0.2)
+        ax.plot([0, len(truedyn_perfss[0])], [bcq_baselines[i], bcq_baselines[i]], "r--") 
         ax.legend(["AutoMPC", "BCQ"])#, prop={"size":16})
         plt.tight_layout()
         plt.show()
