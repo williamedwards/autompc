@@ -33,8 +33,6 @@ class SimpleEvaluator:
         print("Entering evaluation.")
         eval_start = time.time()
         score = get_model_rmse(m, self.validation_set, horiz=self.horiz)
-
-        set_trace()
         
         if not ret_trained_model:
             return score, None, None
