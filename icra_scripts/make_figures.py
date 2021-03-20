@@ -115,13 +115,25 @@ def make_figure_cost_tuning():
     plt.tight_layout()
     plt.show()
 
-def make_figure_tuning1(plot_option=3):
+def make_figure_tuning1(plot_option=1):
     experiments = [
             #(("MLP-iLQR-Quad", "Pendulum"),
             # [("pendulum-swingup", "mlp-ilqr", 100, 100),
             #  ("pendulum-swingup", "mlp-ilqr", 100, 101),
             #  ("pendulum-swingup", "mlp-ilqr", 100, 102)]
             #     ),
+            (("MLP-iLQR-Quad", "Pendulum"),
+             [("pendulum-swingup", "mlp-ilqr", 100, 100),
+              ("pendulum-swingup", "mlp-ilqr", 100, 101),
+              ("pendulum-swingup", "mlp-ilqr", 100, 102),
+              ("pendulum-swingup", "mlp-ilqr", 100, 103),
+              ("pendulum-swingup", "mlp-ilqr", 100, 104),
+              ("pendulum-swingup", "mlp-ilqr", 100, 105),
+              #("pendulum-swingup", "mlp-ilqr", 100, 106),
+              ("pendulum-swingup", "mlp-ilqr", 100, 107),
+              ("pendulum-swingup", "mlp-ilqr", 100, 108),
+              ("pendulum-swingup", "mlp-ilqr", 100, 109)
+              ]),
             (("MLP-iLQR-Quad", "Cart-pole"),
              [("cartpole-swingup", "mlp-ilqr", 100, 100),
               ("cartpole-swingup", "mlp-ilqr", 100, 101),
@@ -135,6 +147,19 @@ def make_figure_tuning1(plot_option=3):
               ("cartpole-swingup", "mlp-ilqr", 100, 109),
               ]
                  ),
+
+            (("MLP-iLQR-Custom", "Half-cheetah"),
+             [("halfcheetah", "halfcheetah", 100, 100),
+              ("halfcheetah", "halfcheetah", 100, 101),
+              #("halfcheetah", "halfcheetah", 100, 102),
+              ("halfcheetah", "halfcheetah", 100, 103),
+              ("halfcheetah", "halfcheetah", 100, 104),
+              ("halfcheetah", "halfcheetah", 100, 105),
+              ("halfcheetah", "halfcheetah", 100, 106),
+              ("halfcheetah", "halfcheetah", 100, 107),
+              ("halfcheetah", "halfcheetah", 100, 108),
+              ("halfcheetah", "halfcheetah", 100, 109),
+              ]),
             #(("MLP-iLQR-Custom", "Half-cheetah"),
             # [("halfcheetah", "halfcheetah", 100, 100),
             #  ("halfcheetah", "halfcheetah", 100, 101)]
@@ -148,7 +173,7 @@ def make_figure_tuning1(plot_option=3):
     #         ("halfcheetah", "mlp-ilqr", 100, 42)),
     #        ]
     #bcq_baselines = [73, 148, 200]
-    bcq_baselines = [148]
+    bcq_baselines = [73, 148, 200]
     #bcq_baselines = [200]
     for i, ((pipeline_label, task_label), settings) in enumerate(experiments):
         #if not result_exists("tuning1", *setting):

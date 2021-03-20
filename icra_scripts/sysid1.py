@@ -40,12 +40,6 @@ def runexp_sysid1(Model, tinf, tune_iters, seed):
     # ar_score = tuning_evaluator(Model, cfg)
     # print("ar_score = ", ar_score)
 
-    cs = Model.get_configuration_space(tinf.system)
-    cfg = cs.get_default_configuration()
-    cfg["trig_basis"] = "true"
-    cfg["trig_interaction"] = "true"
-    tuning_evaluator(Model, cfg)
-    set_trace()
     tuner = ampc.ModelTuner(tinf.system, tuning_evaluator)
     tuner.add_model(Model)
     tune_result = tuner.run(rng=np.random.RandomState(rng.integers(1 << 30)),
