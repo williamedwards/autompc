@@ -17,6 +17,7 @@ from cartpole_task import cartpole_swingup_task
 from pendulum_task import pendulum_swingup_task
 from acrobot_task import acrobot_swingup_task
 from halfcheetah_task import halfcheetah_task
+from swimmer_task import swimmer_task
 from halfcheetah_task_multisine import halfcheetah_task_multisine
 from halfcheetah_task_buffer import halfcheetah_task_buffer
 #from dalk_task import dalk_task
@@ -57,6 +58,8 @@ def init_task(task_name):
         return pendulum_swingup_task()
     elif task_name == "acrobot-swingup":
         return acrobot_swingup_task()
+    elif task_name == "swimmer":
+        return swimmer_task()
     elif task_name == "halfcheetah":
         return halfcheetah_task()
     elif task_name == "halfcheetah-multisine":

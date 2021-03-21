@@ -13,6 +13,7 @@ from gym_cartpole_swingup.envs.cartpole_swingup import State as GymCartpoleState
 import autompc as ampc
 from autompc.tasks.quad_cost_transformer import QuadCostTransformer
 from autompc.tasks.half_cheetah_transformer import HalfCheetahTransformer
+from autompc.tasks.swimmer_transformer import SwimmerTransformer
 from autompc.pipelines import FixedControlPipeline
 from autompc.sysid import Koopman, MLP
 from autompc.control import FiniteHorizonLQR, IterativeLQR
@@ -30,8 +31,19 @@ def init_halfcheetah(tinf):
             use_cuda=True)
     return pipeline
 
+def init_swimmer(tinf):
+    pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
+            IterativeLQR, [SwimmerTransformer],
+            controller_kwargs={"reuse_feedback" : -1},
+            use_cuda=True)
+    return pipeline
+
 def init_pipeline(tinf, pipeline):
     if pipeline == "mlp-ilqr":
         return init_mlp_ilqr(tinf)
     elif pipeline == "halfcheetah":
         return init_halfcheetah(tinf)
+    elif pipeline == "swimmer":
+        return init_swimmer(tinf)
+    else:
+        raise ValueError("Unrecognized Pipeline")
