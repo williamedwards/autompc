@@ -83,8 +83,9 @@ def main(args):
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)
         result = runexp_tuning1(pipeline, tinf, tune_iters=args.tuneiters,
-                seed=args.seed, int_file=args.intfile, simsteps=args.simsteps)
-        save_result(result, "tuning1", args.task, args.pipeline,
+                seed=args.seed, int_file=args.intfile, simsteps=args.simsteps,
+                subexp=args.subexp)
+        save_result(result, "tuning1", args.task, args.pipeline, args.subexp,
                 args.tuneiters, args.seed)
     elif args.command == "surrtest":
         tinf = init_task(args.task)

@@ -18,31 +18,30 @@ from autompc.evaluators import FixedSetEvaluator
 from autompc.metrics import RmseKstepMetric
 from autompc.sysid import MLP
 
-
 @memory.cache
-def train_mlp_inner(system, trajs):
+def train_mlp_inner(system, trajs, n_train_iters):
     cs = MLP.get_configuration_space(system)
     cfg = cs.get_default_configuration()
     cfg["n_hidden_layers"] = "3"
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True,
+            n_train_iters=n_train_iters)
     model.train(trajs)
     return model.get_parameters()
 
-def train_mlp(system, trajs):
+def train_mlp(system, trajs, n_train_iters=50):
     cs = MLP.get_configuration_space(system)
     cfg = cs.get_default_configuration()
     cfg["n_hidden_layers"] = "3"
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
-    params = train_mlp_inner(system, trajs)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True,
+            n_train_iters=n_train_iters)
+    params = train_mlp_inner(system, trajs, n_train_iters)
     model.set_parameters(params)
-    model.net = model.net.to("cpu")
-    model._device = "cpu"
     return model
 
 def runsim(tinf, simsteps, sim_model, controller, dynamics=None):
@@ -118,13 +117,16 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
 
     return ret_value
 
-def runexp_tuning1(pipeline, tinf, tune_iters, seed, simsteps, int_file=None):
+def runexp_tuning1(pipeline, tinf, tune_iters, seed, simsteps, int_file=None, subexp=1):
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
     surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
 
     torch.manual_seed(rng.integers(1 << 30))
-    surrogate = train_mlp(tinf.system, surr_trajs)
+    if subexp == 1:
+        surrogate = train_mlp(tinf.system, surr_trajs)
+    elif subexp == 2:
+        surrogate = train_mlp(tinf.system, surr_trajs, n_train_iters=500)
     eval_seed = rng.integers(1 << 30)
     print(f"{eval_seed=}")
 
