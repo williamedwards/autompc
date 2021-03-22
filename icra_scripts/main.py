@@ -149,9 +149,9 @@ def main(args):
         pipeline = init_pipeline(tinf, args.pipeline)
         result = runexp_controllers(pipeline, tinf, tune_iters=args.tuneiters,
                 seed=args.seed, int_file=args.intfile, simsteps=args.simsteps,
-                controller_name=args.controller)
+                controller_name=args.controller, subexp=args.subexp)
         save_result(result, "controllers", args.task, args.pipeline,
-                args.tuneiters, args.controller, args.seed)
+                args.tuneiters, args.controller, args.seed, args.subexp)
 
     else:
         raise ValueError("Command not recognized.")

@@ -10,6 +10,8 @@ class BaseCost(ABC):
         self._is_quad = False
         self._is_convex = False
         self._is_diff = False
+        self._is_twice_diff = False
+        self._has_x0 = False
 
     def __call__(self, traj):
         cost = 0.0
@@ -30,7 +32,7 @@ class BaseCost(ABC):
             raise ValueError("Cost is not quadratic.")
 
     def get_x0(self):
-        if self.is_quad:
+        if self.has_x0:
             return np.copy(self._x0)
         else:
             raise ValueError("Cost is not quadratic")
@@ -76,7 +78,7 @@ class BaseCost(ABC):
         ctrl -> float.
         """
         if self.is_quad:
-            return ctrl.T @ self._R @ ctrl
+            return ctrl.T @ (self._R - self._u0) @ ctrl
         else:
             raise NotImplementedError
 
@@ -86,7 +88,8 @@ class BaseCost(ABC):
         ctrl -> float, jac
         """
         if self.is_quad:
-            return ctrl.T @ self._R @ ctrl, (self._R + self._R.T) @ ctrl
+            ctrlt = ctrl - self._u0
+            return ctrlt.T @ self._R @ ctrlt, (self._R + self._R.T) @ ctrlt
         else:
             raise NotImplementedError
 
@@ -96,8 +99,9 @@ class BaseCost(ABC):
         ctrl -> float, jac
         """
         if self.is_quad:
-            return (ctrl.T @ self._R @ ctrl, 
-                    (self._R + self._R.T) @ ctrl,
+            ctrlt = ctrl - self._u0
+            return (ctrlt.T @ self._R @ ctrlt, 
+                    (self._R + self._R.T) @ ctrlt,
                     self._R + self._R.T)
         else:
             raise NotImplementedError
@@ -147,5 +151,17 @@ class BaseCost(ABC):
     def is_diff(self):
         return self._is_diff
 
-    def is_diff(self):
-        return self._is_diff
+    @property
+    def is_twice_diff(self):
+        return self._is_twice_diff
+
+    @property
+    def has_x0(self):
+        return self._has_x0
+
+    def __add__(self, other):
+        from .sum_cost import SumCost
+        if isinstance(other, SumCost):
+            return other.__radd__(self)
+        else:
+            return SumCost(self.system, [self, other])

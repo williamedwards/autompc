@@ -21,6 +21,10 @@ from autompc.metrics import RmseKstepMetric
 from autompc.sysid import MLP, SINDy, LinearizedModel
 from autompc.control import FiniteHorizonLQR, IterativeLQR, NonLinearMPC, MPPI, LQR
 from autompc.tasks import QuadCost, Task
+from autompc.tasks.quad_cost_transformer import QuadCostTransformer
+from autompc.tasks.gaussain_reg_transformer import GaussianRegTransformer
+from autompc.pipelines import FixedControlPipeline
+
 
 
 @memory.cache
@@ -31,7 +35,7 @@ def train_mlp_inner(system, trajs):
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=False)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
     model.train(trajs)
     return model.get_parameters()
 
@@ -42,11 +46,9 @@ def train_mlp(system, trajs):
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=False)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
     params = train_mlp_inner(system, trajs)
     model.set_parameters(params)
-    model.net = model.net.to("cpu")
-    model._device = "cpu"
     return model
 
 def runsim(tinf, simsteps, sim_model, controller, dynamics=None):
@@ -77,7 +79,8 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
                          "runcount-limit": tune_iters,  
                          "cs": cs,  
                          "deterministic": "true",
-                         "execdir" : "./smac"
+                         "execdir" : "./smac",
+                         "limit_resources" : False
                          })
 
     intensifier_kwargs = {'initial_budget': 5, 'max_budget': 25, 'eta': 3,
@@ -133,7 +136,7 @@ def make_sysid(system, trajs):
 
 
 def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps, 
-        controller_name, int_file=None):
+        controller_name, int_file=None, subexp=1):
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30))
     surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
@@ -156,24 +159,37 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
         Controller = MPPI
 
 
-    # Initialize tuned objecive function
-    if tinf.name=="Pendulum-Swingup":
-        Q = np.eye(2)
-        R = 0.001 * np.eye(1)
-        F = np.eye(2)
-    elif tinf.name=="CartPole-Swingup":
-        Q = np.eye(4)
-        R = 0.01 * np.eye(1)
-        F = 10.0 * np.eye(4)
-    cost = QuadCost(tinf.system, Q, R, F)
-    task = tinf.task
-    task.set_cost(cost)
+    # # Initialize tuned objecive function
+    # if tinf.name=="Pendulum-Swingup":
+    #     Q = np.eye(2)
+    #     R = 0.001 * np.eye(1)
+    #     F = np.eye(2)
+    # elif tinf.name=="CartPole-Swingup":
+    #     Q = np.eye(4)
+    #     R = 0.01 * np.eye(1)
+    #     F = 10.0 * np.eye(4)
+    # cost = QuadCost(tinf.system, Q, R, F)
+    # task = tinf.task
+    # task.set_cost(cost)
+
+    # Initialize pipeline
+    if tinf.name=="CartPole-Swingup" and subexp==1:
+        pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
+                Controller, [QuadCostTransformer])
+    elif tinf.name=="CartPole-Swingup" and subexp==2:
+        pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
+                Controller, [QuadCostTransformer, GaussianRegTransformer])
+    else:
+        set_trace()
+        raise ValueError("Unhandled case")
+
+    root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
 
 
     def eval_cfg(cfg):
         print("Making controller")
-        controller = ampc.make_controller(tinf.system, task, model, Controller,
-                cfg)
+        pipeline_cfg = pipeline.set_configuration_fixed_model(root_pipeline_cfg, cfg)
+        controller, _ = pipeline(pipeline_cfg, sysid_trajs, model=model)
         print("Entering simulation")
         surr_traj = runsim(tinf, simsteps, surrogate, controller)
         truedyn_traj = runsim(tinf, simsteps, None, controller, tinf.dynamics)
@@ -188,7 +204,8 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
         return surr_score, truedyn_score
 
     # Debug
-    cs = Controller.get_configuration_space(tinf.system, task, model)
+    #cs = Controller.get_configuration_space(tinf.system, task, model)
+    cs = pipeline.get_configuration_space_fixed_model()
     #cfg = cs.get_default_configuration()
     ##cfg["finite_horizon"] = "false"
     #eval_cfg(cfg)

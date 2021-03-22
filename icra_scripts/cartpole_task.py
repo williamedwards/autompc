@@ -89,9 +89,9 @@ def cartpole_swingup_task():
     def dynamics(y, u):
         return dt_cartpole_dynamics(y, u, system.dt)
     init_max = np.array([1.0, 10.0, 1.0, 10.0])
-    gen_sysid_trajs = lambda seed: gen_trajs(200, 500, dt=system.dt,
+    gen_sysid_trajs = lambda seed, n_trajs=500: gen_trajs(200, n_trajs, dt=system.dt,
             init_max=init_max, init_min=-init_max, seed=seed)
-    gen_surr_trajs = lambda seed: gen_trajs(200, 500, dt=system.dt,
+    gen_surr_trajs = lambda seed, n_trajs=500: gen_trajs(200, n_trajs, dt=system.dt,
             init_max=init_max, init_min=-init_max, seed=seed)
     return TaskInfo(name="CartPole-Swingup",
             system=system, 

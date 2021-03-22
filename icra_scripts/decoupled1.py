@@ -14,6 +14,7 @@ memory = Memory("cache")
 
 # Internal project includes
 import autompc as ampc
+from autompc.cs_utils import *
 from autompc.evaluators import FixedSetEvaluator
 from autompc.metrics import RmseKstepMetric
 from autompc.sysid import MLP
@@ -147,43 +148,49 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, ensemble_size, seed,
     rng = np.random.default_rng(seed)
     sysid_trajs = tinf.gen_sysid_trajs(rng.integers(1 << 30), n_trajs=n_trajs)
 
-    if subexp == 1 or subexp in [3,4]:
-        root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
-        root_pipeline_cfg["_model:n_hidden_layers"] = "3"
-        root_pipeline_cfg["_model:hidden_size_1"] = 69
-        root_pipeline_cfg["_model:hidden_size_2"] = 256
-        root_pipeline_cfg["_model:hidden_size_3"] = 256
-        root_pipeline_cfg["_model:lr_log10"] = -3.323534
-        root_pipeline_cfg["_model:nonlintype"] = "tanh"
-    elif subexp == 2:
-        root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
-        root_pipeline_cfg["_model:n_hidden_layers"] = "3"
-        root_pipeline_cfg["_model:hidden_size_1"] = 128
-        root_pipeline_cfg["_model:hidden_size_2"] = 128
-        root_pipeline_cfg["_model:hidden_size_3"] = 128
-    else:
-        raise ValueError("Unrecognized sub experiment.")
+    #if subexp == 1 or subexp in [3,4]:
+    #    root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+    #    root_pipeline_cfg["_model:n_hidden_layers"] = "3"
+    #    root_pipeline_cfg["_model:hidden_size_1"] = 69
+    #    root_pipeline_cfg["_model:hidden_size_2"] = 256
+    #    root_pipeline_cfg["_model:hidden_size_3"] = 256
+    #    root_pipeline_cfg["_model:lr_log10"] = -3.323534
+    #    root_pipeline_cfg["_model:nonlintype"] = "tanh"
+    #elif subexp == 2:
+    #    root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+    #    root_pipeline_cfg["_model:n_hidden_layers"] = "3"
+    #    root_pipeline_cfg["_model:hidden_size_1"] = 128
+    #    root_pipeline_cfg["_model:hidden_size_2"] = 128
+    #    root_pipeline_cfg["_model:hidden_size_3"] = 128
+    #else:
+    #    raise ValueError("Unrecognized sub experiment.")
 
-    if subexp in [1,2]:
-        surr_cfg_vals = default_cfg_vals
-    elif subexp == 3:
-        surr_cfg_vals = {
-                "n_hidden_layers" : "3",
-                "hidden_size_1" : 79,
-                "hidden_size_2" : 235,
-                "hidden_size_3" : 192,
-                "lr_log10" : -3.1869328418567755,
-                "nonlintype" : "sigmoid"
-                }
-    elif subexp == 4:
-        surr_cfg_vals = {
-                "n_hidden_layers" : "3",
-                "hidden_size_1" : 139,
-                "hidden_size_2" : 148,
-                "hidden_size_3" : 162,
-                "lr_log10" : -2.93579435372765,
-                "nonlintype" : "sigmoid"
-                }
+    #if subexp in [1,2]:
+    #    surr_cfg_vals = default_cfg_vals
+    #elif subexp == 3:
+    #    surr_cfg_vals = {
+    #            "n_hidden_layers" : "3",
+    #            "hidden_size_1" : 79,
+    #            "hidden_size_2" : 235,
+    #            "hidden_size_3" : 192,
+    #            "lr_log10" : -3.1869328418567755,
+    #            "nonlintype" : "sigmoid"
+    #            }
+    #elif subexp == 4:
+    #    surr_cfg_vals = {
+    #            "n_hidden_layers" : "3",
+    #            "hidden_size_1" : 139,
+    #            "hidden_size_2" : 148,
+    #            "hidden_size_3" : 162,
+    #            "lr_log10" : -2.93579435372765,
+    #            "nonlintype" : "sigmoid"
+    #            }
+    surr_cfg_vals = default_cfg_vals
+    # Load config from file
+    in_result = load_result("sysid2", "cartpole-swingup", "mlp-ilqr", 2, 100, seed)
+    model_cfg = in_result["inc_cfgs"][-1]
+    root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+    set_parent_configuration(root_pipeline_cfg, "_model", model_cfg)
 
     eval_seed = rng.integers(1 << 30)
     surrogates = []
@@ -206,13 +213,13 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, ensemble_size, seed,
     def train_model(sysid_trajs):
         model = ampc.make_model(tinf.system, pipeline.Model, 
                 pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=50,
-                use_cuda=False)
+                use_cuda=True)
         torch.manual_seed(eval_seed)
         model.train(sysid_trajs)
         return model.get_parameters()
-    model = ampc.make_model(tinf.system, pipeline.Model, 
-            pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=5,
-            use_cuda=True)
+    #model = ampc.make_model(tinf.system, pipeline.Model, 
+    #        pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=5,
+    #        use_cuda=True)
     model_params = train_model(sysid_trajs)
     model.set_parameters(model_params)
     def eval_cfg(cfg):
@@ -258,13 +265,15 @@ def runexp_decoupled2(pipeline, tinf, tune_iters, seed, int_file=None):
         surrogate = train_mlp(tinf.system, surr_trajs, surr_torch_seed)
         surrogates.append(surrogate)
 
-    root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
-    root_pipeline_cfg["_model:n_hidden_layers"] = "3"
-    root_pipeline_cfg["_model:hidden_size_1"] = 69
-    root_pipeline_cfg["_model:hidden_size_2"] = 256
-    root_pipeline_cfg["_model:hidden_size_3"] = 256
-    root_pipeline_cfg["_model:lr_log10"] = -3.323534
-    root_pipeline_cfg["_model:nonlintype"] = "tanh"
+    #root_pipeline_cfg = pipeline.get_configuration_space().get_default_configuration()
+    #root_pipeline_cfg["_model:n_hidden_layers"] = "3"
+    #root_pipeline_cfg["_model:hidden_size_1"] = 69
+    #root_pipeline_cfg["_model:hidden_size_2"] = 256
+    #root_pipeline_cfg["_model:hidden_size_3"] = 256
+    #root_pipeline_cfg["_model:lr_log10"] = -3.323534
+    #root_pipeline_cfg["_model:nonlintype"] = "tanh"
+    
+    # Load configuration from sysid2 model
     cs = pipeline.get_configuration_space_fixed_model()
     #cfg = cs.get_default_configuration()
     #cfg["_controller:horizon"] = 25
