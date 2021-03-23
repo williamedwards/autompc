@@ -24,7 +24,7 @@ from halfcheetah_task_buffer import halfcheetah_task_buffer
 from pipelines import init_pipeline
 from sysid1 import runexp_sysid1
 from sysid2 import runexp_sysid2
-from tuning1 import runexp_tuning1
+from tuning1 import runexp_tuning1, tuning1_viz
 from surrtest import runexp_surrtest
 from ideal_tune import runexp_ideal_tune
 from decoupled1 import (runexp_decoupled1, 
@@ -90,6 +90,12 @@ def main(args):
                 subexp=args.subexp)
         save_result(result, "tuning1", args.task, args.pipeline, args.subexp,
                 args.tuneiters, args.seed)
+    elif args.command == "tuning1-viz":
+        tinf = init_task(args.task)
+        pipeline = init_pipeline(tinf, args.pipeline)
+        result = tuning1_viz(pipeline, tinf, tune_iters=args.tuneiters,
+                seed=args.seed, int_file=args.intfile, simsteps=args.simsteps,
+                subexp=args.subexp, args=args)
     elif args.command == "surrtest":
         tinf = init_task(args.task)
         pipeline = init_pipeline(tinf, args.pipeline)

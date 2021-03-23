@@ -112,7 +112,7 @@ def get_trig_interaction_terms(freq):
             name_func = lambda x,y : "{} sin({} {})".format(x, freq, y))
     sin_bfunc2 = BasisFunction(n_args=2,
             func      = lambda y,x : x * np.sin(freq * y),
-            grad_func = lambda y,x : [np.sin(freq * y), x * freq * np.cos(freq * y)],
+            grad_func = lambda y,x : [x * freq * np.cos(freq * y), np.sin(freq * y)],
             name_func = lambda y,x : "{} sin({} {})".format(x, freq, y))
     cos_bfunc = BasisFunction(n_args=2,
             func      = lambda x,y : x * np.cos(freq * y),
@@ -120,7 +120,7 @@ def get_trig_interaction_terms(freq):
             name_func = lambda x,y : "{} cos({} {})".format(x, freq, y))
     cos_bfunc2 = BasisFunction(n_args=2,
             func      = lambda y,x : x * np.cos(freq * y),
-            grad_func = lambda y,x : [np.cos(freq * y), x * -freq * np.sin(freq * y)],
+            grad_func = lambda y,x : [x * -freq * np.sin(freq * y), np.cos(freq * y)],
             name_func = lambda y,x : "{} cos({} {})".format(x, freq, y))
     return sin_bfunc, sin_bfunc2, cos_bfunc, cos_bfunc2
 

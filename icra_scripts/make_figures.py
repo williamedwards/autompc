@@ -115,7 +115,7 @@ def make_figure_cost_tuning():
     plt.tight_layout()
     plt.show()
 
-def make_figure_tuning1(plot_option=3):
+def make_figure_tuning1(plot_option=1):
     experiments = [
             #(("MLP-iLQR-Quad", "Pendulum"),
             # [("pendulum-swingup", "mlp-ilqr", 100, 100),
@@ -209,7 +209,7 @@ def make_figure_tuning1(plot_option=3):
     #         ("halfcheetah", "mlp-ilqr", 100, 42)),
     #        ]
     #bcq_baselines = [73, 148, 200]
-    bcq_baselines = [73, 148, 200, 200, 200]
+    bcq_baselines = [np.nan, 73, 148, 200, 200, 200]
     #bcq_baselines = [200]
     for i, ((pipeline_label, task_label), settings) in enumerate(experiments):
         #if not result_exists("tuning1", *setting):

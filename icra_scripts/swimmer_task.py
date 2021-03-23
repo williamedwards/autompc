@@ -24,6 +24,19 @@ memory = Memory("cache")
 TaskInfo = namedtuple("TaskInfo", ["name", "system", "task", "init_obs", 
     "dynamics", "perf_metric", "gen_sysid_trajs", "gen_surr_trajs"])
 
+def viz_swimmer_traj(traj, repeat):
+    for _ in range(repeat):
+        env.reset()
+        qpos = traj[0].obs[:5]
+        qvel = traj[0].obs[5:]
+        env.set_state(qpos, qvel)
+        for i in range(len(traj)):
+            u = traj[i].ctrl
+            env.step(u)
+            env.render()
+            time.sleep(0.05)
+        time.sleep(1)
+
 @memory.cache
 def gen_trajs(benchmark, num_trajs, seed):
     rng = np.random.default_rng(seed)
