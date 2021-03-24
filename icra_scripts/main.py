@@ -15,6 +15,7 @@ from autompc.sysid import MLP, ARX, Koopman, SINDy, ApproximateGaussianProcess
 
 from cartpole_task import cartpole_swingup_task
 from pendulum_task import pendulum_swingup_task
+from car_task import car_task
 from acrobot_task import acrobot_swingup_task
 from halfcheetah_task import halfcheetah_task
 from swimmer_task import swimmer_task
@@ -70,6 +71,8 @@ def init_task(task_name):
         return halfcheetah_task_buffer(buff=2)
     elif task_name == "dalk":
         return dalk_task()
+    elif task_name == "car":
+        return car_task()
     else:
         raise ValueError("Task not found")
 

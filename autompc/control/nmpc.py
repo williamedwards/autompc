@@ -88,7 +88,7 @@ class NonLinearMPCProblem(TrajOptProblem):
     """Just write the NonLinear MPC problem in the OptProblem style.
     """
     def __init__(self, system, model, task, horizon):
-        assert task.get_cost().is_diff()
+        #assert task.get_cost().is_diff()
         self.system = system
         self.task = task
         self.model = model
