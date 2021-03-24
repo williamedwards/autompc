@@ -22,6 +22,7 @@ from autompc.sysid import MLP, SINDy, LinearizedModel
 from autompc.control import FiniteHorizonLQR, IterativeLQR, NonLinearMPC, MPPI, LQR
 from autompc.tasks import QuadCost, Task
 from autompc.tasks.quad_cost_transformer import QuadCostTransformer
+from autompc.tasks.half_cheetah_transformer import HalfCheetahTransformer
 from autompc.tasks.gaussain_reg_transformer import GaussianRegTransformer
 from autompc.pipelines import FixedControlPipeline
 
@@ -176,6 +177,9 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
     if tinf.name=="CartPole-Swingup" and subexp==1:
         pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
                 Controller, [QuadCostTransformer])
+    elif tinf.name=="HalfCheetah" and subexp==1:
+        pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
+                Controller, [HalfcheetahTransformer])
     elif tinf.name=="Pendulum-Swingup" and subexp==1:
         pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
                 Controller, [QuadCostTransformer])

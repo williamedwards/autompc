@@ -21,6 +21,7 @@ from halfcheetah_task import halfcheetah_task
 from swimmer_task import swimmer_task
 from halfcheetah_task_multisine import halfcheetah_task_multisine
 from halfcheetah_task_buffer import halfcheetah_task_buffer
+from double_int_drag_task import double_int_drag_task
 #from dalk_task import dalk_task
 from pipelines import init_pipeline
 from sysid1 import runexp_sysid1
@@ -73,6 +74,8 @@ def init_task(task_name):
         return dalk_task()
     elif task_name == "car":
         return car_task()
+    elif task_name == "double-int-drag":
+        return double_int_drag_task()
     else:
         raise ValueError("Task not found")
 
