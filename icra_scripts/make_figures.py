@@ -233,6 +233,7 @@ def make_figure_tuning1(plot_option=1):
         #    labels.append(label)
         #ax.legend(labels)
         truedyn_perfss = [[cost for cost in result["inc_truedyn_costs"]] for result in results]
+        set_trace()
         #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*68
         #print(f"{perfs=}")
         xs = list(range(len(truedyn_perfss[0])))

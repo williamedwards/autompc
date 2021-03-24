@@ -11,6 +11,7 @@ import numpy.linalg as la
 import gym
 import mujoco_py
 from joblib import Memory
+import time
 #import gym_cartpole_swingup
 #import custom_gym_cartpole_swingup
 #from custom_gym_cartpole_swingup.envs.cartpole_swingup import State as GymCartpoleState
@@ -29,6 +30,19 @@ TaskInfo = namedtuple("TaskInfo", ["name", "system", "task", "init_obs",
 halfcheetah = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)])
 env = gym.make("HalfCheetah-v2")
 halfcheetah.dt = env.dt
+
+def viz_halfcheetah_traj(traj, repeat):
+    for _ in range(repeat):
+        env.reset()
+        qpos = traj[0].obs[:9]
+        qvel = traj[0].obs[9:]
+        env.set_state(qpos, qvel)
+        for i in range(len(traj)):
+            u = traj[i].ctrl
+            env.step(u)
+            env.render()
+            time.sleep(0.05)
+        time.sleep(1)
 
 def halfcheetah_dynamics(x, u, n_frames=5):
     old_state = env.sim.get_state()

@@ -19,6 +19,7 @@ from autompc.metrics import RmseKstepMetric
 from autompc.sysid import MLP
 
 from swimmer_task import viz_swimmer_traj
+from halfcheetah_task import viz_halfcheetah_traj
 from utils import load_result
 
 @memory.cache
@@ -225,9 +226,9 @@ def tuning1_viz(pipeline, tinf, tune_iters, seed, simsteps, int_file=None, subex
             truedyn_traj_time = 0.0
         #surr_score = tinf.perf_metric(surr_traj)
         set_trace()
-        viz_swimmer_traj(truedyn_traj, repeat=1000)
+        viz_halfcheetah_traj(truedyn_traj, repeat=1000)
 
-    result = load_result("tuning1", args.task, args.pipeline, args.subexp,
+    result = load_result("tuning1", args.task, args.pipeline, #args.subexp,
                 args.tuneiters, args.seed) 
     cfg = result["inc_cfgs"][-1]
     viz_cfg(cfg)

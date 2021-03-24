@@ -33,9 +33,14 @@ def get_normalized_model_rmse(model, trajs, horiz=1):
 def get_model_rmse(model, trajs, horiz=1):
     sqerrss = []
     for traj in trajs:
-        state = traj.obs[:-horiz, :]
+        if hasattr(model, "traj_to_states"):
+            state = model.traj_to_states(traj[:-horiz])
+        else:
+            state = traj.obs[:-horiz, :]
         for k in range(horiz):
             state = model.pred_parallel(state, traj.ctrls[k:-(horiz-k), :])
+        if hasattr(model, "traj_to_states"):
+            state = state[:,:model.system.obs_dim]
         actual = traj.obs[horiz:]
         sqerrs = (state - actual) ** 2
         sqerrss.append(sqerrs)
