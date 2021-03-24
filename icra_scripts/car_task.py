@@ -9,6 +9,7 @@ import autompc as ampc
 from autompc.tasks import Task, QuadCost
 
 # Project includes
+from perf_metrics import threshold_metric
 from data_generation import *
 
 
