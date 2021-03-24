@@ -43,10 +43,6 @@ def icra_task_from_benchmark(benchmark):
             gen_sysid_trajs=gen_sysid_trajs,
             gen_surr_trajs=gen_surr_trajs)
 
-def double_int_drag_task():
-    benchmark = DoubleIntDragBenchmark("uniform_random")
-    return icra_task_from_benchmark(benchmark)
-
 def doubleint_drag_dynamics(y, u, drag=0.1):
     """
     Parameters
@@ -59,11 +55,15 @@ def doubleint_drag_dynamics(y, u, drag=0.1):
         A list describing the dynamics of the cart cart pole
     """
     x, dx = y
-    return np.array([dx, u - drag*dx**2])
+    return np.array([dx, u - drag*dx**2*np.sign(dx)])
 
 def dt_doubleint_drag_dynamics(y,u,dt):
     y += dt * doubleint_drag_dynamics(y,u[0])
     return y
+
+def double_int_drag_task():
+    benchmark = DoubleIntDragBenchmark("uniform_random")
+    return icra_task_from_benchmark(benchmark)
 
 class DoubleIntDragBenchmark(Benchmark):
     def __init__(self, data_gen_method):
