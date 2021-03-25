@@ -191,9 +191,15 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
     elif tinf.name=="HalfCheetah" and subexp in [1,3]:
         pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
                 Controller, [HalfCheetahTransformer])
+    elif tinf.name=="HalfCheetah" and subexp in 2:
+        pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
+                Controller, [HalfCheetahTransformer, GaussianRegTransformer])
     elif tinf.name=="Pendulum-Swingup" and subexp==1:
         pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
                 Controller, [QuadCostTransformer])
+    elif tinf.name=="Pendulum-Swingup" and subexp==2:
+        pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
+                Controller, [QuadCostTransformer, GaussianRegTransformer])
     elif tinf.name=="CartPole-Swingup" and subexp==2:
         pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
                 Controller, [QuadCostTransformer, GaussianRegTransformer])
