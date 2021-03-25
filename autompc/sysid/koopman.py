@@ -93,6 +93,9 @@ class Koopman(Model):
 
     def traj_to_state(self, traj):
         return self._transform_observations(traj.obs[:])[-1,:]
+
+    def traj_to_states(self, traj):
+        return self._transform_observations(traj.obs[:])
     
     def update_state(self, state, new_ctrl, new_obs):
         return self._apply_basis(new_obs)
@@ -132,6 +135,11 @@ class Koopman(Model):
     def pred(self, state, ctrl):
         xpred = self.A @ state + self.B @ ctrl
         return xpred
+
+    def pred_parallel(self, states, ctrls):
+        statesnew = self.A @ states.T + self.B @ ctrls.T
+
+        return statesnew.T
 
     def pred_diff(self, state, ctrl):
         xpred = self.A @ state + self.B @ ctrl
