@@ -66,10 +66,7 @@ def car_dynamics(y, u, L=1):
             u_accel])
 
 def dt_car_dynamics(y,u,dt,L=1.0):
-    y += dt * car_dynamics(y,u,L)
-    return y
-
-
+    return y + dt * car_dynamics(y,u,L)
 
 class CarBenchmark(Benchmark):
     def __init__(self, data_gen_method):
@@ -85,12 +82,12 @@ class CarBenchmark(Benchmark):
         task.set_cost(cost)
         task.set_ctrl_bound("u_accel", -1.0, 1.0)
         task.set_ctrl_bound("u_steer", -1.5, 1.5)
-        init_obs = np.array([10.0, 0.0, 3.1, 0.0])
+        init_obs = np.array([0.0, -5.0, 3.1, 0.0])
 
         super().__init__(name, system, task, init_obs, data_gen_method) 
 
     def perf_metric(self, traj):
-        return threshold_metric(goal=np.zeros(3), threshold=0.2, obs_range=(0,3),
+        return threshold_metric(goal=np.zeros(2), threshold=0.5, obs_range=(0,3),
                 traj=traj)
 
     def dynamics(self, x, u):

@@ -120,7 +120,7 @@ def make_figure_cost_tuning():
     plt.tight_layout()
     plt.show()
 
-def make_figure_tuning1(plot_option=3, small_fig=True):
+def make_figure_tuning1(plot_option=4, small_fig=False):
     experiments = [
             #(("MLP-iLQR-Quad", "Pendulum"),
             # [("pendulum-swingup", "mlp-ilqr", 100, 100),
@@ -139,17 +139,17 @@ def make_figure_tuning1(plot_option=3, small_fig=True):
               ("halfcheetah", "halfcheetah", 3, 100, 108),
               ("halfcheetah", "halfcheetah", 3, 100, 109),
               ]),
-            (("MLP-iLQR-Quad", "Swimmer"),
-             [("swimmer", "swimmer", 1, 100, 100),
-              ("swimmer", "swimmer", 1, 100, 101),
-              ("swimmer", "swimmer", 1, 100, 102),
-              ("swimmer", "swimmer", 1, 100, 103),
-              #("swimmer", "swimmer", 1, 100, 104),
-              ("swimmer", "swimmer", 1, 100, 105),
-              ("swimmer", "swimmer", 1, 100, 106),
-              ("swimmer", "swimmer", 1, 100, 107),
-              ("swimmer", "swimmer", 1, 100, 108),
-              ("swimmer", "swimmer", 1, 100, 109)
+            (("MLP-iLQR-Quad", "Double Int. w/ Drag"),
+             [#("double-int-drag", "mlp-ilqr", 1, 100, 100),
+              #("double-int-drag", "mlp-ilqr", 1, 100, 101),
+              ("double-int-drag", "mlp-ilqr", 1, 100, 102),
+              ("double-int-drag", "mlp-ilqr", 1, 100, 103),
+              ("double-int-drag", "mlp-ilqr", 1, 100, 104),
+              ("double-int-drag", "mlp-ilqr", 1, 100, 105),
+              ("double-int-drag", "mlp-ilqr", 1, 100, 106),
+              ("double-int-drag", "mlp-ilqr", 1, 100, 107),
+              ("double-int-drag", "mlp-ilqr", 1, 100, 108),
+              ("double-int-drag", "mlp-ilqr", 1, 100, 109)
               ]),
             (("MLP-iLQR-Quad", "Pendulum"),
              [("pendulum-swingup", "mlp-ilqr", 100, 100),
@@ -285,11 +285,29 @@ def make_figure_tuning1(plot_option=3, small_fig=True):
                 high.append(np.percentile(perfs, 75))
             ax.plot(xs, middle, color="b")
             ax.fill_between(xs, low, high, color="b", alpha=0.2)
+        elif plot_option == 4:
+            best = []
+            median = []
+            for j in range(len(truedyn_perfss[0])):
+                perfs = [truedyn_perfs[j] for truedyn_perfs in truedyn_perfss]
+                perfs.sort()
+                median.append(np.median(perfs))
+                best.append(np.min(perfs))
+            for truedyn_perfs in truedyn_perfss:
+                ax.plot(truedyn_perfs, color="grey", label="_nolegend_", linewidth=1.0)
+            ax.plot(best, color="green", linewidth=2.0)
+            ax.plot(median, color="blue", linewidth=2.0)
         ax.plot([0, len(truedyn_perfss[0])], [bcq_baselines[i], bcq_baselines[i]], "r--") 
-        if small_fig:
-            ax.legend(["AutoMPC", "BCQ"], prop={"size":16})
-        else:
-            ax.legend(["AutoMPC", "BCQ"])
+        if plot_option in [1,2,3]:
+            if small_fig:
+                ax.legend(["AutoMPC", "BCQ"], prop={"size":16})
+            else:
+                ax.legend(["AutoMPC", "BCQ"])
+        elif plot_option == 4:
+            if small_fig:
+                ax.legend(["AutoMPC (Best)", "AutoMPC (Median)", "BCQ"], prop={"size":16})
+            else:
+                ax.legend(["AutoMPC (Best)", "AutoMPC (Median)", "BCQ"])
         plt.tight_layout()
         plt.show()
 
