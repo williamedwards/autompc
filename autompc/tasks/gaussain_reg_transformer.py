@@ -24,9 +24,9 @@ class GaussianRegTransformer(TaskTransformer):
     def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
         state_reg_weight = CSH.UniformFloatHyperparameter("state_reg_weight",
-                    lower=-3.0, upper=4.0, default_value=0.0)
+                    lower=-4.0, upper=4.0, default_value=0.0)
         ctrl_reg_weight = CSH.UniformFloatHyperparameter("ctrl_reg_weight",
-                    lower=-3.0, upper=4.0, default_value=0.0)
+                    lower=-4.0, upper=4.0, default_value=0.0)
         cs.add_hyperparameters([state_reg_weight, ctrl_reg_weight])
         return cs
 
@@ -46,6 +46,8 @@ class GaussianRegTransformer(TaskTransformer):
             state_cov = state_cov.reshape((1,1))
         if len(ctrl_cov.shape) == 0:
             ctrl_cov = ctrl_cov.reshape((1,1))
-        new_cost = QuadCost(self.system, Q=la.inv(state_cov), R=la.inv(ctrl_cov), x0=state_mean, u0=ctrl_mean)
+        Q = self.state_reg_weight*la.inv(state_cov)
+        R = self.ctrl_reg_weight*la.inv(ctrl_cov)
+        new_cost = QuadCost(self.system, Q=Q, R=R, x0=state_mean, u0=ctrl_mean)
         newtask.set_cost(cost + new_cost)
         return newtask

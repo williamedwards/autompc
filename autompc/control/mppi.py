@@ -55,7 +55,7 @@ class MPPI:
         print(f"lmda={self.lmda}")
         self.act_sequence = np.zeros((self.H, self.dim_ctrl))  # set initial default action as zero
         self.noise_dist = MultivariateNormal(0, self.sigma)
-        self.act_sequence = self.noise_dist.sample((self.H,))
+        self.act_sequence = self.noise_dist.sample((self.H,self.dim_ctrl)).reshape((self.H,self.dim_ctrl))
         self.umin = task.get_ctrl_bounds()[:,0]
         self.umax = task.get_ctrl_bounds()[:,1]
         self.ctrl_scale = self.umax
@@ -76,11 +76,11 @@ class MPPI:
 
     def do_rollouts(self, cur_state, seed=None):
         # roll the action
-        self.act_sequence[:-1] = self.act_sequence[1:]
-        self.act_sequence[-1] = 0
+        self.act_sequence[:-1,:] = self.act_sequence[1:,:]
+        self.act_sequence[-1,:] = np.zeros(self.dim_ctrl)
         # generate random noises
-        # eps = np.random.normal(scale=self.sigma, size=(self.H, self.num_path, self.dim_ctrl))  # horizon by num_path by ctrl_dim
-        eps = self.noise_dist.sample((self.num_path, self.H)).transpose((1, 0, 2))
+        eps = np.random.normal(scale=self.sigma, size=(self.H, self.num_path, self.dim_ctrl))  # horizon by num_path by ctrl_dim
+        #eps = self.noise_dist.sample((self.num_path, self.H)).transpose((1, 0, 2))
         # path = np.zeros((self.H + 1, self.num_path, self.dim_state))  # horizon by num_path by state_dim
         # path[0] = cur_state  # just copy the initial state in...
         path = np.zeros((self.num_path, self.dim_state))

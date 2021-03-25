@@ -29,26 +29,26 @@ from autompc.pipelines import FixedControlPipeline
 
 
 @memory.cache
-def train_mlp_inner(system, trajs):
+def train_mlp_inner(system, trajs, n_train_iters=50):
     cs = MLP.get_configuration_space(system)
     cfg = cs.get_default_configuration()
     cfg["n_hidden_layers"] = "3"
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True, n_train_iters=n_train_iters)
     model.train(trajs)
     return model.get_parameters()
 
-def train_mlp(system, trajs):
+def train_mlp(system, trajs, n_train_iters=50):
     cs = MLP.get_configuration_space(system)
     cfg = cs.get_default_configuration()
     cfg["n_hidden_layers"] = "3"
     cfg["hidden_size_1"] = 128
     cfg["hidden_size_2"] = 128
     cfg["hidden_size_3"] = 128
-    model = ampc.make_model(system, MLP, cfg, use_cuda=True)
-    params = train_mlp_inner(system, trajs)
+    model = ampc.make_model(system, MLP, cfg, use_cuda=True, n_train_iters=n_train_iters)
+    params = train_mlp_inner(system, trajs, n_train_iters=n_train_iters)
     model.set_parameters(params)
     return model
 
@@ -131,6 +131,7 @@ def run_smac(cs, eval_cfg, tune_iters, seed):
 def make_sysid(system, trajs):
     sysid_cfg = SINDy.get_configuration_space(system).get_default_configuration()
     sysid_cfg["trig_basis"] = "true"
+    sysid_cfg["trig_interaction"] = "true"
     model = ampc.make_model(system, SINDy, sysid_cfg)
     model.train(trajs)
     return model
@@ -143,11 +144,21 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
     surr_trajs = tinf.gen_surr_trajs(rng.integers(1 << 30))
 
     torch.manual_seed(rng.integers(1 << 30))
-    surrogate = train_mlp(tinf.system, surr_trajs)
+    if subexp in [1,2]:
+        surrogate = train_mlp(tinf.system, surr_trajs)
+    elif subexp == 3:
+        surrogate = train_mlp(tinf.system, surr_trajs, n_train_iters=1)
     eval_seed = rng.integers(1 << 30)
 
-    model = make_sysid(tinf.system, sysid_trajs)
-    #model = train_mlp(tinf.system, sysid_trajs)
+    if tinf.name=="HalfCheetah":
+        if subexp != 3:
+            model = train_mlp(tinf.system, sysid_trajs)
+        else:
+            model = train_mlp(tinf.system, sysid_trajs, n_train_iters=1)
+        print("Using MLP SysID")
+    else:
+        print("Using SINDy SysID")
+        model = make_sysid(tinf.system, sysid_trajs)
     if controller_name == "ilqr":
         Controller = IterativeLQR
     elif controller_name == "lqr":
@@ -177,9 +188,9 @@ def runexp_controllers(pipeline, tinf, tune_iters, seed, simsteps,
     if tinf.name=="CartPole-Swingup" and subexp==1:
         pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
                 Controller, [QuadCostTransformer])
-    elif tinf.name=="HalfCheetah" and subexp==1:
+    elif tinf.name=="HalfCheetah" and subexp in [1,3]:
         pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
-                Controller, [HalfcheetahTransformer])
+                Controller, [HalfCheetahTransformer])
     elif tinf.name=="Pendulum-Swingup" and subexp==1:
         pipeline = FixedControlPipeline(tinf.system, tinf.task, MLP, 
                 Controller, [QuadCostTransformer])

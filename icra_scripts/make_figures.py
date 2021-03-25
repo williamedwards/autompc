@@ -13,6 +13,11 @@ import matplotlib.pyplot as plt
 # Internal project includes
 from utils import *
 
+def top_cfgs(result):
+    costs = result["costs"]
+    cfgs = result["cfgs"]
+    return list(sorted([(cost, cfg) for cost, cfg in zip(costs, cfgs)], key=lambda x: x[0]))
+
 def make_figure_sysid1():
     models = [("ARX", "arx"), ("Koopman", "koop"),
             ("SINDy", "sindy"), ("MLP", "mlp")]
@@ -115,7 +120,7 @@ def make_figure_cost_tuning():
     plt.tight_layout()
     plt.show()
 
-def make_figure_tuning1(plot_option=1):
+def make_figure_tuning1(plot_option=3, small_fig=True):
     experiments = [
             #(("MLP-iLQR-Quad", "Pendulum"),
             # [("pendulum-swingup", "mlp-ilqr", 100, 100),
@@ -221,16 +226,20 @@ def make_figure_tuning1(plot_option=1):
     #         ("halfcheetah", "mlp-ilqr", 100, 42)),
     #        ]
     #bcq_baselines = [73, 148, 200]
-    bcq_baselines = [np.nan, 73, 148, 200, 200, 200]
+    bcq_baselines = [200, np.nan, 73, 148, 200, 200, 200]
     #bcq_baselines = [200]
     for i, ((pipeline_label, task_label), settings) in enumerate(experiments):
         #if not result_exists("tuning1", *setting):
         #    print(f"Skipping {pipeline_label}, {task_label}")
         #    continue
         results = [load_result("tuning1", *setting) for setting in settings]
+        #set_trace()
 
-        #matplotlib.rcParams.update({'font.size': 17})
-        fig = plt.figure()
+        if small_fig:
+            matplotlib.rcParams.update({'font.size': 17})
+            fig = plt.figure(figsize=(4,4))
+        else:
+            fig = plt.figure()
         ax = fig.gca()
         ax.set_title(f"Tuning {task_label}")
         ax.set_xlabel("Tuning iterations")
@@ -245,7 +254,7 @@ def make_figure_tuning1(plot_option=1):
         #    labels.append(label)
         #ax.legend(labels)
         truedyn_perfss = [[cost for cost in result["inc_truedyn_costs"]] for result in results]
-        set_trace()
+        #set_trace()
         #perfs = [263.0] * 6 + [113.0]*4 + [535]*7 + [29]*68
         #print(f"{perfs=}")
         xs = list(range(len(truedyn_perfss[0])))
@@ -277,7 +286,10 @@ def make_figure_tuning1(plot_option=1):
             ax.plot(xs, middle, color="b")
             ax.fill_between(xs, low, high, color="b", alpha=0.2)
         ax.plot([0, len(truedyn_perfss[0])], [bcq_baselines[i], bcq_baselines[i]], "r--") 
-        ax.legend(["AutoMPC", "BCQ"])#, prop={"size":16})
+        if small_fig:
+            ax.legend(["AutoMPC", "BCQ"], prop={"size":16})
+        else:
+            ax.legend(["AutoMPC", "BCQ"])
         plt.tight_layout()
         plt.show()
 
