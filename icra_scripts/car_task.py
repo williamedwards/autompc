@@ -87,7 +87,7 @@ class CarBenchmark(Benchmark):
         super().__init__(name, system, task, init_obs, data_gen_method) 
 
     def perf_metric(self, traj):
-        return threshold_metric(goal=np.zeros(2), threshold=0.5, obs_range=(0,3),
+        return threshold_metric(goal=np.zeros(3), threshold=0.5, obs_range=(0,3),
                 traj=traj)
 
     def dynamics(self, x, u):
@@ -127,4 +127,3 @@ class CarBenchmark(Benchmark):
     @staticmethod
     def data_gen_methods():
         return ["uniform_random", "periodic_control", "multisine", "random_walk"]
-
