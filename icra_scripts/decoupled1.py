@@ -23,9 +23,10 @@ from utils import save_result, load_result
 import ConfigSpace as CS
 
 default_cfg_vals = {
-        "n_hidden_layers" : "2",
-        "hidden_size_1" : 64,
-        "hidden_size_2" : 64,
+        "n_hidden_layers" : "3",
+        "hidden_size_1" : 128,
+        "hidden_size_2" : 128,
+        "hidden_size_3" : 128,
         "nonlintype" : "relu",
         "lr_log10" : -3
         }
@@ -217,9 +218,9 @@ def runexp_decoupled1(pipeline, tinf, tune_iters, ensemble_size, seed,
         torch.manual_seed(eval_seed)
         model.train(sysid_trajs)
         return model.get_parameters()
-    #model = ampc.make_model(tinf.system, pipeline.Model, 
-    #        pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=5,
-    #        use_cuda=True)
+    model = ampc.make_model(tinf.system, pipeline.Model, 
+            pipeline.get_model_cfg(root_pipeline_cfg), n_train_iters=50,
+            use_cuda=True)
     model_params = train_model(sysid_trajs)
     model.set_parameters(model_params)
     def eval_cfg(cfg):

@@ -9,6 +9,10 @@ import matplotlib
 # External project includes
 import numpy as np
 import matplotlib.pyplot as plt
+#from halfcheetah_task import halfcheetah_task
+#matplotlib.use("TkAgg")
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
 
 # Internal project includes
 from utils import *
@@ -18,21 +22,41 @@ def top_cfgs(result):
     cfgs = result["cfgs"]
     return list(sorted([(cost, cfg) for cost, cfg in zip(costs, cfgs)], key=lambda x: x[0]))
 
+def make_figure_hc_traj():
+    result = load_result("tuning1", "halfcheetah", "halfcheetah", 3, 100, 100) 
+    states = np.array(result["truedyn_trajs"][-19][0])
+    ctrls = np.array(result["truedyn_trajs"][-19][1])
+    fig = plt.figure(figsize=(6,3))
+    ax = fig.gca()
+    
+    tinf = halfcheetah_task()
+    trajs = tinf.gen_sysid_trajs(2, n_trajs=10)
+    for traj in trajs:
+        ax.plot(traj.obs[:,0], traj.obs[:,1], "-o", alpha=0.5, markersize=3.0, color="Grey")
+    ax.plot(trajs[0].obs[:,0], trajs[0].obs[:,1], "-o", alpha=0.5, markersize=3.0, color="Grey", label="Training Data")
+
+    ax.plot(states[3:100,0], states[3:100,1], "b-s", markersize=3.0, label="AutoMPC Controller")
+    ax.set_ylim([-0.4,0.3])
+    ax.axes.xaxis.set_visible(False)
+    ax.axes.yaxis.set_visible(False)
+    ax.legend(  prop={"size":18} )
+    plt.show()
+
 def make_figure_sysid1():
     models = [("ARX", "arx"), ("Koopman", "koop"),
-            ("SINDy", "sindy"), ("MLP", "mlp")]
+            ("SINDy", "sindy"), ("GP", "approxgp"), ("MLP", "mlp")]
     tasks = [("Pendulum swing-up", "pendulum-swingup"),
             ( "Cartpole swing-up", "cartpole-swingup"),
             ("HalfCheetah", "halfcheetah")]
     settings = [
-            ["cartpole-swingup", "arx", 10, 42],
-            ["cartpole-swingup", "mlp", 100, 42],
-            ["cartpole-swingup", "koop", 40, 42],
-            ["cartpole-swingup", "sindy", 100, 42],
-            ["cartpole-swingup", "approxgp", 100, 42],
-            ["pendulum-swingup", "arx", 10, 42],
-            ["pendulum-swingup", "mlp", 100, 42],
-            ["pendulum-swingup", "koop", 40, 42],
+            ["cartpole-swingup", "arx", 10, 100],
+            ["cartpole-swingup", "mlp", 100, 100],
+            ["cartpole-swingup", "koop", 40, 60],
+            ["cartpole-swingup", "sindy", 100, 100],
+            ["cartpole-swingup", "approxgp", 100, 100],
+            ["pendulum-swingup", "arx", 10, 100],
+            ["pendulum-swingup", "mlp", 100, 100],
+            ["pendulum-swingup", "koop", 40, 100],
             ["pendulum-swingup", "sindy", 100, 100],
             ["pendulum-swingup", "sindy", 100, 101],
             ["pendulum-swingup", "sindy", 100, 102],
@@ -53,12 +77,12 @@ def make_figure_sysid1():
             # ["cartpole-swingup", "sindy", 100, 107],
             # ["cartpole-swingup", "sindy", 100, 108],
             # ["cartpole-swingup", "sindy", 100, 109],
-            ["cartpole-swingup", "approxgp", 100, 42],
-            ["halfcheetah", "arx", 9, 42],
-            ["halfcheetah", "mlp", 100, 42],
-            ["halfcheetah", "koop", 40, 42],
-            ["halfcheetah", "sindy", 40, 42],
-            ["halfcheetah", "approxgp", 100, 42],
+            ["cartpole-swingup", "approxgp", 100, 100],
+            ["halfcheetah", "arx", 10, 100],
+            ["halfcheetah", "mlp", 100, 100],
+            ["halfcheetah", "koop", 60, 100],
+            ["halfcheetah", "sindy", 100, 100],
+            ["halfcheetah", "approxgp", 100, 100],
             ]
     print("SysID Figure")
     print("============")
@@ -70,11 +94,13 @@ def make_figure_sysid1():
         print(f"{model_label:8} ", end="")
         for task_label, task_id in tasks:
             scores = []
+            tune_results = []
             for setting in settings:
                 if setting[0] == task_id and setting[1] == model_id:
                     if result_exists("sysid1", *setting):
-                        final_score, _ = load_result("sysid1", *setting)
+                        final_score, tune_result = load_result("sysid1", *setting)
                         scores.append(final_score)
+                        tune_results.append(tune_result)
                         #print(f"& {final_score:8.2f} ", end="")
             if not scores:
                 print("& ", end="")
@@ -82,8 +108,92 @@ def make_figure_sysid1():
                 median_score = np.median(scores)
                 low_score = np.percentile(scores, 25)
                 high_score = np.percentile(scores, 75)
-                print(f"& {median_score:.2f} ({low_score:.2f}-{high_score:.2f})", 
-                        end="")
+                #print(f"& {median_score:.2f} ({low_score:.2f}-{high_score:.2f})", 
+                #        end="")
+                print(f"& {scores[0]:.2f}", end="")
+        print("")
+
+def make_figure_controllers():
+    controllers = [("LQR", "lqr", 1), ("iLQR", "ilqr", 1),
+            ("iLQR w/ Gauss. Reg", "ilqr", 2), ("Direct Transcription", "dt", 1), ("MPPI", "mppi", 1)]
+    tasks = [("Pendulum swing-up", "pendulum-swingup"),
+            ( "Cartpole swing-up", "cartpole-swingup"),
+            ("HalfCheetah", "halfcheetah")]
+    settings = [
+            ["cartpole-swingup", "mlp-ilqr", 100, "dt", 100, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "dt", 101, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "dt", 102, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "lqr", 100, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "lqr", 101, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "lqr", 102, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "mppi", 100, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "mppi", 101, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "mppi", 102, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "ilqr", 100, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "ilqr", 101, 1], 
+            ["cartpole-swingup", "mlp-ilqr", 100, "ilqr", 103, 1],
+            ["cartpole-swingup", "mlp-ilqr", 100, "ilqr", 100, 2],
+            ["cartpole-swingup", "mlp-ilqr", 100, "ilqr", 101, 2], 
+            ["cartpole-swingup", "mlp-ilqr", 100, "ilqr", 102, 2], 
+            ["halfcheetah", "halfcheetah", 100, "dt", 100, 1],
+            ["halfcheetah", "halfcheetah", 100, "dt", 102, 1],
+            ["halfcheetah", "halfcheetah", 100, "dt", 104, 1],
+            ["halfcheetah", "halfcheetah", 100, "mppi", 100, 1],
+            ["halfcheetah", "halfcheetah", 100, "mppi", 101, 1],
+            ["halfcheetah", "halfcheetah", 100, "mppi", 102, 1],
+            ["halfcheetah", "halfcheetah", 100, "lqr", 100, 1],
+            ["halfcheetah", "halfcheetah", 100, "lqr", 101, 1],
+            ["halfcheetah", "halfcheetah", 100, "lqr", 102, 1],
+            ["halfcheetah", "halfcheetah", 100, "ilqr", 100, 1],
+            ["halfcheetah", "halfcheetah", 100, "ilqr", 101, 1],
+            ["halfcheetah", "halfcheetah", 100, "ilqr", 102, 1],
+            ["halfcheetah", "halfcheetah", 100, "ilqr", 100, 2],
+            ["halfcheetah", "halfcheetah", 100, "ilqr", 101, 2],
+            ["halfcheetah", "halfcheetah", 100, "ilqr", 102, 2],
+            ["pendulum-swingup", "mlp-ilqr", 100, "dt", 100, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "dt", 101, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "dt", 102, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "lqr", 100, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "lqr", 101, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "lqr", 102, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "ilqr", 100, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "ilqr", 101, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "ilqr", 102, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "mppi", 100, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "mppi", 101, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "mppi", 102, 1],
+            ["pendulum-swingup", "mlp-ilqr", 100, "ilqr", 100, 2],
+            ["pendulum-swingup", "mlp-ilqr", 100, "ilqr", 101, 2],
+            ["pendulum-swingup", "mlp-ilqr", 100, "ilqr", 102, 2],
+            ]
+    print("SysID Figure")
+    print("============")
+    print("SystemID ", end="")
+    for task_label, _ in tasks:
+        print(" & " + task_label, end="") 
+    print(r"\\")
+    for con_label, con_id, subexp in controllers:
+        print(f"{con_label:8} ", end="")
+        for task_label, task_id in tasks:
+            scores = []
+            tune_results = []
+            for setting in settings:
+                if setting[0] == task_id and setting[3] == con_id and setting[-1] == subexp:
+                    if result_exists("controllers", *setting):
+                        result = load_result("controllers", *setting)
+                        scores.append(result["inc_truedyn_costs"][-1])
+                        tune_results.append(result)
+                        #print(f"& {final_score:8.2f} ", end="")
+            if not scores:
+                print("& ", end="")
+            else:
+                median_score = np.median(scores)
+                low_score = np.percentile(scores, 25)
+                high_score = np.percentile(scores, 75)
+                #print(f"& {median_score:.2f} ({low_score:.2f}-{high_score:.2f})", 
+                #        end="")
+                best_score = np.min(scores)
+                print(f"& {best_score:.1f}", end="")
         print("")
 
 def make_figure_dalk1():
@@ -120,15 +230,15 @@ def make_figure_cost_tuning():
     plt.tight_layout()
     plt.show()
 
-def make_figure_tuning1(plot_option=4, small_fig=False):
+def make_figure_tuning1(plot_option=4, small_fig=True):
     experiments = [
             #(("MLP-iLQR-Quad", "Pendulum"),
             # [("pendulum-swingup", "mlp-ilqr", 100, 100),
             #  ("pendulum-swingup", "mlp-ilqr", 100, 101),
             #  ("pendulum-swingup", "mlp-ilqr", 100, 102)]
             #     ),
-            (("MLP-iLQR-Custom", "Half-cheetah (OR)"),
-             [#("halfcheetah", "halfcheetah", 3, 100, 100),
+            (("MLP-iLQR-Custom", "Half-cheetah"),
+             [("halfcheetah", "halfcheetah", 3, 100, 100),
               ("halfcheetah", "halfcheetah", 3, 100, 101),
               ("halfcheetah", "halfcheetah", 3, 100, 102),
               ("halfcheetah", "halfcheetah", 3, 100, 103),
@@ -139,7 +249,7 @@ def make_figure_tuning1(plot_option=4, small_fig=False):
               ("halfcheetah", "halfcheetah", 3, 100, 108),
               ("halfcheetah", "halfcheetah", 3, 100, 109),
               ]),
-            (("MLP-iLQR-Quad", "Double Int. w/ Drag"),
+            (("MLP-iLQR-Quad", "DbInt w/ Drag"),
              [#("double-int-drag", "mlp-ilqr", 1, 100, 100),
               #("double-int-drag", "mlp-ilqr", 1, 100, 101),
               ("double-int-drag", "mlp-ilqr", 1, 100, 102),
@@ -226,7 +336,7 @@ def make_figure_tuning1(plot_option=4, small_fig=False):
     #         ("halfcheetah", "mlp-ilqr", 100, 42)),
     #        ]
     #bcq_baselines = [73, 148, 200]
-    bcq_baselines = [200, np.nan, 73, 148, 200, 200, 200]
+    bcq_baselines = [200, 200, 73, 148, 200, 200, 200]
     #bcq_baselines = [200]
     for i, ((pipeline_label, task_label), settings) in enumerate(experiments):
         #if not result_exists("tuning1", *setting):
@@ -305,7 +415,8 @@ def make_figure_tuning1(plot_option=4, small_fig=False):
                 ax.legend(["AutoMPC", "BCQ"])
         elif plot_option == 4:
             if small_fig:
-                ax.legend(["AutoMPC (Best)", "AutoMPC (Median)", "BCQ"], prop={"size":16})
+                ax.legend(["AutoMPC (Best)", "AutoMPC (Median)", "BCQ"], prop={"size":14}, loc="upper center", bbox_to_anchor=(0.65,0.9))
+                #plt.subplots_adjust(left=0.0)
             else:
                 ax.legend(["AutoMPC (Best)", "AutoMPC (Median)", "BCQ"])
         plt.tight_layout()
@@ -320,17 +431,33 @@ def make_figure_cartpole_final():
     baselines = [83]
     experiments = [
             (("Tune SysID on Data", "Cartpole Swingup"),
-                ("sysid2", "cartpole-swingup", 
-                    "mlp-ilqr", 2, 100, 42)),
+                [("sysid2", "cartpole-swingup", "mlp-ilqr", 2, 100, 100),
+                 ("sysid2", "cartpole-swingup", "mlp-ilqr", 2, 100, 101),
+                 ("sysid2", "cartpole-swingup", "mlp-ilqr", 2, 100, 103),
+                 ("sysid2", "cartpole-swingup", "mlp-ilqr", 2, 100, 104),
+                 ("sysid2", "cartpole-swingup", "mlp-ilqr", 2, 100, 105)]
+                    ),
             (("Tune SysID on Perf.", "Cartpole Swingup"),
-                ("sysid2", "cartpole-swingup", 
-                    "mlp-ilqr", 3, 100, 42)),
+                [("sysid2", "cartpole-swingup", "mlp-ilqr", 3, 100, 100),
+                 ("sysid2", "cartpole-swingup", "mlp-ilqr", 3, 100, 101),
+                 ("sysid2", "cartpole-swingup", "mlp-ilqr", 3, 100, 102),
+                 ("sysid2", "cartpole-swingup", "mlp-ilqr", 3, 100, 103),
+                 ("sysid2", "cartpole-swingup", "mlp-ilqr", 3, 100, 104),
+                    ]),
             (("Tune Obj/Opt, Pre-tuned SysID", "Cartpole Swingup"),
-                ("decoupled1", "cartpole-swingup", 
-                    "mlp-ilqr", 100, 42)),
+                [("decoupled1", "cartpole-swingup", "mlp-ilqr", 100, 1, 100),
+                 ("decoupled1", "cartpole-swingup", "mlp-ilqr", 100, 1, 101),
+                 ("decoupled1", "cartpole-swingup", "mlp-ilqr", 100, 1, 103),
+                 ("decoupled1", "cartpole-swingup", "mlp-ilqr", 100, 1, 104),
+                 ("decoupled1", "cartpole-swingup", "mlp-ilqr", 100, 1, 105),
+                 ]),
             (("Full Pipeline Tune", "Cartpole Swingup"),
-                ("tuning1", "cartpole-swingup", 
-                    "mlp-ilqr", 100, 42))
+                [("tuning1", "cartpole-swingup", "mlp-ilqr", 100, 100),
+                 ("tuning1", "cartpole-swingup", "mlp-ilqr", 100, 101),
+                 ("tuning1", "cartpole-swingup", "mlp-ilqr", 100, 103),
+                 ("tuning1", "cartpole-swingup", "mlp-ilqr", 100, 104),
+                 ("tuning1", "cartpole-swingup", "mlp-ilqr", 100, 105),
+                ])
             ]
 
     matplotlib.rcParams.update({'font.size': 12})
@@ -340,7 +467,7 @@ def make_figure_cartpole_final():
     ax.set_xlabel("Tuning iterations")
     ax.set_ylabel("True Dyn Perf.")
     labels = []
-    for i, ((label1, label2), setting) in enumerate(experiments):
+    for i, ((label1, label2), settings) in enumerate(experiments):
         #labels = []
         #for label, value in baselines:
         #    ax.plot([0.0, n_iters], [value, value], "--")
@@ -350,10 +477,18 @@ def make_figure_cartpole_final():
         #    ax.plot(perfs)
         #    labels.append(label)
         #ax.legend(labels)
-        result = load_result(setting[0], *setting[1:])
-        if isinstance(result, tuple):
-            result = result[0]
-        perfs = [cost for cost in result["inc_truedyn_costs"]]
+        results = []
+        for setting in settings:
+            result = load_result(setting[0], *setting[1:])
+            if isinstance(result, tuple):
+                result = result[0]
+            results.append(result)
+        perfs = []
+        for i in range(100):
+            try:
+                perfs.append(np.median([result["inc_truedyn_costs"][i] for result in results]))
+            except:
+                perfs.append(np.median([result["inc_truedyn_costs"][i][1][0] for result in results]))
         print(f"{perfs=}")
         ax.plot(perfs)
         labels.append(label1)
@@ -575,6 +710,10 @@ def make_figure_hyper_vals():
 def main(command):
     if command == "sysid1":
         make_figure_sysid1()
+    elif command == "hctraj":
+        make_figure_hc_traj()
+    elif command == "controllers":
+        make_figure_controllers()
     elif command == "dalk1":
         make_figure_dalk1()
     elif command == "tuning1":
