@@ -1,2 +1,2 @@
-# autompc
-Automatic Tuning for Data-driven Model Predictive Control
+# AutoMPC
+When AutoMPC becomes public, it will appear here.  Check back soon!
