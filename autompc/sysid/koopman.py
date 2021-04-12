@@ -4,12 +4,16 @@ import scipy.linalg as sla
 from pdb import set_trace
 from sklearn.linear_model import  Lasso
 
-from ..model import Model
+from ..model import Model, ModelFactory
 from .stable_koopman import stabilize_discrete
 
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
+
+class KoopmanFactory(ModelFactory):
+    def __call__(system, cfg, train_trajs):
+        return make_model
 
 class Koopman(Model):
     def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,

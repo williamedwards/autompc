@@ -5,7 +5,11 @@ from pdb import set_trace
 
 class CostFactory(ABC):
     @abstractmethod
-    def get_configuration_space(self, system, task, Model):
+    def __init__(self, system):
+        self.system = system
+
+    @abstractmethod
+    def get_configuration_space(self):
         raise NotImplementedError
 
     @abstractmethod
@@ -13,7 +17,7 @@ class CostFactory(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __call__(self, system, task, model, trajs, cfg):
+    def __call__(self, cfg, trajs):
         raise NotImplementedError
 
     def __add__(self, other):

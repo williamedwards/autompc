@@ -3,7 +3,22 @@
 from abc import ABC, abstractmethod
 from pdb import set_trace
 
-from .hyper import Hyperparam
+class ControllerFactory(ABC):
+    def __init__(self, system):
+        self.system = system
+
+    def __call__(self, cfg, task, model):
+        """
+        Returns initialized controller
+        """
+        controller = self.Controller(self.system, task, model, **cfg.get_dictionary())
+        return controller
+
+    def get_configuration_space(self):
+        """
+        Returns the controller ConfigurationSpace
+        """
+        raise NotImplementedError
 
 class Controller(ABC):
     def __init__(self, system, task, model):
@@ -60,16 +75,6 @@ class Controller(ABC):
         """
         raise NotImplementedError
     
-
-    @staticmethod
-    @abstractmethod
-    def get_configuration_space(system, task, model):
-        """
-        Returns the controller configuration space for the given
-        system, model, and task.
-        """
-        raise NotImplementedError
-
     @staticmethod
     @abstractmethod
     def is_compatible(system, task, model):

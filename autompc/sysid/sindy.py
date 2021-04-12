@@ -5,35 +5,19 @@ import scipy.linalg as sla
 from pdb import set_trace
 from sklearn.linear_model import  Lasso
 
-from ..model import Model
+from .model import Model, ModelFactory
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 import pysindy as ps
 
-class SINDy(Model):
-    def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
-            poly_degree=1, trig_basis=False, trig_freq=1):
-        super().__init__(system)
+class SINDyFactory(ModelFactory):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.Model = SINDy
 
-        self.method = method
-        if not lasso_alpha_log10 is None:
-            self.lasso_alpha = 10**lasso_alpha_log10
-        else:
-            self.lasso_alpha = None
-        if type(poly_basis) == str:
-            poly_basis = True if poly_basis == "true" else False
-        self.poly_basis = poly_basis
-        self.poly_degree = poly_degree
-        if type(trig_basis) == str:
-            trig_basis = True if trig_basis == "true" else False
-        self.trig_basis = trig_basis
-        self.trig_freq = trig_freq
-        self.trig_interaction = True
-
-    @staticmethod
-    def get_configuration_space(system):
+    def get_configuration_space(self):
         cs = CS.ConfigurationSpace()
         method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
         lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
@@ -60,6 +44,26 @@ class SINDy(Model):
         cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
 
         return cs
+
+class SINDy(Model):
+    def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
+            poly_degree=1, trig_basis=False, trig_freq=1):
+        super().__init__(system)
+
+        self.method = method
+        if not lasso_alpha_log10 is None:
+            self.lasso_alpha = 10**lasso_alpha_log10
+        else:
+            self.lasso_alpha = None
+        if type(poly_basis) == str:
+            poly_basis = True if poly_basis == "true" else False
+        self.poly_basis = poly_basis
+        self.poly_degree = poly_degree
+        if type(trig_basis) == str:
+            trig_basis = True if trig_basis == "true" else False
+        self.trig_basis = trig_basis
+        self.trig_freq = trig_freq
+        self.trig_interaction = True
 
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()

@@ -6,17 +6,22 @@ from abc import ABC, abstractmethod
 from pdb import set_trace
 
 class ModelFactory(ABC):
-    @abstractmethod
-    def __call__(self, system, cfg, train_trajs):
+    def __init__(self, system):
+        self.system = system
+
+    def __call__(self, cfg, train_trajs):
         """
         Returns a model trained for the given 
         system and configuration.
         """
-        raise NotImplementedError
+        model = self.Model(self.system, **cfg.get_dictionary())
+        model.factory = self
+        model.train(train_trajs)
 
-    @staticmethod
+        return model
+
     @abstractmethod
-    def get_configuration_space(system):
+    def get_configuration_space():
         """
         Returns the model configuration space.
         """

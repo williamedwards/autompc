@@ -11,8 +11,20 @@ from control.matlab import dare
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
-from ..controller import Controller
+from .controller import Controller, ControllerFactory
 
+
+class IterativeLQRFactory(ControllerFactory):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.Controller = IterativeLQR
+
+    def get_configuration_space(self):
+        cs = ConfigurationSpace()
+        horizon = UniformIntegerHyperparameter(name="horizon",
+                lower=5, upper=25, default_value=20)
+        cs.add_hyperparameter(horizon)
+        return cs
 
 class IterativeLQR(Controller):
     def __init__(self, system, task, model, horizon, reuse_feedback=-1, 
@@ -52,14 +64,6 @@ class IterativeLQR(Controller):
     @property
     def state_dim(self):
         return self.model.state_dim + self.system.ctrl_dim
-
-    @staticmethod
-    def get_configuration_space(system, task, model):
-        cs = ConfigurationSpace()
-        horizon = UniformIntegerHyperparameter(name="horizon",
-                lower=5, upper=25, default_value=20)
-        cs.add_hyperparameter(horizon)
-        return cs
 
     @staticmethod
     def is_compatible(system, task, model):

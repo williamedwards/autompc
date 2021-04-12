@@ -1,6 +1,6 @@
-from .model import Model
+from .sysid.model import Model
 from .system import System
-from .controller import Controller
+from .control.controller import Controller
 from .trajectory import Trajectory, zeros, empty, extend
 from .gradient import Gradient, gradzeros, gradempty
 from .task import Task
