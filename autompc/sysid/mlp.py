@@ -13,7 +13,7 @@ import ConfigSpace.conditions as CSC
 
 from pdb import set_trace
 
-from ..model import Model
+from .model import Model, ModelFactory
 
 def transform_input(xu_means, xu_std, XU):
     XUt = []
@@ -71,6 +71,41 @@ class SimpleDataset(Dataset):
         return self.x[idx], self.y[idx]
 
 
+class MLPFactory(ModelFactory):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.Model = MLP
+
+    def get_configuration_space(self):
+        cs = CS.ConfigurationSpace()
+        nonlintype = CSH.CategoricalHyperparameter("nonlintype", 
+                choices=["relu", "tanh", "sigmoid", "selu"],
+                default_value="relu")
+                #choices=["relu"])
+        n_hidden_layers = CSH.CategoricalHyperparameter("n_hidden_layers",
+                choices=["1", "2", "3", "4"], default_value="2")
+        hidden_size_1 = CSH.UniformIntegerHyperparameter("hidden_size_1",
+                lower = 16, upper = 256, default_value=32)
+        hidden_size_2 = CSH.UniformIntegerHyperparameter("hidden_size_2",
+                lower = 16, upper = 256, default_value=32)
+        hidden_size_3 = CSH.UniformIntegerHyperparameter("hidden_size_3",
+                lower = 16, upper = 256, default_value=32)
+        hidden_size_4 = CSH.UniformIntegerHyperparameter("hidden_size_4",
+                lower = 16, upper = 256, default_value=32)
+        hidden_cond_2 = CSC.InCondition(child=hidden_size_2, parent=n_hidden_layers,
+                values=["2","3","4"])
+        hidden_cond_3 = CSC.InCondition(child=hidden_size_3, parent=n_hidden_layers,
+                values=["3","4"])
+        hidden_cond_4 = CSC.InCondition(child=hidden_size_4, parent=n_hidden_layers,
+                values=["4"])
+        lr_log10 = CSH.UniformFloatHyperparameter("lr_log10",
+                lower = -5, upper = 0, default_value=-3)
+        cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size_1,
+            hidden_size_2, hidden_size_3, hidden_size_4,
+            lr_log10])
+        cs.add_conditions([hidden_cond_2, hidden_cond_3, hidden_cond_4])
+        return cs
+
 class MLP(Model):
     def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
             nonlintype='relu', n_train_iters=50, n_batch=64, lr_log10=-3,
@@ -97,39 +132,6 @@ class MLP(Model):
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
                 else torch.device('cpu'))
         self.net = self.net.double().to(self._device)
-
-    @staticmethod
-    def get_configuration_space(system):
-        cs = CS.ConfigurationSpace()
-        nonlintype = CSH.CategoricalHyperparameter("nonlintype", 
-                choices=["relu", "tanh", "sigmoid", "selu"],
-                default_value="relu")
-                #choices=["relu"])
-        n_hidden_layers = CSH.CategoricalHyperparameter("n_hidden_layers",
-                choices=["1", "2", "3", "4"], default_value="2")
-        hidden_size_1 = CSH.UniformIntegerHyperparameter("hidden_size_1",
-                lower = 16, upper = 256, default_value=32)
-        hidden_size_2 = CSH.UniformIntegerHyperparameter("hidden_size_2",
-                lower = 16, upper = 256, default_value=32)
-        hidden_size_3 = CSH.UniformIntegerHyperparameter("hidden_size_3",
-                lower = 16, upper = 256, default_value=32)
-        hidden_size_4 = CSH.UniformIntegerHyperparameter("hidden_size_4",
-                lower = 16, upper = 256, default_value=32)
-        hidden_cond_2 = CSC.InCondition(child=hidden_size_2, parent=n_hidden_layers,
-                values=["2","3","4"])
-        hidden_cond_3 = CSC.InCondition(child=hidden_size_3, parent=n_hidden_layers,
-                values=["3","4"])
-        hidden_cond_4 = CSC.InCondition(child=hidden_size_4, parent=n_hidden_layers,
-                values=["4"])
-        #n_train_iters = CSH.UniformIntegerHyperparameter("n_train_iters",
-        #        lower = 10, upper = 100, default_value=20)
-        lr_log10 = CSH.UniformFloatHyperparameter("lr_log10",
-                lower = -5, upper = 0, default_value=-3)
-        cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size_1,
-            hidden_size_2, hidden_size_3, hidden_size_4,
-            lr_log10])
-        cs.add_conditions([hidden_cond_2, hidden_cond_3, hidden_cond_4])
-        return cs
 
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()
@@ -202,7 +204,7 @@ class MLP(Model):
         dy = transform_output(self.dy_means, self.dy_std, yout).flatten()
         return state + dy
 
-    def pred_parallel(self, state, ctrl):
+    def pred_batch(self, state, ctrl):
         X = np.concatenate([state, ctrl], axis=1)
         Xt = transform_input(self.xu_means, self.xu_std, X)
         with torch.no_grad():
@@ -254,7 +256,7 @@ class MLP(Model):
         dy = transform_output(self.dy_means, self.dy_std, out).flatten()
         return state+dy, state_jac, ctrl_jac
 
-    def pred_diff_parallel(self, state, ctrl):
+    def pred_diff_batch(self, state, ctrl):
         """Prediction, but with gradient information"""
         X = np.concatenate([state, ctrl], axis=1)
         Xt = transform_input(self.xu_means, self.xu_std, X)

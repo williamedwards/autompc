@@ -6,15 +6,17 @@ from abc import ABC, abstractmethod
 from pdb import set_trace
 
 class ModelFactory(ABC):
-    def __init__(self, system):
+    def __init__(self, system, **kwargs):
         self.system = system
+        self.kwargs = kwargs
 
     def __call__(self, cfg, train_trajs):
         """
         Returns a model trained for the given 
         system and configuration.
         """
-        model = self.Model(self.system, **cfg.get_dictionary())
+        model_args = cfg.get_dictionary() + self.kwargs
+        model = self.Model(self.system, **model_args)
         model.factory = self
         model.train(train_trajs)
 
