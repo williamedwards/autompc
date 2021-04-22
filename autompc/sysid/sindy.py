@@ -13,6 +13,9 @@ import ConfigSpace.conditions as CSC
 import pysindy as ps
 
 class SINDyFactory(ModelFactory):
+    """
+    SINDy documentation here.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.Model = SINDy

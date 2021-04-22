@@ -9,7 +9,9 @@ Welcome to AutoMPC's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
+
+   source/sysid
 
 
 
@@ -17,6 +19,6 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
+* :doc:`source/modules`
 * :ref:`search`
 

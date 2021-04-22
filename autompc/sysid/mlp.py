@@ -72,6 +72,28 @@ class SimpleDataset(Dataset):
 
 
 class MLPFactory(ModelFactory):
+    """Multi-layer perceptrons use feed-forward neural networks to predict the next system state.
+
+    Parameters
+
+    - *n_banch* (Type: int, Default: 64): Training batch size of the neural net.
+    - *n_train_iters* (Type: int, Default: 50): Number of training epochs
+
+    Hyperparameters:
+
+    - *n_hidden_layers* (Type: str, Choices: ["1", "2", "3", "4"], Default: "2"):
+      The number of hidden layers in the network
+    - *hidden_size_1* (Type int, Low: 16, High: 256, Default: 32): Size of hidden layer 1.
+    - *hidden_size_2* (Type int, Low: 16, High: 256, Default: 32): Size of hidden layer 2. 
+      (Conditioned on n_hidden_layers >=2).
+    - *hidden_size_3* (Type int, Low: 16, High: 256, Default: 32): Size of hidden layer 3. 
+      (Conditioned on n_hidden_layers >=3).
+    - *hidden_size_4* (Type int, Low: 16, High: 256, Default: 32): Size of hidden layer 4. 
+      (Conditioned on n_hidden_layers >=4).
+    - *nonlintype* (Type: str, choices: ["relu", "tanh", "sigmoid", "selu"], Default: "relu):
+      Type of activation function.
+    - *lr* (Type: float, Low: 1e-5, High: 1, Default: 1e-3): Adam learning rate for the network.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.Model = MLP
@@ -98,8 +120,8 @@ class MLPFactory(ModelFactory):
                 values=["3","4"])
         hidden_cond_4 = CSC.InCondition(child=hidden_size_4, parent=n_hidden_layers,
                 values=["4"])
-        lr_log10 = CSH.UniformFloatHyperparameter("lr_log10",
-                lower = -5, upper = 0, default_value=-3)
+        lr = CSH.UniformFloatHyperparameter("lr",
+                lower = 1e-5, upper = 1, default_value=1e-3, log=True)
         cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size_1,
             hidden_size_2, hidden_size_3, hidden_size_4,
             lr_log10])
@@ -108,12 +130,11 @@ class MLPFactory(ModelFactory):
 
 class MLP(Model):
     def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
-            nonlintype='relu', n_train_iters=50, n_batch=64, lr_log10=-3,
+            nonlintype='relu', n_train_iters=50, n_batch=64, lr=1e-3,
             hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
             hidden_size_4=None,
             use_cuda=True):
         Model.__init__(self, system)
-        lr = 10**lr_log10
         nx, nu = system.obs_dim, system.ctrl_dim
         n_hidden_layers = int(n_hidden_layers)
         hidden_sizes = [hidden_size] * n_hidden_layers
