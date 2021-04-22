@@ -15,5 +15,5 @@ To see AutoMPC in action, check out this [example](examples/0_MainDemo.ipynb).
 To build or re-build the documentation, run the following command from the `docs/` subdirectory.
 
 ```
-python3.8 -m sphinx -b html . _build -E
+python3 -m sphinx -b html . _build -E
 ```
