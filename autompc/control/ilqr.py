@@ -405,7 +405,8 @@ class IterativeLQR(Controller):
                 cur_mu *= mu_scale
         return True, states, ctrls, Ks, ks
 
-    def compute_ilqr_default(self, state, uguess, u_threshold=1e-3, max_iter=50, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3):
+    def compute_ilqr_default(self, state, uguess, u_threshold=1e-3, max_iter=50, 
+            ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=False):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         Here I do not have Hessian correction since I'm certain all my matrices are SPD
@@ -504,7 +505,7 @@ class IterativeLQR(Controller):
                     ls_ctrls[j, i, :] = alpha * ks[i] + ctrls[i] + Ks[i] @ (ls_states[j, i, :] - states[i, :])
                     if self.ubounds is not None:
                         ls_ctrls[j, i, :] = np.clip(ls_ctrls[j, i, :], self.ubounds[0], self.ubounds[1])
-                ls_states[:, i + 1, :] = self.model.pred_parallel(ls_states[:, i, :], ls_ctrls[:, i, :])
+                ls_states[:, i + 1, :] = self.model.pred_batch(ls_states[:, i, :], ls_ctrls[:, i, :])
 
             # Now do backtrack line search.
             for lsitr, ls_alpha in enumerate(alphas):
@@ -531,23 +532,24 @@ class IterativeLQR(Controller):
                 ls_success = True
                 new_ctrls = ls_ctrls[best_alpha_idx, :, :]
                 new_states = ls_states[best_alpha_idx, :, :]
-                _, jxs, jus = self.model.pred_diff_parallel(new_states[:-1,:], new_ctrls)
+                _, jxs, jus = self.model.pred_diff_batch(new_states[:-1,:], new_ctrls)
                 Jacs[:, :, :dimx] = jxs
                 Jacs[:, :, dimx:] = jus
                 new_obj = eval_obj(new_states, new_ctrls)
             if (not ls_success and new_obj > obj + 1e-3) or best_alpha is None:
-                print('Line search fails...')
+                if not silent:
+                    print('Line search fails...')
                 break
             else:
-                if self.verbose:
+                if self.verbose and not silent:
                     print('alpha is successful at %f with cost from %f to %f' % (best_alpha, obj, new_obj))
                 pass
             # return since update of action is small
-            if self.verbose:
+            if self.verbose and not silent:
                 print('u update', np.linalg.norm(new_ctrls - ctrls))
             du_norm = np.linalg.norm(new_ctrls - ctrls)
             if du_norm < u_threshold:
-                if self.verbose:
+                if self.verbose and not silent:
                     print('Break since update of control is small at %f' % (np.linalg.norm(new_ctrls - ctrls)))
                 converged = True
             # ready to swap...
@@ -555,28 +557,31 @@ class IterativeLQR(Controller):
             ctrls = np.copy(new_ctrls)
             obj = new_obj
             if converged:
-                print('Convergence achieved within %d iterations' % itr)
-                print('Cost update from %f to %f' % (initcost, obj))
-                print('Final state is ', states[-1])
+                if not silent:
+                    print('Convergence achieved within %d iterations' % itr)
+                    print('Cost update from %f to %f' % (initcost, obj))
+                    print('Final state is ', states[-1])
                 break
-        if not converged:
+        if not converged and not silent:
             print('ilqr fails to converge, try a new guess? Last u update is %f ks norm is %f' % (du_norm, ks_norm))
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks, ks
 
-    def run(self, info, new_obs):
+    def run(self, info, new_obs, silent=True):
         """Here I am assuming I reuse the controller for half horizon"""
         if self.reuse_feedback == 0:
             if self._guess is None:
                 self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
-            converged, states, ctrls, Ks, ks = self.compute_ilqr(new_obs, self._guess)
+            converged, states, ctrls, Ks, ks = self.compute_ilqr(new_obs, self._guess,
+                    silent=silent)
             self._states = states
             self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
             return ctrls[0], None
         # Implement control logic here
         state = new_obs
         if self._need_recompute:
-            converged, states, ctrls, Ks, ks = self.compute_ilqr(state, np.zeros((self.horizon, self.system.ctrl_dim)))
+            converged, states, ctrls, Ks, ks = self.compute_ilqr(state, 
+                    np.zeros((self.horizon, self.system.ctrl_dim)), silent=silent)
             self._states, self._ctrls, self._gain, self._ks = states, ctrls, Ks, ks
             self._need_recompute = False
             self._step_count = 0
@@ -585,7 +590,8 @@ class IterativeLQR(Controller):
             self._need_recompute = True  # recompute when last trajectory is finished... Good choice or not?
         x0, u0, k0 = self._states[self._step_count], self._ctrls[self._step_count], self._gain[self._step_count]
         u = u0 + k0 @ (state - x0)
-        print('inside ilqr u0 = ', u0, 'u = ', u)
+        if not silent:
+            print('inside ilqr u0 = ', u0, 'u = ', u)
         #set_trace()
         self._step_count += 1
         return u, None

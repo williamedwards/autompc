@@ -26,12 +26,41 @@ class Task:
         self._term_ineq_cons = []
         self._init_eq_cons = []
         self._init_ineq_cons = []
+        
+        self._init_obs = None
+        self._term_cond = None
+        self._num_steps = None
+
+    def set_num_steps(self, num_steps):
+        self._term_cond = lambda traj: len(traj) >= num_steps
+        self._num_steps = num_steps
+
+    def has_num_steps(self):
+        return self._num_steps is not None
+
+    def get_num_steps(self):
+        return self._num_steps
+
+    def term_cond(self, traj):
+        if self._term_cond is not None:
+            return self._term_cond(traj)
+        else:
+            return False
 
     def set_cost(self, cost):
         self.cost = cost
 
     def get_cost(self):
         return self.cost
+
+    def set_init_obs(self, init_obs):
+        self._init_obs = init_obs[:]
+
+    def get_init_obs(self):
+        if self._init_obs is not None:
+            return self._init_obs[:]
+        else:
+            return None
 
     # Handle bounds
     def set_obs_bound(self, obs_label, lower, upper):

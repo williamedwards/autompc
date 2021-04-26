@@ -5,7 +5,7 @@ import copy
 from pdb import set_trace
 
 # Internal library includes
-from .cs_utils import *
+from .utils.cs_utils import *
 from .sysid.model import ModelFactory, Model
 from .control.controller import Controller, ControllerFactory
 from .costs.cost import BaseCost

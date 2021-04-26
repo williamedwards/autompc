@@ -5,6 +5,8 @@ The configuration space has to be carefully considered
 """
 import itertools
 import numpy as np
+from tqdm import tqdm
+import sys
 import torch
 from torch.utils.data import Dataset, DataLoader
 import ConfigSpace as CS
@@ -97,6 +99,7 @@ class MLPFactory(ModelFactory):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.Model = MLP
+        self.name = "MLP"
 
     def get_configuration_space(self):
         cs = CS.ConfigurationSpace()
@@ -124,7 +127,7 @@ class MLPFactory(ModelFactory):
                 lower = 1e-5, upper = 1, default_value=1e-3, log=True)
         cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size_1,
             hidden_size_2, hidden_size_3, hidden_size_4,
-            lr_log10])
+            lr])
         cs.add_conditions([hidden_cond_2, hidden_cond_3, hidden_cond_4])
         return cs
 
@@ -164,7 +167,7 @@ class MLP(Model):
     def state_dim(self):
         return self.system.obs_dim
 
-    def train(self, trajs):
+    def train(self, trajs, silent=False):
         n_iter, n_batch, lr = self._train_data
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
@@ -190,8 +193,8 @@ class MLP(Model):
         lossfun = torch.nn.SmoothL1Loss()
         best_loss = float("inf")
         best_params = None
-        for i in range(n_iter):
-            print('Train iteration %d' % i)
+        print("Training MLP: ", end="")
+        for i in tqdm(range(n_iter), file=sys.stdout):
             cum_loss = 0.0
             for i, (x, y) in enumerate(dataloader):
                 optim.zero_grad()
@@ -201,19 +204,9 @@ class MLP(Model):
                 loss.backward()
                 cum_loss += loss.item()
                 optim.step()
-            print("loss=", cum_loss)
-       #     if loss.item() < best_loss:
-       #         best_loss = loss.item()
-       #         best_params = self.net.state_dict()
         self.net.eval()
-       # self.net.load_state_dict(best_params)
         for param in self.net.parameters():
             param.requires_grad_(False)
-       # for i, (x, y) in enumerate(dataloader):
-       #     x = x.to(self._device)
-       #     predy = self.net(x)
-       #     loss = lossfun(predy, y.to(self._device))
-        print("final_loss=", loss.item())
 
     def pred(self, state, ctrl):
         X = np.concatenate([state, ctrl])

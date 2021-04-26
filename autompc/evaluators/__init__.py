@@ -1,2 +1,0 @@
-from .holdout_evaluator import HoldoutEvaluator
-from .fixed_set_evaluator import FixedSetEvaluator

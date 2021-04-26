@@ -10,15 +10,16 @@ class ModelFactory(ABC):
         self.system = system
         self.kwargs = kwargs
 
-    def __call__(self, cfg, train_trajs):
+    def __call__(self, cfg, train_trajs, silent=False):
         """
         Returns a model trained for the given 
         system and configuration.
         """
-        model_args = cfg.get_dictionary() + self.kwargs
+        model_args = cfg.get_dictionary()
+        model_args.update(self.kwargs)
         model = self.Model(self.system, **model_args)
         model.factory = self
-        model.train(train_trajs)
+        model.train(train_trajs, silent=silent)
 
         return model
 
@@ -129,12 +130,14 @@ class Model(ABC):
         """
         raise NotImplementedError
 
-    def train(self, trajs):
+    def train(self, trajs, silent=False):
         """
         Parameters
         ----------
             trajs : List of pairs (xs, us)
                 Training set of trajectories
+            silent : bool
+                Silence progress bar output
         Only implemented for trainable models.
         """
         raise NotImplementedError
