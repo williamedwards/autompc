@@ -110,13 +110,13 @@ class MLPFactory(ModelFactory):
         n_hidden_layers = CSH.CategoricalHyperparameter("n_hidden_layers",
                 choices=["1", "2", "3", "4"], default_value="2")
         hidden_size_1 = CSH.UniformIntegerHyperparameter("hidden_size_1",
-                lower = 16, upper = 256, default_value=32)
+                lower = 16, upper = 256, default_value=128)
         hidden_size_2 = CSH.UniformIntegerHyperparameter("hidden_size_2",
-                lower = 16, upper = 256, default_value=32)
+                lower = 16, upper = 256, default_value=128)
         hidden_size_3 = CSH.UniformIntegerHyperparameter("hidden_size_3",
-                lower = 16, upper = 256, default_value=32)
+                lower = 16, upper = 256, default_value=128)
         hidden_size_4 = CSH.UniformIntegerHyperparameter("hidden_size_4",
-                lower = 16, upper = 256, default_value=32)
+                lower = 16, upper = 256, default_value=128)
         hidden_cond_2 = CSC.InCondition(child=hidden_size_2, parent=n_hidden_layers,
                 values=["2","3","4"])
         hidden_cond_3 = CSC.InCondition(child=hidden_size_3, parent=n_hidden_layers,
