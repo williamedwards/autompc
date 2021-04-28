@@ -1,5 +1,5 @@
 from collections import Iterable
-from ..controller import Controller
+from .controller import Controller, ControllerFactory
 from ..constraint import Constraint
 from ..hyper import IntRangeHyperparam
 from ..cost import Cost
@@ -316,8 +316,26 @@ class IpoptWrapper(OptProblem):
             jac[:] = self.prob.get_jacobian(x, False)
         return 0
 
+class DirectTranscriptionControllerFactory(ControllerFactory):
+    """
+    Docs.
 
-class NonLinearMPC(Controller):
+    Hyperparameter:
+    - *horizon* (Type: int, Lower: 1, High: 30, Default: 10): Control Horizon
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.Controller = DirectTranscriptionController
+        self.name = "DirectTranscription"
+
+    def get_configuration_space(self):
+        cs = CS.ConfigurationSpace()
+        horizon = CSH.UniformIntegerHyperparameter(name="horizon",
+                lower=1, upper=30, default_value=10)
+        cs.add_hyperparameter(horizon)
+        return cs
+
+class DirectTranscriptionController(Controller):
     """
     Implementation of the linear controller. For this very basic version, it accepts some linear models and compute output.
     constraints is a dict of constraints we have to consider, it has two keys: path and terminal. The items are list of Constraints.
@@ -360,14 +378,6 @@ class NonLinearMPC(Controller):
     @property
     def state_dim(self):
         return self.model.state_dim+self.model.ctrl_dim
-
-    @staticmethod
-    def get_configuration_space(system, task, model):
-        cs = CS.ConfigurationSpace()
-        horizon = CSH.UniformIntegerHyperparameter(name="horizon",
-                lower=1, upper=30, default_value=10)
-        cs.add_hyperparameter(horizon)
-        return cs
 
     @staticmethod
     def is_compatible(system, task, model):

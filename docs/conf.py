@@ -277,6 +277,9 @@ texinfo_documents = [
      'Miscellaneous'),
 ]
 
+# Matmul Fix
+highlight_language="python3"
+
 # Documents to append as an appendix to all manuals.
 #texinfo_appendices = []
 

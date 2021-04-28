@@ -10,7 +10,7 @@ import copy
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 
-from ..controller import Controller
+from .controller import Controller, ControllerFactory
 from ..task import Task
 
 
@@ -24,6 +24,37 @@ class MultivariateNormal:
         noise = np.random.normal(scale=self.scale, size=new_shape)
         return noise
 
+class MPPIFactory(ControllerFactory):
+    """
+    Docs
+
+    Hyperparameters:
+
+    - *horizon* (Type: int, Lower: 5, Upper: 30, Default: 20): Controller horizon.
+    - *sigma* (Type: float, Lower: 0.1, Upper 2.0, Default: 1.0):
+    - *lmda* (Type: float, Lower: 0.1, Upper: 2.0, Default: 1.0):
+    - *num_path* (Type: int, Lower: 100, Upper: 1000, Default: 200); 
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.Controller = MPPI
+        self.name = "MPPI"
+
+    def get_configuration_space(self):
+        cs = CS.ConfigurationSpace()
+        horizon = CSH.UniformIntegerHyperparameter(name="horizon",
+                lower=5, upper=30, default_value=20)
+        cs.add_hyperparameter(horizon)
+        sigma = CSH.UniformFloatHyperparameter(name='sigma', lower=0.1, upper=2.0, 
+                default_value=1.0)
+        cs.add_hyperparameter(sigma)
+        lmda = CSH.UniformFloatHyperparameter(name='lmda', lower=0.1, upper=2.0, 
+                default_value=1.0)
+        cs.add_hyperparameter(lmda)
+        num_path = CSH.UniformIntegerHyperparameter(name='num_path', lower=100, 
+                upper=1000, default_value=200)
+        cs.add_hyperparameter(num_path)
+        return cs
 
 class MPPI:
     def __init__(self, system, task, model, **kwargs):
@@ -134,23 +165,6 @@ class MPPI:
     @property
     def state_dim(self):
         return self.model.state_dim
-
-    @staticmethod
-    def get_configuration_space(system, task, model):
-        cs = CS.ConfigurationSpace()
-        horizon = CSH.UniformIntegerHyperparameter(name="horizon",
-                lower=5, upper=30, default_value=20)
-        cs.add_hyperparameter(horizon)
-        sigma = CSH.UniformFloatHyperparameter(name='sigma', lower=0.1, upper=2.0, 
-                default_value=1.0)
-        cs.add_hyperparameter(sigma)
-        lmda = CSH.UniformFloatHyperparameter(name='lmda', lower=0.1, upper=2.0, 
-                default_value=1.0)
-        cs.add_hyperparameter(lmda)
-        num_path = CSH.UniformIntegerHyperparameter(name='num_path', lower=100, 
-                upper=1000, default_value=200)
-        cs.add_hyperparameter(num_path)
-        return cs
 
     @staticmethod
     def is_compatible(system, task, model):

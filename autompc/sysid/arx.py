@@ -8,22 +8,36 @@ import numpy.linalg as la
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
-from ..model import Model
+from .model import Model, ModelFactory
 #from ..hyper import IntRangeHyperparam
 
-class ARX(Model):
-    def __init__(self, system, history):
-        super().__init__(system)
-        self.k = history
+class ARXFactory(ModelFactory):
+    """
+    ARX Docs
 
-    @staticmethod
-    def get_configuration_space(system):
+    Hyperparameters:
+
+    - *history* (Type: int, Low: 1, High: 10, Default: 4): Size of history window
+      for ARX model.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.Model = ARX
+        self.name = "ARX"
+
+    def get_configuration_space(self):
         cs = ConfigurationSpace()
         history = UniformIntegerHyperparameter(name='history', 
                 lower=1, upper=10, default_value=4)
         cs.add_hyperparameter(history)
         return cs
         
+
+
+class ARX(Model):
+    def __init__(self, system, history):
+        super().__init__(system)
+        self.k = history
 
     def _get_feature_vector(self, traj, t=None):
         k = self.k
@@ -59,7 +73,7 @@ class ARX(Model):
 
     def update_state(self, state, new_ctrl, new_obs):
         # Shift the targets
-        newstate = self.A @ state + self.B @ new_ctrl
+        newstate = np.dot(self.A, state) + np.dot(self.B, new_ctrl)
         newstate[:self.system.obs_dim] = new_obs
 
         return newstate
@@ -107,12 +121,12 @@ class ARX(Model):
 
 
     def pred(self, state, ctrl):
-        statenew = self.A @ state + self.B @ ctrl
+        statenew = np.dot(self.A, state) + np.dot(self.B, ctrl)
 
         return statenew
 
     def pred_diff(self, state, ctrl):
-        statenew = self.A @ state + self.B @ ctrl
+        statenew = np.dot(self.A, state) + np.dot(self.B, ctrl)
 
         return statenew, self.A, self.B
 

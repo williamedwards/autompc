@@ -24,7 +24,7 @@ except:
     print("GPytorch is not installed, cannot import this module")
 
 
-from ..model import Model
+from .model import Model, ModelFactory
 
 
 def transform_input(xu_means, xu_std, XU):
@@ -237,7 +237,7 @@ class BatchIndependentMultitaskGPModel(gpytorch.models.ExactGP):
         )
 
 
-class ApproximateGPModel(gpytorch.models.ApproximateGP):
+class ApproximateGPytorchModel(gpytorch.models.ApproximateGP):
     def __init__(self, inducing_points, num_task, mean='constant', kernel='RBF'):
         # We have to mark the CholeskyVariationalDistribution as batch
         # so that we learn a variational distribution for each task
@@ -320,18 +320,32 @@ class LargeGaussianProcess(GPytorchGP):
 
 
 # this part implements the approximate GP
-class ApproximateGaussianProcess(GPytorchGP):
-    def __init__(self, system, mean='constant', kernel='RBF', niter=5, lr=0.1, batch_size=1024, induce_count=500, **kwargs):
-        super().__init__(system, mean, kernel, niter, lr, **kwargs)
-        self.batch_size = batch_size
-        self.induce_count = induce_count
+class ApproximateGPModelFactory(ModelFactory):
+    """
+    ApproximateGP Docs
 
-    def get_configuration_space(cartpole):
+    Hyperparameters:
+
+    - *induce_count* (Type: int, Lower: 50, Upper: 200, Default: 100): Number of inducing points
+      to include in the gaussian process. 
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.Model = ApproximateGPModel
+        self.name = "ApproximateGP"
+
+    def get_configuration_space(self):
         cs = ConfigurationSpace()
         induce_count = UniformIntegerHyperparameter("induce_count", lower=50,
                 upper=200, default_value=100)
         cs.add_hyperparameter(induce_count)
         return cs
+
+class ApproximateGPModel(GPytorchGP, Model):
+    def __init__(self, system, mean='constant', kernel='RBF', niter=5, lr=0.1, batch_size=1024, induce_count=500, **kwargs):
+        super().__init__(system, mean, kernel, niter, lr, **kwargs)
+        self.batch_size = batch_size
+        self.induce_count = induce_count
 
     def train(self, trajs):
         """Given collected trajectories, train the GP to approximate the actual dynamics"""
@@ -360,7 +374,7 @@ class ApproximateGaussianProcess(GPytorchGP):
         # construct the approximate GP instance
         induce = torch.stack([train_x[:self.induce_count] for _ in range(num_task)], dim=0)
         self.induce = induce
-        self.gpmodel = ApproximateGPModel(induce, num_task, self.gp_mean, self.gp_kernel).double()
+        self.gpmodel = ApproximateGPytorchModel(induce, num_task, self.gp_mean, self.gp_kernel).double()
         self.gpmodel = self.gpmodel.to(self.device)
         likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=num_task)
         likelihood = likelihood.to(self.device)

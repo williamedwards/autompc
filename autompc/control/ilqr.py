@@ -15,9 +15,17 @@ from .controller import Controller, ControllerFactory
 
 
 class IterativeLQRFactory(ControllerFactory):
+    """
+    ILQR Docs.
+
+    Hyperparameters:
+
+    - *horizon* (Type: int, Low: 5, Upper: 25, Default: 20): MPC Optimization Horizon.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.Controller = IterativeLQR
+        self.name = "IterativeLQR"
 
     def get_configuration_space(self):
         cs = ConfigurationSpace()

@@ -4,14 +4,17 @@ from abc import ABC, abstractmethod
 from pdb import set_trace
 
 class ControllerFactory(ABC):
-    def __init__(self, system):
+    def __init__(self, system, **kwargs):
         self.system = system
+        self.kwargs = kwargs
 
     def __call__(self, cfg, task, model):
         """
         Returns initialized controller
         """
-        controller = self.Controller(self.system, task, model, **cfg.get_dictionary())
+        controller_kwargs = cfg.get_dictionary()
+        controller_kwargs.update(self.kwargs)
+        controller = self.Controller(self.system, task, model, **controller_kwargs)
         return controller
 
     def get_configuration_space(self):

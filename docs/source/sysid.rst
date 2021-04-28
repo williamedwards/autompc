@@ -26,3 +26,18 @@ Sparse Identification of Nonlinear Dynamics (SINDy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: autompc.sysid.SINDyFactory
+
+Autoregression (ARX)
+^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: autompc.sysid.ARXFactory
+
+Koopman
+^^^^^^^
+
+.. autoclass:: autompc.sysid.KoopmanFactory
+
+Approximate Gaussian Process
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: autompc.sysid.ApproximateGPModelFactory

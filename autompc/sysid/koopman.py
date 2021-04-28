@@ -4,7 +4,7 @@ import scipy.linalg as sla
 from pdb import set_trace
 from sklearn.linear_model import  Lasso
 
-from ..model import Model, ModelFactory
+from .model import Model, ModelFactory
 from .stable_koopman import stabilize_discrete
 
 import ConfigSpace as CS
@@ -12,20 +12,68 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 class KoopmanFactory(ModelFactory):
-    def __call__(system, cfg, train_trajs):
-        return make_model
+    """
+    Koopman Docs
+
+    Hyperparameters:
+    - *method* (Type: str, Choices: ["lstsq", "lasso", "stable"): Method for training Koopman
+      operator.
+    - *lasso_alpha* (Type: float, Low: 10^-10, High: 10^2, Defalt: 1.0): α parameter for Lasso
+      regression. (Conditioned on method="lasso").
+    - *poly_basis* (Type: bool): Whether to use polynomial basis functions.
+    - *poly_degree* (Type: int, Low: 2, High: 8, Default: 3): Maximum degree of polynomial basis
+      functions. (Conditioned on poly_basis="true").
+    - *trig_basis* (Type: bool): Whether to use trig basis functions.
+    - *trig_freq* (Type: int, Low: 1, High: 8, Default: 1): Maximum frequency of trig functions.
+    - *product_terms* (Type: bool): Whether to include cross-product terms.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.Model = Koopman
+        self.name = "Koopman"
+
+    def get_configuration_space(self):
+        cs = CS.ConfigurationSpace()
+        method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso",
+            "stable"])
+        lasso_alpha = CSH.UniformFloatHyperparameter("lasso_alpha", 
+                lower=1e-10, upper=1e2, default_value=1.0, log=True)
+        use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
+                values=["lasso"])
+
+        poly_basis = CSH.CategoricalHyperparameter("poly_basis", 
+                choices=["true", "false"], default_value="false")
+        poly_degree = CSH.UniformIntegerHyperparameter("poly_degree", lower=2, upper=8,
+                default_value=3)
+        use_poly_degree = CSC.InCondition(child=poly_degree, parent=poly_basis,
+                values=["true"])
+
+        trig_basis = CSH.CategoricalHyperparameter("trig_basis", 
+                choices=["true", "false"], default_value="false")
+        trig_freq = CSH.UniformIntegerHyperparameter("trig_freq", lower=1, upper=8,
+                default_value=1)
+        use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
+                values=["true"])
+
+        product_terms = CSH.CategoricalHyperparameter("product_terms",
+                choices=["false"], default_value="false")
+
+
+        cs.add_hyperparameters([method, poly_basis, poly_degree,
+            trig_basis, trig_freq, product_terms, lasso_alpha])
+        cs.add_conditions([use_poly_degree, use_trig_freq, use_lasso_alpha])
+
+        return cs
 
 class Koopman(Model):
-    def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
+    def __init__(self, system, method, lasso_alpha=None, poly_basis=False,
             poly_degree=1, trig_basis=False, trig_freq=1, product_terms=False,
             use_cuda=None):
         super().__init__(system)
 
         self.method = method
-        if not lasso_alpha_log10 is None:
-            self.lasso_alpha = 10**lasso_alpha_log10
-        else:
-            self.lasso_alpha = None
+        self.lasso_alpha = lasso_alpha
+
         if type(poly_basis) == str:
             poly_basis = True if poly_basis == "true" else False
         self.poly_basis = poly_basis
@@ -41,7 +89,7 @@ class Koopman(Model):
         if self.poly_basis:
             self.basis_funcs += [lambda x: x**i for i in range(2, 1+self.poly_degree)]
         if self.trig_basis:
-            for i in range(1, 1+self.poly_degree):
+            for i in range(1, 1+self.trig_freq):
                 self.basis_funcs += [lambda x: np.sin(i*x), lambda x : np.cos(i*x)]
 
     @staticmethod
@@ -134,11 +182,11 @@ class Koopman(Model):
         self.A, self.B = A, B
 
     def pred(self, state, ctrl):
-        xpred = self.A @ state + self.B @ ctrl
+        xpred = np.dot(self.A, state) + np.dot(self.B, ctrl)
         return xpred
 
     def pred_diff(self, state, ctrl):
-        xpred = self.A @ state + self.B @ ctrl
+        xpred = np.dot(self.A, state) + np.dot(self.B, ctrl)
 
         return xpred, np.copy(self.A), np.copy(self.B)
 

@@ -1,4 +1,3 @@
-from functools import partial
 import numpy as np
 import numpy.linalg as la
 import scipy.linalg as sla
@@ -11,21 +10,55 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 import pysindy as ps
+import pysindy.differentiation as psd
+
+from .basis_funcs import *
+
+class FourthOrderFiniteDifference(psd.base.BaseDifferentiation):
+    def _differentiate(self, x, t):
+        fd = psd.FiniteDifference(order=2)
+        xdot = fd._differentiate(x, t)
+        xdot[2:-2] = -x[4:] + 8 * x[3:-1] - 8 * x[1:-3] + x[:-4]
+        return xdot
 
 class SINDyFactory(ModelFactory):
     """
-    SINDy documentation here.
+    SINDy Docs
+
+    Hyperparameters:
+
+    - *time_mode* (Type str, Choices: ["discrete", "continuous"]): Whether to learn dynamics equations
+      as discrete-time or continous-time.
+    - *method* (Type str, Choices: ["lstsq, lasso"], Default: "lstsq"): Method for selecting
+      model coefficients.
+    - *lasso_alpha* (Type: str, Low: 10^-5, High: 10^2, Default: 1): α parameter for lasso regression.
+      (Conditioned on method="lasso")
+    - *poly_basis* (Type: bool): Whether to use polynomial basis functions
+    - *poly_degree* (Type: int, Low: 2, High: 8, Default: 3): Maximum degree of polynomial terms.
+      (Conditioned on poly_basis="true")
+    - *poly_cross_terms* (Type: bool): Whether to include polynomial cross-terms.
+      (Conditioned on poly_basis="true")
+    - *trig_basis* (Type: bool): Whether to include trigonometric basis terms.
+    - *trig_freq* (Type: int, Low: 1, High: 8, Default: 1): Maximum trig function frequency to include.
+      (Conditioned on trig_basis="true")
+    - *trig_interaction* (Type: bool): Whether to include cross-multiplication terms between trig functions
+      and other state variables.
     """
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(self, *args, **kwargs)
         self.Model = SINDy
+        self.name = "SINDy"
 
-    def get_configuration_space(self):
+    def get_configuration_space(system):
         cs = CS.ConfigurationSpace()
+        time_mode = CSH.CategoricalHyperparameter("time_mode", 
+                choices=["discrete", "continuous"])
         method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
-        lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
-                lower=-5.0, upper=2.0, default_value=0.0)
-        use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
+        threshold = CSH.UniformFloatHyperparameter("threshold",
+                lower=1e-5, upper=1e1, default_value=1e-2, log=True)
+        lasso_alpha = CSH.UniformFloatHyperparameter("lasso_alpha", 
+                lower=1e-5, upper=1e2, default_value=1.0, log=True)
+        use_lasso_alpha = CSC.InCondition(child=lasso_alpha, parent=method, 
                 values=["lasso"])
 
         poly_basis = CSH.CategoricalHyperparameter("poly_basis", 
@@ -34,39 +67,52 @@ class SINDyFactory(ModelFactory):
                 default_value=3)
         use_poly_degree = CSC.InCondition(child=poly_degree, parent=poly_basis,
                 values=["true"])
+        poly_cross_terms = CSH.CategoricalHyperparameter("poly_cross_terms",
+                choices=["true", "false"], default_value="false")
 
         trig_basis = CSH.CategoricalHyperparameter("trig_basis", 
                 choices=["true", "false"], default_value="false")
         trig_freq = CSH.UniformIntegerHyperparameter("trig_freq", lower=1, upper=8,
                 default_value=1)
+        trig_interaction = CSH.CategoricalHyperparameter("trig_interaction", 
+                choices=["true", "false"], default_value="false")
         use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
                 values=["true"])
+        use_trig_interaction = CSC.InCondition(child=trig_interaction, parent=trig_basis,
+                values=["true"])
 
-        cs.add_hyperparameters([method, lasso_alpha_log10, poly_basis, poly_degree,
-            trig_basis, trig_freq])
-        cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq])
-
-        return cs
+        cs.add_hyperparameters([method, lasso_alpha, threshold,
+            poly_basis, poly_degree, trig_basis, trig_freq, trig_interaction, 
+            poly_cross_terms, time_mode])
+        cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq, use_trig_interaction])
 
 class SINDy(Model):
-    def __init__(self, system, method, lasso_alpha_log10=None, poly_basis=False,
-            poly_degree=1, trig_basis=False, trig_freq=1):
+    def __init__(self, system, method, lasso_alpha=None, threshold=-2, poly_basis=False,
+            poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1, trig_interaction=False, time_mode="discrete"):
         super().__init__(system)
 
         self.method = method
-        if not lasso_alpha_log10 is None:
-            self.lasso_alpha = 10**lasso_alpha_log10
-        else:
-            self.lasso_alpha = None
+        self.lasso_alpha = lasso_alpha_log10
         if type(poly_basis) == str:
             poly_basis = True if poly_basis == "true" else False
         self.poly_basis = poly_basis
         self.poly_degree = poly_degree
+        self.poly_cross_terms = poly_cross_terms
         if type(trig_basis) == str:
             trig_basis = True if trig_basis == "true" else False
         self.trig_basis = trig_basis
         self.trig_freq = trig_freq
-        self.trig_interaction = True
+        self.trig_interaction = trig_interaction
+        if type(trig_interaction) == str:
+            self.trig_interaction = True if trig_interaction == "true" else False
+        self.time_mode = time_mode
+        self.threshold = threshold_log10
+
+    @staticmethod
+    def get_configuration_space(system):
+
+
+        return cs
 
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()
@@ -78,168 +124,123 @@ class SINDy(Model):
     def state_dim(self):
         return self.system.obs_dim
 
-    def train(self, trajs):
+    def train(self, trajs, xdot=None):
         X = [traj.obs for traj in trajs]
         U = [traj.ctrls for traj in trajs]
 
-        library_functions = [
-                lambda x : x
-        ]
-        function_gradients = [
-                lambda x : 1
-        ]
-        function_gradients2 = []
-        function_names = [
-                lambda x : x
-        ]
-
+        #basis_funcs = [get_constant_basis_func(), get_identity_basis_func()]
+        basis_funcs = [get_identity_basis_func()]
         if self.trig_basis:
             for freq in range(1,self.trig_freq+1):
-                library_functions += [
-                    (lambda f: lambda x : np.sin(f * x))(freq),
-                    (lambda f: lambda x : np.cos(f * x))(freq)
-                ]
-                function_gradients += [
-                    (lambda f: lambda x : f * np.cos(f * x))(freq),
-                    (lambda f: lambda x : f * -np.sin(f * x))(freq)
-                ]
-                function_names += [
-                    (lambda f: lambda x : "sin({} {})".format(f, x))(freq),
-                    (lambda f: lambda x : "cos({} {})".format(f, x))(freq),
-                ]
+                basis_funcs += get_trig_basis_funcs(freq)
+                if self.trig_interaction:
+                    basis_funcs += get_trig_interaction_terms(freq)
+
         if self.poly_basis:
             for deg in range(2,self.poly_degree+1):
-                library_functions += [
-                    (lambda d: lambda x : x ** d)(deg)
-                ]
-                function_gradients += [
-                    (lambda d: lambda x : d * x ** (d-1))(deg)
-                ]
-                function_names += [
-                    (lambda d: lambda x, d=d : "{}^{}".format(x, d))(deg)
-                ]
-        if self.trig_interaction:
-            library_functions += [
-                    lambda x,y : x * np.sin(y),
-                    lambda x,y : x * np.cos(y),
-                    lambda x,y : y * np.sin(x),
-                    lambda x,y : y * np.cos(x)
-                    ]
-            function_gradients2 += [
-                    lambda x,y : (np.sin(y), x * np.cos(y)),
-                    lambda x,y : (np.cos(y), -x * np.sin(y)),
-                    lambda x,y : (y * np.cos(x), np.sin(x)),
-                    lambda x,y : (-y * np.sin(x), np.cos(x))
-                    ]
-            function_names += [
-                    lambda x,y : "{} sin({})".format(x,y),
-                    lambda x,y : "{} cos({})".format(x,y),
-                    lambda x,y : "{} sin({})".format(y,x),
-                    lambda x,y : "{} cos({})".format(y,x)
-                    ]
+                basis_funcs.append(get_poly_basis_func(deg))
+            if self.poly_cross_terms:
+                for deg in range(2,self.poly_degree+1):
+                    basis_funcs += get_cross_term_basis_funcs(deg)
 
+        library_functions = [basis.func for basis in basis_funcs]
+        function_names = [basis.name_func for basis in basis_funcs]
         library = ps.CustomLibrary(library_functions=library_functions,
                 function_names=function_names)
-        self.function_gradients = function_gradients
-        self.function_gradients2 = function_gradients2
+        self.basis_funcs = basis_funcs
 
-        sindy_model = ps.SINDy(feature_library=library, discrete_time=True,
-                optimizer=ps.STLSQ(threshold=0.01))
-        sindy_model.fit(X, u=U, multiple_trajectories=True)
+        if self.time_mode == "continuous":
+            sindy_model = ps.SINDy(feature_library=library, 
+                    discrete_time=False,
+                    optimizer=ps.STLSQ(threshold=self.threshold))
+            sindy_model.fit(X, u=U, multiple_trajectories=True, 
+                    t=self.system.dt, x_dot=xdot)
+        elif self.time_mode == "discrete":
+            sindy_model = ps.SINDy(feature_library=library, 
+                    discrete_time=True,
+                    optimizer=ps.STLSQ(threshold=self.threshold))
+            sindy_model.fit(X, u=U, multiple_trajectories=True)
         self.model = sindy_model
 
-
     def pred(self, state, ctrl):
-        xpred = self.model.predict(state.reshape((1,state.size)), 
+        xpred = self.pred_parallel(state.reshape((1,state.size)), 
                 ctrl.reshape((1,ctrl.size)))[0,:]
         return xpred
 
     def pred_parallel(self, states, ctrls):
-        xpreds = self.model.predict(states, ctrls)
+        if self.time_mode == "discrete":
+            xpreds = self.model.predict(states, ctrls)
+        else:
+            pred_dxs = self.model.predict(states, ctrls)
+            xpreds = states + self.system.dt * pred_dxs
         return xpreds
 
     def pred_diff(self, state, ctrl):
-        xpred = self.model.predict(state.reshape((1,state.size)), 
-                ctrl.reshape((1,ctrl.size)))[0,:]
-        state_jac = np.zeros((self.state_dim, self.state_dim))
-        ctrl_jac = np.zeros((self.state_dim, self.system.ctrl_dim))
-        coeff = self.model.coefficients()
-        for i in range(self.state_dim):
-            coeff_idx = 0
-            for gr in self.function_gradients:
-                for j in range(self.state_dim):
-                    state_jac[i, j] += coeff[i,coeff_idx] * gr(state[j])
-                    coeff_idx += 1
-                for j in range(self.system.ctrl_dim):
-                    ctrl_jac[i, j] += coeff[i,coeff_idx] * gr(ctrl[j])
-                    coeff_idx += 1
-            for gr in self.function_gradients2:
-                for j in range(self.state_dim+self.system.ctrl_dim):
-                    for k in range(j+1, self.state_dim+self.system.ctrl_dim):
-                        if j < self.state_dim:
-                            val1 = state[j]
-                        else:
-                            val1 = ctrl[j-self.state_dim]
-                        if k < self.state_dim:
-                            val2 = state[k]
-                        else:
-                            val2 = ctrl[k-self.state_dim]
-                        gr1, gr2 = gr(val1, val2)
-                        if j < self.state_dim:
-                            state_jac[i, j] += coeff[i,coeff_idx] * gr1
-                        else:
-                            ctrl_jac[i, j-self.state_dim] += coeff[i,coeff_idx] * gr1
-                        if k < self.state_dim:
-                            state_jac[i, k] += coeff[i,coeff_idx] * gr2
-                        else:
-                            ctrl_jac[i, k-self.state_dim] += coeff[i,coeff_idx] * gr2
-                        coeff_idx += 1
+        pred, state_jac, ctrl_jac = self.pred_diff_parallel(
+                state.reshape((1,-1)), ctrl.reshape((1,-1)))
+        pred = pred[0]
+        state_jac = state_jac[0]
+        ctrl_jac = ctrl_jac[0]
+        return pred, state_jac, ctrl_jac
 
-        return xpred, state_jac, ctrl_jac
+    def compute_gradient(self, states, ctrls, basis, coeff, feat_names):
+        input_dim = self.state_dim + self.system.ctrl_dim
+        idxs = np.mgrid[tuple(slice(input_dim) 
+                                for _ in range(basis.n_args))]
+        idxs = idxs.reshape((basis.n_args, -1))
+        p = states.shape[0]
+        state_jac = np.zeros((p,self.state_dim))
+        ctrl_jac = np.zeros((p,self.system.ctrl_dim))
+        for i in range(idxs.shape[1]):
+            # Find feature
+            var_names = ["x{}".format(j) if j < self.state_dim else 
+                    "u{}".format(j-self.state_dim) for j in idxs[:,i]]
+            feat_name = basis.name_func(*var_names)
+            try:
+                coeff_idx = feat_names.index(feat_name)
+            except ValueError:
+                continue
+
+            # Compute gradient
+            vals = []
+            for j in range(idxs.shape[0]):
+                idx = idxs[j,i]
+                if idx < self.state_dim:
+                    val = states[:,idx]
+                else:
+                    val = ctrls[:,idx-self.state_dim]
+                vals.append(val)
+            grads = basis.grad_func(*vals)
+            grads = np.array(grads)
+            for j in range(idxs.shape[0]):
+                idx = idxs[j,i]
+                if idx < self.state_dim:
+                    state_jac[:,idx] += coeff[coeff_idx] * grads[j]
+                else:
+                    ctrl_jac[:,idx-self.state_dim] += coeff[coeff_idx] * grads[j]
+        return state_jac, ctrl_jac
 
     def pred_diff_parallel(self, states, ctrls):
-        xpred = self.model.predict(states, ctrls)
+        xpred = self.pred_parallel(states, ctrls)
         p = states.shape[0]
         state_jac = np.zeros((p, self.state_dim, self.state_dim))
         ctrl_jac = np.zeros((p, self.state_dim, self.system.ctrl_dim))
-        coeff = self.model.coefficients()
+        coeffs = self.model.coefficients()
+        feat_names = self.model.get_feature_names()
         for i in range(self.state_dim):
-            coeff_idx = 0
-            for gr in self.function_gradients:
-                for j in range(self.state_dim):
-                    state_jac[:,i, j] += coeff[i,coeff_idx] * gr(states[:,j])
-                    coeff_idx += 1
-                for j in range(self.system.ctrl_dim):
-                    ctrl_jac[:,i, j] += coeff[i,coeff_idx] * gr(ctrls[:,j])
-                    coeff_idx += 1
-            for gr in self.function_gradients2:
-                for j in range(self.state_dim+self.system.ctrl_dim):
-                    for k in range(j+1, self.state_dim+self.system.ctrl_dim):
-                        if j < self.state_dim:
-                            val1 = states[:,j]
-                        else:
-                            val1 = ctrls[:,j-self.state_dim]
-                        if k < self.state_dim:
-                            val2 = states[:,k]
-                        else:
-                            val2 = ctrls[:,k-self.state_dim]
-                        gr1, gr2 = gr(val1, val2)
-                        if j < self.state_dim:
-                            state_jac[:,i, j] += coeff[i,coeff_idx] * gr1
-                        else:
-                            ctrl_jac[:,i, j-self.state_dim] += coeff[i,coeff_idx] * gr1
-                        if k < self.state_dim:
-                            state_jac[:,i, k] += coeff[i,coeff_idx] * gr2
-                        else:
-                            ctrl_jac[:,i, k-self.state_dim] += coeff[i,coeff_idx] * gr2
-                        coeff_idx += 1
-
+            for basis in self.basis_funcs:
+                sj, cj = self.compute_gradient(
+                        states, ctrls, basis, coeffs[i,:], feat_names)
+                state_jac[:,i,:] += sj
+                ctrl_jac[:,i,:] += cj
+        if self.time_mode == "continuous":
+            ident = np.array([np.eye(self.state_dim) for _ in
+                range(p)])
+            state_jac = ident + self.system.dt * state_jac
+            ctrl_jac = self.system.dt * ctrl_jac
         return xpred, state_jac, ctrl_jac
 
-
-
-
-
+    # TODO fix this
     def get_parameters(self):
         return {"A" : np.copy(self.A),
                 "B" : np.copy(self.B)}

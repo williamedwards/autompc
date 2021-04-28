@@ -11,7 +11,7 @@ from ConfigSpace.hyperparameters import (UniformIntegerHyperparameter,
         CategoricalHyperparameter)
 import ConfigSpace.conditions as CSC
 
-from ..controller import Controller
+from .controller import Controller, ControllerFactory
 
 def _dynamic_ricatti_equation(A, B, Q, R, N, Pk):
     return (A.T @ Pk @ A 
@@ -65,6 +65,35 @@ def _finite_horz_dt_lqr(A, B, Q, R, N, F, horizon):
 #
 #        return u, None
 
+# class LQRFactory(ControllerFactory):
+#     """
+#     Docs
+# 
+#     Hyperparameters:
+#     
+#     - *horizon_type* (Type: str, Choices: ["finite", "infinite"], Default: "finite"): Whether horizon is finite or infinite.
+#     - *horizon* (Type: int, Low: 1, High: 1000, Default: 10): Length of control horizon. (Conditioned on horizon_type="finite").
+#     """
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(self, *args, **kwargs)
+#         self.name  = "InfiniteHorizonLQR"
+# 
+#     def get_configuration_space(self):
+#         cs = ConfigurationSpace()
+#         horizon_type = CategoricalHyperparameter("horizon_type", choices=["finite", "infinite"], default="finite")
+#         horizon = UniformIntegerHyperparameter(name="horizon_cond",
+#                 lower=1, upper=1000, default_value=10)
+#         horizon_cond = InCondition(child=horizon, parent=horizon_type, values=["finite"])
+#         cs.add_hyperparameters([horizon, horizon_type])
+#         cs.add_condition(horizon_cond)
+#         return cs
+# 
+#     def __call__(self, cfg, task, model):
+#         if cfg["horizon_type"] == "finite":
+#             controller = FiniteHorizonLQR(self.system, task, model, horizon = cfg["horizon"])
+#         else:
+#             controller = InfiniteHorizonLQR(self.system, task, model)
+
 class InfiniteHorizonLQR(Controller):
     def __init__(self, system, task, model):
         super().__init__(system, task, model)
@@ -81,11 +110,6 @@ class InfiniteHorizonLQR(Controller):
     @property
     def state_dim(self):
         return self.model.state_dim + self.system.ctrl_dim
-
-    @staticmethod
-    def get_configuration_space(system, task, model):
-        cs = ConfigurationSpace()
-        return cs
 
     @staticmethod
     def is_compatible(system, task, model):
@@ -136,14 +160,6 @@ class FiniteHorizonLQR(Controller):
         return self.model.state_dim + self.system.ctrl_dim
 
     @staticmethod
-    def get_configuration_space(system, task, model):
-        cs = ConfigurationSpace()
-        horizon = UniformIntegerHyperparameter(name="horizon",
-                lower=1, upper=1000, default_value=10)
-        cs.add_hyperparameter(horizon)
-        return cs
-
-    @staticmethod
     def is_compatible(system, task, model):
         return (model.is_linear 
                 and task.is_cost_quad()
@@ -176,17 +192,21 @@ class FiniteHorizonLQR(Controller):
 
         return u, statenew
 
-class LQR(Controller):
-    def __init__(self, system, task, model, finite_horizon, horizon=None):
-        if not isinstance(finite_horizon, bool):
-            finite_horizon = True if finite_horizon == "true" else False
-        if finite_horizon:
-            self._controller = FiniteHorizonLQR(system, task, model, horizon)
-        else:
-            self._controller = InfiniteHorizonLQR(system, task, model)
+class LQRFactory(ControllerFactory):
+    """
+    Docs
+ 
+    Hyperparameters:
+    
+    - *finite_horizon* (Type: str, Choices: ["true", "false"], Default: "finite"): Whether horizon is finite or infinite.
+    - *horizon* (Type: int, Low: 1, High: 1000, Default: 10): Length of control horizon. (Conditioned on finite_horizon="true").
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.Controller = LQR
+        self.name = "LQR"
 
-    @staticmethod
-    def get_configuration_space(system, task, model):
+    def get_configuration_space(self):
         cs = ConfigurationSpace()
         finite_horizon = CategoricalHyperparameter(name="finite_horizon",
                 choices=["true", "false"], default_value="true")
@@ -197,6 +217,15 @@ class LQR(Controller):
         cs.add_hyperparameters([horizon, finite_horizon])
         cs.add_condition(use_horizon)
         return cs
+
+class LQR(Controller):
+    def __init__(self, system, task, model, finite_horizon, horizon=None):
+        if not isinstance(finite_horizon, bool):
+            finite_horizon = True if finite_horizon == "true" else False
+        if finite_horizon:
+            self._controller = FiniteHorizonLQR(system, task, model, horizon)
+        else:
+            self._controller = InfiniteHorizonLQR(system, task, model)
 
     @property
     def state_dim(self):
