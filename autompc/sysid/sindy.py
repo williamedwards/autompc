@@ -23,7 +23,13 @@ class FourthOrderFiniteDifference(psd.base.BaseDifferentiation):
 
 class SINDyFactory(ModelFactory):
     """
-    SINDy Docs
+    SINDy Docs :math:`a^2 + b^2 = c^2`.
+
+    .. math::
+      
+       \\frac{4}{3} \pi r^3 = V
+
+       x + y = z
 
     Hyperparameters:
 
