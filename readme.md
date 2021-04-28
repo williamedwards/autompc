@@ -21,3 +21,5 @@ To build or re-build the documentation, run the following command from the `docs
 ```
 make html
 ```
+
+The documentation will be produced in `docs/html`.
