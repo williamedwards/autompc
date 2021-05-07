@@ -28,7 +28,7 @@ class KoopmanFactory(ModelFactory):
     - *product_terms* (Type: bool): Whether to include cross-product terms.
     """
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.Model = Koopman
         self.name = "Koopman"
 
@@ -38,7 +38,7 @@ class KoopmanFactory(ModelFactory):
             "stable"])
         lasso_alpha = CSH.UniformFloatHyperparameter("lasso_alpha", 
                 lower=1e-10, upper=1e2, default_value=1.0, log=True)
-        use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
+        use_lasso_alpha = CSC.InCondition(child=lasso_alpha, parent=method, 
                 values=["lasso"])
 
         poly_basis = CSH.CategoricalHyperparameter("poly_basis", 
@@ -153,7 +153,7 @@ class Koopman(Model):
     def state_dim(self):
         return len(self.basis_funcs) * self.system.obs_dim
 
-    def train(self, trajs):
+    def train(self, trajs, silent=False):
         trans_obs = [self._transform_observations(traj.obs[:]) for traj in trajs]
         X = np.concatenate([obs[:-1,:] for obs in trans_obs]).T
         Y = np.concatenate([obs[1:,:] for obs in trans_obs]).T

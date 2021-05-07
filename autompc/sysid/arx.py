@@ -21,7 +21,7 @@ class ARXFactory(ModelFactory):
       for ARX model.
     """
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.Model = ARX
         self.name = "ARX"
 
@@ -84,7 +84,7 @@ class ARX(Model):
     def state_to_obs(self, state):
         return state[0:self.system.obs_dim]
 
-    def train(self, trajs):
+    def train(self, trajs, silent=False):
         matrix, targets = self._get_training_matrix_and_targets(trajs)
 
         coeffs = np.zeros((self.system.obs_dim, self._get_fvec_size()))

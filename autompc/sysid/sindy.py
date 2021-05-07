@@ -51,7 +51,7 @@ class SINDyFactory(ModelFactory):
       and other state variables.
     """
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.Model = SINDy
         self.name = "SINDy"
 
@@ -92,13 +92,15 @@ class SINDyFactory(ModelFactory):
             poly_cross_terms, time_mode])
         cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq, use_trig_interaction])
 
+        return cs
+
 class SINDy(Model):
     def __init__(self, system, method, lasso_alpha=None, threshold=-2, poly_basis=False,
             poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1, trig_interaction=False, time_mode="discrete"):
         super().__init__(system)
 
         self.method = method
-        self.lasso_alpha = lasso_alpha_log10
+        self.lasso_alpha = lasso_alpha
         if type(poly_basis) == str:
             poly_basis = True if poly_basis == "true" else False
         self.poly_basis = poly_basis
@@ -112,7 +114,7 @@ class SINDy(Model):
         if type(trig_interaction) == str:
             self.trig_interaction = True if trig_interaction == "true" else False
         self.time_mode = time_mode
-        self.threshold = threshold_log10
+        self.threshold = threshold
 
     @staticmethod
     def get_configuration_space(system):
@@ -130,7 +132,7 @@ class SINDy(Model):
     def state_dim(self):
         return self.system.obs_dim
 
-    def train(self, trajs, xdot=None):
+    def train(self, trajs, xdot=None, silent=False):
         X = [traj.obs for traj in trajs]
         U = [traj.ctrls for traj in trajs]
 

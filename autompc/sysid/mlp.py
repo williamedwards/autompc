@@ -151,6 +151,7 @@ class MLP(Model):
                 hidden_size_4]):
             if size is not None:
                 hidden_sizes[i] = size
+        print("hidden_sizes=", hidden_sizes)
         self.net = ForwardNet(nx + nu, nx, hidden_sizes, nonlintype)
         self._train_data = (n_train_iters, n_batch, lr)
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 

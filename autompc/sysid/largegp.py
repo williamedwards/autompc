@@ -278,7 +278,7 @@ class LargeGaussianProcess(GPytorchGP):
         self.gpmodel = BatchIndependentMultitaskGPModel(self.system.obs_dim, mean, kernel).double()
         self.gpmodel = self.gpmodel.to(self.device)
 
-    def train(self, trajs):
+    def train(self, trajs, silent=False):
         # Initialize kernels
         self.gpmodel.train()
         self.gpmodel.likelihood.train()
@@ -330,7 +330,7 @@ class ApproximateGPModelFactory(ModelFactory):
       to include in the gaussian process. 
     """
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.Model = ApproximateGPModel
         self.name = "ApproximateGP"
 
@@ -347,7 +347,7 @@ class ApproximateGPModel(GPytorchGP, Model):
         self.batch_size = batch_size
         self.induce_count = induce_count
 
-    def train(self, trajs):
+    def train(self, trajs, silent=False):
         """Given collected trajectories, train the GP to approximate the actual dynamics"""
         # extract transfer pairs from data
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
@@ -391,7 +391,11 @@ class ApproximateGPModel(GPytorchGP, Model):
         # Our loss object. We're using the VariationalELBO
         mll = gpytorch.mlls.VariationalELBO(likelihood, self.gpmodel, num_data=train_y.size(0))
 
-        for i in tqdm.tqdm(range(self.niter)):
+        if silent:
+            itr = range(self.niter)
+        else:
+            itr = tqdm.tqdm(range(self.niter))
+        for i in itr:
             # Within each iteration, we will go over each minibatch of data
             for x_batch, y_batch in train_loader:
                 optimizer.zero_grad()
