@@ -108,7 +108,7 @@ class MPPI:
     def do_rollouts(self, cur_state, seed=None):
         # roll the action
         self.act_sequence[:-1] = self.act_sequence[1:]
-        self.act_sequence[-1] = 0
+        self.act_sequence[-1] = self.act_sequence[-2]
         # generate random noises
         # eps = np.random.normal(scale=self.sigma, size=(self.H, self.num_path, self.dim_ctrl))  # horizon by num_path by ctrl_dim
         eps = self.noise_dist.sample((self.num_path, self.H)).transpose((1, 0, 2))
