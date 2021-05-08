@@ -16,7 +16,14 @@ from .controller import Controller, ControllerFactory
 
 class IterativeLQRFactory(ControllerFactory):
     """
-    ILQR Docs.
+    Iterative Linear Quadratic Regulator (ILQR) can be considered as a Dynamic Programming (DP) method to solve trajectory optimization problems.
+    Usually DP requires discretization and scales exponentially to the dimensionality of state and control so it is not practical beyond simple problems.
+    However, if DP is applied locally around some nominal trajectory, the value function and policy function can be expressed in closed form, thus avoiding exponential complexity.
+    Specifically, starting from some nominal trajectory, the dynamics equation is linearized and the cost function is approximated by a quadratic function.
+    In this way, the control policy is the nominal control plus linear feedback of state deviation.
+    This policy is applied to the system and a updated nominal trajectory is obtained.
+    By doing this process iteratively, the optimal trajectory can be obtained.
+    Some reference to understand this technique can be found at `this blog <https://jonathan-hui.medium.com/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750>`_, `this blog <https://studywolf.wordpress.com/2016/02/03/the-iterative-linear-quadratic-regulator-method/>`_, and `this slide <https://katefvision.github.io/katefSlides/RECITATIONtrajectoryoptimization_katef.pdf>`_. 
 
     Hyperparameters:
 
