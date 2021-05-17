@@ -20,11 +20,15 @@ class QuadCostFactory(CostFactory):
 
     def get_configuration_space(self):
         cs = CS.ConfigurationSpace()
-        for obsname in self.system.observations:
+        for i, obsname in enumerate(self.system.observations):
+            if self.goal is not None and np.isnan(self.goal[i]):
+                continue
             obsgain = CSH.UniformFloatHyperparameter("{}_Q".format(obsname),
                     lower=1e-3, upper=1e4, default_value=1.0, log=True)
             cs.add_hyperparameter(obsgain)
-        for obsname in self.system.observations:
+        for i, obsname in enumerate(self.system.observations):
+            if self.goal is not None and np.isnan(self.goal[i]):
+                continue
             obsgain = CSH.UniformFloatHyperparameter("{}_F".format(obsname),
                     lower=1e-3, upper=1e4, default_value=1.0, log=True)
             cs.add_hyperparameter(obsgain)
@@ -49,10 +53,23 @@ class QuadCostFactory(CostFactory):
         F = np.zeros((self.system.obs_dim,self.system.obs_dim)) 
         R = np.zeros((self.system.ctrl_dim,self.system.ctrl_dim)) 
         for i, obsname in enumerate(self.system.observations):
-            Q[i,i] = cfg["{}_Q".format(obsname)]
+            hyper_name = "{}_Q".format(obsname)
+            if hyper_name in cfg:
+                Q[i,i] = cfg[hyper_name]
+            else:
+                Q[i,i] = 0.0
         for i, obsname in enumerate(self.system.observations):
-            F[i,i] = cfg["{}_F".format(obsname)]
+            hyper_name = "{}_F".format(obsname)
+            if hyper_name in cfg:
+                F[i,i] = cfg[hyper_name]
+            else:
+                F[i,i] = 0.0
         for i, ctrlname in enumerate(self.system.controls):
-            R[i,i] = cfg["{}_R".format(ctrlname)]
+            hyper_name = "{}_R".format(ctrlname)
+            if hyper_name in cfg:
+                R[i,i] = cfg[hyper_name]
+            else:
+                R[i,i] = 0.0
 
+        goal = np.nan_to_num(goal, nan=0.0)
         return QuadCost(self.system, Q, R, F, goal=goal)

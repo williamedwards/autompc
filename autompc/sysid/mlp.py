@@ -168,7 +168,8 @@ class MLP(Model):
     def state_dim(self):
         return self.system.obs_dim
 
-    def train(self, trajs, silent=False):
+    def train(self, trajs, silent=False, seed=100):
+        torch.manual_seed(seed)
         n_iter, n_batch, lr = self._train_data
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])

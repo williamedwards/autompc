@@ -30,3 +30,26 @@ class ThresholdCost(BaseCost):
 
     def eval_term_obs_cost(self, obs):
         return 0.0
+
+class BoxThresholdCost(BaseCost):
+    def __init__(self, system, limits):
+        super().__init__(system)
+        self._limits = np.copy(limits)
+
+        self._is_quad = False
+        self._is_convex = False
+        self._is_diff = False
+        self._is_twice_diff = False
+        self._has_goal = True
+
+    def eval_obs_cost(self, obs):
+        if (obs < self._limits[:,0]).any() or (obs > self._limits[:,1]).any():
+            return 1.0
+        else:
+            return 0.0
+
+    def eval_ctrl_cost(self, ctrl):
+        return 0.0
+
+    def eval_term_obs_cost(self, obs):
+        return 0.0

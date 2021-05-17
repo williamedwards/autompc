@@ -31,8 +31,6 @@ class ARXFactory(ModelFactory):
                 lower=1, upper=10, default_value=4)
         cs.add_hyperparameter(history)
         return cs
-        
-
 
 class ARX(Model):
     def __init__(self, system, history):
@@ -52,6 +50,21 @@ class ARX(Model):
                 feature_elements += [traj[0].obs, traj[0].ctrl]
         feature_elements += [np.ones(1), traj[t-1].ctrl]
         return np.concatenate(feature_elements)
+
+    def _get_all_feature_vectors(self, traj):
+        k = self.k
+        feature_vectors = np.zeros((len(traj), k*(self.system.obs_dim + self.system.ctrl_dim)+1))
+        feature_vectors[:,:self.system.obs_dim] = traj.obs
+        j = self.system.obs_dim
+        for i in range(1, k, 1):
+            feature_vectors[:,j:j+self.system.obs_dim] = np.concatenate([traj.obs[:1,:]]*i + [traj.obs[:-i, :]])
+            j += self.system.obs_dim
+            feature_vectors[:,j:j+self.system.ctrl_dim] = np.concatenate([traj.ctrls[:1,:]]*i + [traj.ctrls[:-i, :]])
+            j += self.system.ctrl_dim
+        feature_vectors[:,-(self.system.ctrl_dim+1)] = 1
+        feature_vectors[:,-self.system.ctrl_dim:] = traj.ctrls
+
+        return feature_vectors
 
     def _get_fvec_size(self):
         k = self.k
@@ -73,13 +86,16 @@ class ARX(Model):
 
     def update_state(self, state, new_ctrl, new_obs):
         # Shift the targets
-        newstate = np.dot(self.A, state) + np.dot(self.B, new_ctrl)
+        newstate = self.A @ state + self.B @ new_ctrl
         newstate[:self.system.obs_dim] = new_obs
 
         return newstate
 
     def traj_to_state(self, traj):
         return self._get_feature_vector(traj)[:-self.system.ctrl_dim]
+
+    def traj_to_states(self, traj):
+        return self._get_all_feature_vectors(traj)[:, :-self.system.ctrl_dim]
 
     def state_to_obs(self, state):
         return state[0:self.system.obs_dim]
@@ -121,12 +137,17 @@ class ARX(Model):
 
 
     def pred(self, state, ctrl):
-        statenew = np.dot(self.A, state) + np.dot(self.B, ctrl)
+        statenew = self.A @ state + self.B @ ctrl
 
         return statenew
 
+    def pred_batch(self, states, ctrls):
+        statesnew = self.A @ states.T + self.B @ ctrls.T
+
+        return statesnew.T
+
     def pred_diff(self, state, ctrl):
-        statenew = np.dot(self.A, state) + np.dot(self.B, ctrl)
+        statenew = self.A @ state + self.B @ ctrl
 
         return statenew, self.A, self.B
 

@@ -47,6 +47,9 @@ class Task:
         else:
             return False
 
+    def set_term_cond(self, term_cond):
+        self._term_cond = term_cond
+
     def set_cost(self, cost):
         self.cost = cost
 

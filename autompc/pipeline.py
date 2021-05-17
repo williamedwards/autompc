@@ -83,15 +83,16 @@ class Pipeline:
 
         return cs
 
-    def __call__(self, cfg, task, trajs):
+    def __call__(self, cfg, task, trajs, model=None):
         # First instantiate and train the model
-        if self.model:
-            model = self.model
-        else:
-            model_cs = self.model_factory.get_configuration_space()
-            model_cfg = model_cs.get_default_configuration()
-            set_subspace_configuration(cfg, "_model", model_cfg)
-            model = self.model_factory(model_cfg, trajs)
+        if not model:
+            if self.model:
+                model = self.model
+            else:
+                model_cs = self.model_factory.get_configuration_space()
+                model_cfg = model_cs.get_default_configuration()
+                set_subspace_configuration(cfg, "_model", model_cfg)
+                model = self.model_factory(model_cfg, trajs)
 
         # Then create the objective function
         if self.cost:

@@ -53,11 +53,6 @@ class Trajectory:
                 return self._ctrls[idx[0], ctrl_idx]
             else:
                 raise IndexError("Unknown label")
-        elif isinstance(idx, int):
-            if idx < -self.size or idx >= self.size:
-                raise IndexError("Time index out of range.")
-            return namedtuple("TimeStep", "obs ctrl")(self._obs[idx,:], 
-                    self._ctrls[idx,:])
         elif isinstance(idx, slice):
             #if idx.start < -self.size or idx.stop >= self.size:
             #    raise IndexError("Time index out of range.")
@@ -65,7 +60,10 @@ class Trajectory:
             ctrls = self._ctrls[idx, :]
             return Trajectory(self._system, obs.shape[0], obs, ctrls)
         else:
-            raise IndexError("Unknown index type")
+            if idx < -self.size or idx >= self.size:
+                raise IndexError("Time index out of range.")
+            return namedtuple("TimeStep", "obs ctrl")(self._obs[idx,:], 
+                    self._ctrls[idx,:])
 
     def __setitem__(self, idx, val):
         if isinstance(idx, tuple):

@@ -69,6 +69,9 @@ class IterativeLQR(Controller):
         else:
             raise Exception("mode has to be None/barrier/auglag")
 
+    def reset(self):
+        self._guess = None
+
     @property
     def state_dim(self):
         return self.model.state_dim + self.system.ctrl_dim

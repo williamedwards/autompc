@@ -72,8 +72,10 @@ class Koopman(Model):
         super().__init__(system)
 
         self.method = method
-        self.lasso_alpha = lasso_alpha
-
+        if not lasso_alpha is None:
+            self.lasso_alpha = lasso_alpha
+        else:
+            self.lasso_alpha = None
         if type(poly_basis) == str:
             poly_basis = True if poly_basis == "true" else False
         self.poly_basis = poly_basis
@@ -89,44 +91,8 @@ class Koopman(Model):
         if self.poly_basis:
             self.basis_funcs += [lambda x: x**i for i in range(2, 1+self.poly_degree)]
         if self.trig_basis:
-            for i in range(1, 1+self.trig_freq):
+            for i in range(1, 1+self.poly_degree):
                 self.basis_funcs += [lambda x: np.sin(i*x), lambda x : np.cos(i*x)]
-
-    @staticmethod
-    def get_configuration_space(system):
-        cs = CS.ConfigurationSpace()
-        #method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso",
-        #    "stable"])
-        method = CSH.CategoricalHyperparameter("method", choices=["lstsq"])
-        #lasso_alpha_log10 = CSH.UniformFloatHyperparameter("lasso_alpha_log10", 
-        #        lower=-10.0, upper=2.0, default_value=0.0)
-        #use_lasso_alpha = CSC.InCondition(child=lasso_alpha_log10, parent=method, 
-        #        values=["lasso"])
-
-        poly_basis = CSH.CategoricalHyperparameter("poly_basis", 
-                choices=["true", "false"], default_value="false")
-        poly_degree = CSH.UniformIntegerHyperparameter("poly_degree", lower=2, upper=8,
-                default_value=3)
-        use_poly_degree = CSC.InCondition(child=poly_degree, parent=poly_basis,
-                values=["true"])
-
-        trig_basis = CSH.CategoricalHyperparameter("trig_basis", 
-                choices=["true", "false"], default_value="false")
-        trig_freq = CSH.UniformIntegerHyperparameter("trig_freq", lower=1, upper=8,
-                default_value=1)
-        use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
-                values=["true"])
-
-        product_terms = CSH.CategoricalHyperparameter("product_terms",
-                choices=["false"], default_value="false")
-
-
-        cs.add_hyperparameters([method, poly_basis, poly_degree,
-            trig_basis, trig_freq, product_terms])
-        cs.add_conditions([use_poly_degree, use_trig_freq])
-
-        return cs
-
 
     def _apply_basis(self, state):
         tr_state = [b(x) for b in self.basis_funcs for x in state]
@@ -145,6 +111,9 @@ class Koopman(Model):
 
     def traj_to_state(self, traj):
         return self._transform_observations(traj.obs[:])[-1,:]
+
+    def traj_to_states(self, traj):
+        return self._transform_observations(traj.obs[:])
     
     def update_state(self, state, new_ctrl, new_obs):
         return self._apply_basis(new_obs)
@@ -182,11 +151,16 @@ class Koopman(Model):
         self.A, self.B = A, B
 
     def pred(self, state, ctrl):
-        xpred = np.dot(self.A, state) + np.dot(self.B, ctrl)
+        xpred = self.A @ state + self.B @ ctrl
         return xpred
 
+    def pred_batch(self, states, ctrls):
+        statesnew = self.A @ states.T + self.B @ ctrls.T
+
+        return statesnew.T
+
     def pred_diff(self, state, ctrl):
-        xpred = np.dot(self.A, state) + np.dot(self.B, ctrl)
+        xpred = self.A @ state + self.B @ ctrl
 
         return xpred, np.copy(self.A), np.copy(self.B)
 

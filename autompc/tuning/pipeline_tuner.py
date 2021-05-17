@@ -1,6 +1,7 @@
 
 # Standard library includes
 from collections import namedtuple
+import pickle
 
 # Internal project includes
 from .. import zeros
@@ -19,7 +20,9 @@ PipelineTuneResult = namedtuple("PipelineTuneResult", ["inc_cfg", "cfgs",
     "inc_cfgs", "costs", "inc_costs", "truedyn_costs", "inc_truedyn_costs", 
     "surr_trajs", "truedyn_trajs", "surr_tune_result"])
 
-autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory]
+autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
+        ARXFactory, KoopmanFactory]
+#autoselect_factories = [ARXFactory, KoopmanFactory]
 
 class PipelineTuner:
     def __init__(self, surrogate_mode="defaultcfg", surrogate_factory=None, surrogate_split=None, surrogate_cfg=None,
@@ -33,6 +36,7 @@ class PipelineTuner:
         self.surrogate_tune_metric = surrogate_tune_metric
 
     def get_surrogate(self, pipeline, trajs, rng, surrogate_tune_iters):
+        surrogate_tune_result = None
         if self.surrogate_mode == "defaultcfg":
             surrogate_cs = self.surrogate_factory.get_configuration_space()
             surrogate_cfg = surrogate_cs.get_default_configuration()
@@ -80,23 +84,38 @@ class PipelineTuner:
             sysid_trajs = trajs
             surr_tune_result = None
 
+        eval_idx = [0]
         def eval_cfg(cfg):
             info = dict()
             controller, cost, model = pipeline(cfg, task, sysid_trajs)
+            with open("../../out/2021-05-17/con_{}.pkl".format(eval_idx[0]), "wb") as f:
+                pickle.dump(controller, f)
+            eval_idx[0] += 1
             print("Simulating Surrogate Trajectory: ")
-            if task.has_num_steps():
-                surr_traj = simulate(controller, task.get_init_obs(),
-                       task.term_cond, sim_model=surrogate, max_steps=task.get_num_steps())
-            else:
-                surr_traj = simulate(controller, task.get_init_obs(),
-                       task.term_cond, sim_model=surrogate)
-            cost = task.get_cost()
-            surr_cost = cost(surr_traj)
-            info["surr_cost"] = surr_cost
-            info["surr_traj"] = (surr_traj.obs.tolist(), surr_traj.ctrls.tolist())
+            try:
+                controller.reset()
+                if task.has_num_steps():
+                    surr_traj = simulate(controller, task.get_init_obs(),
+                           task.term_cond, sim_model=surrogate, 
+                           max_steps=task.get_num_steps())
+                else:
+                    surr_traj = simulate(controller, task.get_init_obs(),
+                           task.term_cond, sim_model=surrogate)
+                cost = task.get_cost()
+                surr_cost = cost(surr_traj)
+                print("Surrogate Cost: ", surr_cost)
+                print("Surrogate Final State: ", surr_traj[-1].obs)
+                info["surr_cost"] = surr_cost
+                info["surr_traj"] = (surr_traj.obs.tolist(), surr_traj.ctrls.tolist())
+            except numpy.linalg.LinAlgError:
+                surr_cost = np.inf
+                info["surr_cost"] = surr_cost
+                info["surr_traj"] = None
             
             if not truedyn is None:
                 print("Simulating True Dynamics Trajectory")
+                controller, _, _ = pipeline(cfg, task, sysid_trajs, model=model)
+                controller.reset()
                 if task.has_num_steps():
                     truedyn_traj = simulate(controller, task.get_init_obs(),
                        task.term_cond, dynamics=truedyn, max_steps=task.get_num_steps())
@@ -104,6 +123,8 @@ class PipelineTuner:
                     truedyn_traj = simulate(controller, task.get_init_obs(),
                        task.term_cond, dynamics=truedyn)
                 truedyn_cost = cost(truedyn_traj)
+                print("True Dynamics Cost: ", truedyn_cost)
+                print("True Dynamics Final State: ", truedyn_traj[-1].obs)
                 info["truedyn_cost"] = truedyn_cost
                 info["truedyn_traj"] = (truedyn_traj.obs.tolist(), 
                         truedyn_traj.ctrls.tolist())
@@ -138,10 +159,14 @@ class PipelineTuner:
             inc_cfgs.append(inc_cfg)
             cfgs.append(cfg)
             costs.append(val.cost)
-            surr_obs, surr_ctrls = val.additional_info["surr_traj"]
-            surr_traj = zeros(pipeline.system, len(surr_obs))
-            surr_traj.obs[:] = surr_obs
-            surr_traj.ctrls[:] = surr_ctrls
+            if val.additional_info["surr_traj"] is not None:
+                surr_obs, surr_ctrls = val.additional_info["surr_traj"]
+                surr_traj = zeros(pipeline.system, len(surr_obs))
+                surr_traj.obs[:] = surr_obs
+                surr_traj.ctrls[:] = surr_ctrls
+                surr_trajs.append(surr_traj)
+            else:
+                surr_trajs.append(None)
             if "truedyn_cost" in val.additional_info:
                 inc_truedyn_costs.append(inc_truedyn_cost)
                 truedyn_costs.append(val.additional_info["truedyn_cost"])
@@ -149,6 +174,7 @@ class PipelineTuner:
                 truedyn_traj = zeros(pipeline.system, len(truedyn_obs))
                 truedyn_traj.obs[:] = truedyn_obs
                 truedyn_traj.ctrls[:] = truedyn_ctrls
+                truedyn_trajs.append(truedyn_traj)
 
         tune_result = PipelineTuneResult(inc_cfg = inc_cfg,
                 cfgs = cfgs,
@@ -162,6 +188,6 @@ class PipelineTuner:
                 surr_tune_result = surr_tune_result)
 
         # Generate final model and controller
-        controller, cost, model = pipeline(inc_cfg, task, trajs)
+        controller, cost, model = pipeline(inc_cfg, task, sysid_trajs)
 
         return controller, tune_result
