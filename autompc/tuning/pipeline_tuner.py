@@ -70,7 +70,8 @@ class PipelineTuner:
             surrogate, surrogate_tune_result = model_tuner.run(rng, n_iters=surrogate_tune_iters) 
         return surrogate, surrogate_tune_result
 
-    def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, surrogate_tune_iters=100):
+    def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
+            surrogate_tune_iters=100, special_debug=False):
         # Run surrogate training
         if surrogate is None:
             surr_size = int(self.surrogate_split * len(trajs))
@@ -84,13 +85,17 @@ class PipelineTuner:
             sysid_trajs = trajs
             surr_tune_result = None
 
-        eval_idx = [0]
+        if special_debug:
+            with open("../../out/2021-05-17/surrogate.pkl", "wb") as f:
+                pickle.dump(surrogate, f)
+            eval_idx = [0]
         def eval_cfg(cfg):
             info = dict()
             controller, cost, model = pipeline(cfg, task, sysid_trajs)
-            with open("../../out/2021-05-17/con_{}.pkl".format(eval_idx[0]), "wb") as f:
-                pickle.dump(controller, f)
-            eval_idx[0] += 1
+            if special_debug:
+                with open("../../out/2021-05-17/con_{}.pkl".format(eval_idx[0]), "wb") as f:
+                    pickle.dump(controller, f)
+                eval_idx[0] += 1
             print("Simulating Surrogate Trajectory: ")
             try:
                 controller.reset()
