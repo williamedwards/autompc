@@ -318,7 +318,13 @@ class IpoptWrapper(OptProblem):
 
 class DirectTranscriptionControllerFactory(ControllerFactory):
     """
-    Docs.
+    Direct Transcription (DT) is a method to discretize an optimal control problem which is inherently continuous.
+    Such discretization is usually necessary in order to get an optimization problem of finite dimensionality.
+    For a trajectory with time length :math:`T`_, it discretize the time interval into a equidistant grid of size :math:`N`, called knots.
+    The state and control at each knot are optimized.
+    The constraints are imposed at the knots, including system dynamics constraints.
+    DT uses first-order Euler integration to approximate the constraints of system dynamics.
+    The details can be found in `An Introduction to Trajectory Optimization: How to Do Your Own Direct Collocation <https://epubs.siam.org/doi/pdf/10.1137/16M1062569>`_.
 
     Hyperparameter:
     - *horizon* (Type: int, Lower: 1, High: 30, Default: 10): Control Horizon

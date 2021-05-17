@@ -78,7 +78,7 @@ class MLPFactory(ModelFactory):
 
     Parameters
 
-    - *n_banch* (Type: int, Default: 64): Training batch size of the neural net.
+    - *n_batch* (Type: int, Default: 64): Training batch size of the neural net.
     - *n_train_iters* (Type: int, Default: 50): Number of training epochs
 
     Hyperparameters:

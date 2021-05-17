@@ -26,14 +26,21 @@ class MultivariateNormal:
 
 class MPPIFactory(ControllerFactory):
     """
-    Docs
+    Implementation of Model Predictive Path Integral (MPPI) controller.
+    It originates from stochastic optimal control but also works for deterministic systems.
+    Starting from some initial guess of control sequence, it samples some perturbed control sequences,
+    and use the costs from each rollout of the perturbed control to update the control sequence.
+    For details, we refer to `Aggressive driving with model predictive path integral control <https://ieeexplore.ieee.org/document/7487277/>`_,
+    `Model Predictive Path Integral Control: From Theory to Parallel Computation <https://arc.aiaa.org/doi/abs/10.2514/1.G001921>`_,
+    and `Information Theoretic Model Predictive Control: Theory and Applications to Autonomous Driving <https://arxiv.org/abs/1707.02342>`_.
+    Development of this controller uses reference from `this repository <https://github.com/UM-ARM-Lab/pytorch_mppi>`_.
 
     Hyperparameters:
 
-    - *horizon* (Type: int, Lower: 5, Upper: 30, Default: 20): Controller horizon.
-    - *sigma* (Type: float, Lower: 0.1, Upper 2.0, Default: 1.0):
-    - *lmda* (Type: float, Lower: 0.1, Upper: 2.0, Default: 1.0):
-    - *num_path* (Type: int, Lower: 100, Upper: 1000, Default: 200); 
+    - *horizon* (Type: int, Lower: 5, Upper: 30, Default: 20): Controller horizon. This behaves in the same way as MPC controller.
+    - *sigma* (Type: float, Lower: 0.1, Upper 2.0, Default: 1.0): Variance of the disturbance. Since the disturbance is Gaussian, the standard deviation is its square root. It is shared in all the control dimensions.
+    - *lmda* (Type: float, Lower: 0.1, Upper: 2.0, Default: 1.0): Higher value increases the cost of control noise and gets more samples around current contorl sequence. Generally smaller value works better.
+    - *num_path* (Type: int, Lower: 100, Upper: 1000, Default: 200): Number of perturbed control sequence to sample. Generally the more the better and it scales better with vectorized and parallel computation.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
@@ -99,7 +106,6 @@ class MPPI:
         costs is of shape num_path
         eps is of shape H by num_path by dimu
         """
-        num_traj = costs.shape[0]
         S = np.exp(-1 / self.lmda * (costs - np.amin(costs)))
         weight = S / np.sum(S)
         update = np.sum(eps * weight[None, :, None], axis=1)  # so update of shape H by dimu
@@ -108,7 +114,7 @@ class MPPI:
     def do_rollouts(self, cur_state, seed=None):
         # roll the action
         self.act_sequence[:-1] = self.act_sequence[1:]
-        self.act_sequence[-1] = 0
+        self.act_sequence[-1] = self.act_sequence[-2]
         # generate random noises
         # eps = np.random.normal(scale=self.sigma, size=(self.H, self.num_path, self.dim_ctrl))  # horizon by num_path by ctrl_dim
         eps = self.noise_dist.sample((self.num_path, self.H)).transpose((1, 0, 2))
