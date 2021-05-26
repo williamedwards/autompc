@@ -138,7 +138,7 @@ class GPytorchGP(Model):
         print("time5=", (time.time() - start)*1000, "ms")
         return state + dy
 
-    def pred_parallel(self, state, ctrl):
+    def pred_batch(self, state, ctrl):
         """The batch mode"""
         X = np.concatenate([state, ctrl], axis=1)
         Xt = transform_input(self.xu_means, self.xu_std, X)

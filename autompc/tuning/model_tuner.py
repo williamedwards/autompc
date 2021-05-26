@@ -60,10 +60,12 @@ class ModelTuner:
             return model_factory, cfg
 
     def _evaluate(self, cfg_combined):
-        print("Evaluating cfg:")
+        print("Evaluating Cfg:")
         print(cfg_combined)
         model_factory, cfg = self._get_model_cfg(cfg_combined)
-        return self.evaluator(model_factory, cfg)
+        value = self.evaluator(model_factory, cfg)
+        print("Model Score ", value)
+        return value
 
 
 
