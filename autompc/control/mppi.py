@@ -11,7 +11,6 @@ import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 
 from .controller import Controller, ControllerFactory
-from ..task import Task
 
 
 class MultivariateNormal:
@@ -180,7 +179,6 @@ class MPPI:
 
 class MPPICopy(Controller):
     def __init__(self, system, task, model, **kwargs):
-        assert isinstance(task, Task)
         Controller.__init__(self, system, task, model)
         self.n, self.m = system.obs_dim, system.ctrl_dim
         self.seed = kwargs.get('seed', 0)
