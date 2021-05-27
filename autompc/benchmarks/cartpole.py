@@ -5,13 +5,14 @@ import sys
 
 # External library includes
 import numpy as np
-from .. import System
-from ..tasks import Task
-from ..costs import ThresholdCost
+import matplotlib.animation as animation
 
 # Project includes
 from .benchmark import Benchmark
 from ..utils.data_generation import *
+from .. import System
+from ..tasks import Task
+from ..costs import ThresholdCost
 
 def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
     """
@@ -33,7 +34,6 @@ def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
 def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
     return y
-
 
 class CartpoleSwingupBenchmark(Benchmark):
     def __init__(self, data_gen_method="uniform_random"):
@@ -57,6 +57,45 @@ class CartpoleSwingupBenchmark(Benchmark):
 
     def dynamics(self, x, u):
         return dt_cartpole_dynamics(x,u,self.system.dt,g=0.8,m=1,L=1,b=1.0)
+
+    def visualize(self, fig, ax, traj, margin=5.0):
+        ax.plot([-10000, 10000.0], [0.0, 0.0], "k-", lw=1)
+        ax.set_xlim([-10.0, 10.0])
+        ax.set_ylim([-2.0, 2.0])
+        ax.set_aspect("equal")
+        dt = self.system.dt
+
+        line, = ax.plot([0.0, 0.0], [0.0, -1.0], 'o-', lw=2)
+        time_text = ax.text(0.02, 0.85, '', transform=ax.transAxes)
+        ctrl_text = ax.text(0.7, 0.85, '', transform=ax.transAxes)
+
+        def init():
+            line.set_data([0.0, 0.0], [0.0, -1.0])
+            time_text.set_text('')
+            return line, time_text
+
+        nframes = traj.size + 50
+        def animate(i):
+            i %= nframes
+            i = min(i, traj.size-1)
+            if i == 0:
+                ax.set_xlim([-10.0, 10.0])
+            #i = min(i, ts.shape[0])
+            line.set_data([traj[i,"x"], traj[i,"x"]+np.sin(traj[i,"theta"]+np.pi)], 
+                    [0, -np.cos(traj[i,"theta"] + np.pi)])
+            time_text.set_text('t={:.2f}'.format(dt*i))
+            ctrl_text.set_text("u={:.2f}".format(traj[i,"u"]))
+            xmin, xmax = ax.get_xlim()
+            if traj[i, "x"] < xmin:
+                ax.set_xlim([traj[i,"x"] - margin, traj[i,"x"] + 20.0 - margin])
+            if traj[i, "x"] > xmax:
+                ax.set_xlim([traj[i,"x"] - 20.0 + margin, traj[i,"x"] + margin])
+            return line, time_text
+
+        anim = animation.FuncAnimation(fig, animate, frames=6*nframes, interval=dt*1000.0,
+                blit=False, init_func=init)
+
+        return anim
 
     def _gen_trajs(self, n_trajs, traj_len, rng):
         init_min = np.array([-1.0, 0.0, 0.0, 0.0])
