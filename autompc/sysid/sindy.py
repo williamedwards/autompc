@@ -23,6 +23,14 @@ class FourthOrderFiniteDifference(psd.base.BaseDifferentiation):
 
 class SINDyFactory(ModelFactory):
     """
+    Sparse Identification of Nonlinear Dynamics (SINDy) is an system identification approach that works as follows. 
+    Using a library of $k$ pre-selected functions (e.g. $f \in \mathbb{R}^k$), it computes numerically the derivatives
+    of the system states (e.g. $\dot{x} \in \mathbb{R}^n$) iteratively solves a least-squares optimization 
+    to identify the weights $K \in \mathbb{R}^{n \times k}$ that best fit the data: e.g. $\|\dot{x} - Kf(x) \|^2$. 
+    In every iteration, functions whose weights are below a user-specified threshold $\lambda$ are discarded. 
+    For more information, the reader is referred to https://arxiv.org/pdf/2004.08424.pdf
+    
+    
     SINDy Docs :math:`a^2 + b^2 = c^2`.
 
     .. math::
