@@ -5,7 +5,7 @@ AutoMPC can
  * Tune controllers without requiring access to the system
  * Provides a variety of controllers and optimizers
 
-To see AutoMPC in action, check out this [example](examples/0_MainDemo.ipynb).
+To see AutoMPC in action, check out this [example](https://htmlpreview.github.io/?https://github.com/williamedwards/autompc/blob/main/examples/0_MainDemo.html).
 
 ## Installation
 
