@@ -4,24 +4,94 @@ import numpy as np
 from collections import namedtuple
 
 def zeros(system, size):
+    """
+    Create an all zeros trajectory.
+
+    Parameters
+    ----------
+    system : System
+        System for trajectory
+
+    size : int
+        Size of trajectory
+    """
     obs = np.zeros((size, system.obs_dim))
     ctrls = np.zeros((size, system.ctrl_dim))
     return Trajectory(system, size, obs, ctrls)
 
 def empty(system, size):
+    """
+    Create a trajectory with uninitialized states
+    and controls. If not initialized, states/controls
+    will be non-deterministic.
+
+    Parameters
+    ----------
+    system : System
+        System for trajectory
+
+    size : int
+        Size of trajectory
+    """
     obs = np.empty((size, system.obs_dim))
     ctrls = np.empty((size, system.ctrl_dim))
     return Trajectory(system, size, obs, ctrls)
 
 def extend(traj, obs, ctrls):
+    """
+    Create a new trajectory which extends an existing trajectory
+    by one or more timestep.
+
+    Parameters
+    ----------
+    traj : Trajectory
+        Trajectory to extend
+
+    obs : numpy array of shape (N, system.obs_dim)
+        New observations
+
+    ctrls : numpy array of shape (N, system.ctrl_dim)
+        New controls
+    """
     newobs = np.concatenate([traj.obs, obs])
     newctrls = np.concatenate([traj.ctrls, ctrls])
     newtraj = Trajectory(traj.system, newobs.shape[0],
             newobs, newctrls)
     return newtraj
 
+TimeStep = namedtuple("TimeStep", "obs ctrl")
+"""
+TimeStep represents a particular time step of a trajectory
+and is returned by indexing traj[i].
+
+.. py:attribute:: obs
+    Observation. Numpy array of size system.obs_dim
+
+.. py:attribute:: ctrl
+    Control. Numpy array of size system.ctrl_dim
+"""
+
 class Trajectory:
+    """
+    The Trajectory object represents a discrete-time state and control
+    trajectory.
+    """
     def __init__(self, system, size, obs, ctrls):
+        """
+        Parameters
+        ----------
+        system : System
+            The corresponding robot system
+
+        size : int
+            Number of time steps in the trajectrory
+
+        obs : numpy array of shape (size, system.obs_dim)
+            Observations at all timesteps
+
+        ctrls : numpy array of shape (size, system.ctrl_dim)
+            Controls at all timesteps.
+        """
         self._system = system
         self._size = size
 
@@ -62,8 +132,7 @@ class Trajectory:
         else:
             if idx < -self.size or idx >= self.size:
                 raise IndexError("Time index out of range.")
-            return namedtuple("TimeStep", "obs ctrl")(self._obs[idx,:], 
-                    self._ctrls[idx,:])
+            return TimeStep(self._obs[idx,:], self._ctrls[idx,:])
 
     def __setitem__(self, idx, val):
         if isinstance(idx, tuple):
@@ -88,14 +157,24 @@ class Trajectory:
 
     @property
     def system(self):
+        """
+        Get trajectory System object.
+        """
         return self._system
 
     @property
     def size(self):
+        """
+        Number of time steps in trajectory
+        """
         return self._size
 
     @property
     def obs(self):
+        """
+        Get trajectory observations as a numpy array of
+        shape (size, self.system.obs_dim)
+        """
         return self._obs
 
     @obs.setter
@@ -106,6 +185,10 @@ class Trajectory:
 
     @property
     def ctrls(self):
+        """
+        Get trajectory controls as a numpy array of
+        shape (size, self.system.ctrl_dim)
+        """
         return self._ctrls
 
     @ctrls.setter

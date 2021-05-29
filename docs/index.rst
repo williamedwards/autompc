@@ -11,6 +11,7 @@ Contents:
 .. toctree::
    :maxdepth: 3
 
+   source/core
    source/sysid
    source/control
    source/tasks

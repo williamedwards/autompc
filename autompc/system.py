@@ -1,7 +1,21 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 class System:
+    """
+    The System object defines a robot system, including the size of the
+    control and observation dimensions and the labels for each control
+    and observation variable.
+    """
     def __init__(self, observations, controls):
+        """
+        Parameters
+        ----------
+        observations : List of strings
+            Name of each observation dimension
+
+        controls : List of strings
+            Name of each control dimension
+        """
         # Check inputs
         obs_set = set(observations)
         ctrl_set = set(controls)
@@ -22,16 +36,28 @@ class System:
 
     @property
     def controls(self):
+        """
+        Names of each control dimension
+        """
         return self._controls[:]
 
     @property
     def observations(self):
+        """
+        Names of each observation dimension
+        """
         return self._observations[:]
 
     @property
     def ctrl_dim(self):
+        """
+        Size of control dimensions
+        """
         return len(self._controls)
 
     @property
     def obs_dim(self):
+        """
+        Size of observation dimensions
+        """
         return len(self._observations)
