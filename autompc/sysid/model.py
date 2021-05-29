@@ -6,7 +6,17 @@ from abc import ABC, abstractmethod
 from pdb import set_trace
 
 class ModelFactory(ABC):
+    """
+    The ModelFactory creates and trains a System ID model and provides
+    information about the model hyperparameters.
+    """
     def __init__(self, system, **kwargs):
+        """
+        Parameters
+        ----------
+            system : System
+                System for which system ID model will be produced.
+        """
         self.system = system
         self.kwargs = kwargs
 
@@ -14,6 +24,15 @@ class ModelFactory(ABC):
         """
         Returns a model trained for the given 
         system and configuration.
+
+        Parameters
+        ----------
+            cfg : Configuration
+                Configuration of model hyperparameters
+            train_trajs : List of Trajectory objects
+                Model training data set
+            silent : bool
+                Whether to produce output during training
         """
         model_args = cfg.get_dictionary()
         model_args.update(self.kwargs)
@@ -24,7 +43,7 @@ class ModelFactory(ABC):
         return model
 
     @abstractmethod
-    def get_configuration_space():
+    def get_configuration_space(self):
         """
         Returns the model configuration space.
         """
@@ -69,20 +88,37 @@ class Model(ABC):
     @abstractmethod
     def pred(self, state, ctrl):
         """
+        Run model prediction.
+
         Parameters
         ----------
             state : Numpy array of size self.state_dim
-                Model state
+                Model state at time t
             ctrl : Numpy array of size self.system.ctrl_dim
-                Control to be applied
+                Control applied at time t
         Returns
         -------
             state : Numpy array of size self.state_dim
-                New predicted model state
+                Predicted model state at time t+1
         """
         raise NotImplementedError
 
     def pred_batch(self, states, ctrls):
+        """
+        Run batch model predictions.  Depending on the model, this can
+        be much faster than repeatedly calling pred.
+
+        Parameters
+        ----------
+            state : Numpy array of size (N, self.state_dim)
+                N model input states
+            ctrl : Numpy array of size (N, self.system.ctrl_dim)
+                N controls
+        Returns
+        -------
+            state : Numpy array of size (N, self.state_dim)
+                N predicted states
+        """
         n = self.system.obs_dim
         m = states.shape[0]
         out = np.empty((m, n))
@@ -90,7 +126,50 @@ class Model(ABC):
             out[i,:] = self.pred(states[i,:], ctrls[i,:])
         return out
 
+    def pred_diff(self, state, ctrl):
+        """
+        Run model prediction and compute gradients.
+
+        Parameters
+        ----------
+            state : Numpy array of size self.state_dim
+                Model state at time t
+            ctrl : Numpy array of size self.system.ctrl_dim
+                Control at time t
+        Returns
+        -------
+            state : Numpy array of size self.state_dim
+                Predicted model state at time t+1
+            state_jac : Numpy  array of shape (self.state_dim, 
+                        self.state_dim)
+                Gradient of predicted model state wrt to state
+            ctrl_jac : Numpy  array of shape (self.state_dim, 
+                       self.ctrl_dim)
+                Gradient of predicted model state wrt to ctrl
+        """
+        raise NotImplementedError
+
     def pred_diff_batch(self, states, ctrls):
+        """
+        Run model prediction and compute gradients in batch.
+
+        Parameters
+        ----------
+            state : Numpy array of shape (N, self.state_dim)
+                N input model states
+            ctrl : Numpy array of size (N, self.system.ctrl_dim)
+                N input controls
+        Returns
+        -------
+            state : Numpy array of size (N, self.state_dim)
+                N predicted model states
+            state_jac : Numpy  array of shape (N, self.state_dim, 
+                        self.state_dim)
+                Gradient of predicted model states wrt to state
+            ctrl_jac : Numpy  array of shape (N, self.state_dim, 
+                       self.ctrl_dim)
+                Gradient of predicted model states wrt to ctrl
+        """
         n = self.system.obs_dim
         m = states.shape[0]
         out = np.empty((m, n))
@@ -101,26 +180,6 @@ class Model(ABC):
                 self.pred_diff(states[i,:], ctrls[i,:])
         return out, state_jacs, ctrl_jacs
 
-    def pred_diff(self, state, ctrl):
-        """
-        Parameters
-        ----------
-            state : Numpy array of size self.state_dim
-                Model state
-            ctrl : Numpy array of size self.system.ctrl_dim
-                Control to be applied
-        Returns
-        -------
-            state : Numpy array of size self.state_dim
-                New predicted model state
-            state_jac : Numpy  array of shape (self.state_dim, 
-                self.state_dim).
-                Gradient of predicted model state wrt to state
-            ctrl_jac : Numpy  array of shape (self.state_dim, 
-                self.ctrl_dim).
-                Gradient of predicted model state wrt to ctrl
-        """
-        raise NotImplementedError
 
     def to_linear(self):
         """

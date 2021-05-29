@@ -8,7 +8,7 @@ from pdb import set_trace
 from .utils.cs_utils import *
 from .sysid.model import ModelFactory, Model
 from .control.controller import Controller, ControllerFactory
-from .costs.cost import BaseCost
+from .costs.cost import Cost
 from .costs.cost_factory import CostFactory
 
 # External library includes
@@ -48,7 +48,7 @@ class Pipeline:
                     raise ValueError("Pipeline cannot contain multple controllers or "
                             + "controller factories.")
                 self.controller_factory = component
-            if isinstance(component, BaseCost):
+            if isinstance(component, Cost):
                 if self.cost or self.cost_factory:
                     raise ValueError("Pipeline cannot contain multple costs or "
                             + "cost factories.")

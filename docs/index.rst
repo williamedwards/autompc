@@ -13,13 +13,16 @@ Contents:
 
    source/sysid
    source/control
+   source/tasks
+   source/costs
+   source/evaluation
 
 
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :doc:`source/modules`
-* :ref:`search`
+..
+   Indices and tables
+   ==================
+   
+   * :ref:`genindex`
+   * :doc:`source/modules`
+   * :ref:`search`
 

@@ -4,8 +4,27 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from .model_metrics import get_model_rmse
 
-class Evaluator(ABC):
+class ModelEvaluator(ABC):
+    """
+    The ModelEvaluator class evaluates models by prediction accuracy.
+    """
     def __init__(self, system, trajs, metric, rng, horizon=1):
+        """
+        Parameters
+        ----------
+        system : System
+            System for which prediction accuracy is evaluated
+        trajs : List of Trajectory
+            Trajectories to be used for evaluation
+        metric : string or function (model, [Trajectory] -> float)
+            Metric which evaluates the model against a set of trajectories.
+            If string, one of "rmse", "rmsmens". See `model_metrics` for
+            more details.
+        rng : np.random.Generator
+            Random number generator used in evaluation 
+        horizon : int
+            Prediction horizon used in certain metrics. Default is 1.
+        """
         self.system = system
         self.trajs = trajs
         self.rng = rng
@@ -17,9 +36,22 @@ class Evaluator(ABC):
             self.metric = metric
 
     @abstractmethod
-    def __call__(self, model, configuration):
+    def __call__(self, model_factory, configuration):
         """
         Accepts the model class and the configuration.
+
+        Parameters
+        ----------
+        model_factory : ModelFactory
+            Model factory evaluate
+
+        configuration : Configuration
+            Hyperparameter configuration used to
+            instantiate model
+
         Returns
+        -------
+        score : float
+            Evaluated score.
         """
         raise NotImplementedError

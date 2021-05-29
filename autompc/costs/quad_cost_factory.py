@@ -11,6 +11,26 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 class QuadCostFactory(CostFactory):
+    """
+    Factory to produce quadratic cost.  This cost has the form
+
+    .. math::
+
+        x_N^T F x_N  + \\sum_{t=0}^{N} (x_t^T Q x_t + u_t^T R u_t)
+
+    Parameters:
+     - *goal* (numpy array of size system.obs_dim): Goal state. Default is
+        0 state.
+
+    Hyperparameters:
+
+     - * **x**_Q* (float, Lower: 10^-3, Upper: 10^4): Digaonal Q matrix value
+        corresponding to observation dimension with label **x**
+     - * **x**_R* (float, Lower: 10^-3, Upper: 10^4): Digaonal R matrix value
+        corresponding to control dimension with label **x**
+     - * **x**_F* (float, Lower: 10^-3, Upper: 10^4): Digaonal F matrix value
+        corresponding to ovservation dimension with label **x**
+    """
     def __init__(self, system, goal=None):
         super().__init__(system)
         if goal is None:

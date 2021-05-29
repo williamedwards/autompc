@@ -3,10 +3,16 @@
 import numpy as np
 import numpy.linalg as la
 
-from .cost import BaseCost
+from .cost import Cost
 
-class ThresholdCost(BaseCost):
+class ThresholdCost(Cost):
     def __init__(self, system, goal, obs_range, threshold):
+        """
+        Create threshold cost. Returns 1 for every time steps
+        where :math:`||x - x_\\textrm{goal}||_\\infty > \\textrm{threshold}`.
+        The check is performed only over the observation dimensions from
+        obs_range[0] to obs_range[1].
+        """
         super().__init__(system)
         self._goal = np.copy(goal)
         self._threshold = np.copy(threshold)
@@ -31,8 +37,25 @@ class ThresholdCost(BaseCost):
     def eval_term_obs_cost(self, obs):
         return 0.0
 
-class BoxThresholdCost(BaseCost):
-    def __init__(self, system, limits):
+class BoxThresholdCost(Cost):
+    def __init__(self, system, limits, goal=None):
+        """
+        Create Box threshold cost. Returns 1 for every time steps
+        where observation is outisde of limits.
+
+        Paramters
+        ---------
+        system : System
+            System cost is computed for
+
+        limits : numpy array of shape (system.obs_dim, 2)
+            Upper and lower limits.  Use +np.inf or -np.inf
+            to allow certain dimensions unbounded.
+
+        goal : numpy array of size system.obs_dim
+            Goal state.  Not used directly for computing cost, but
+            may be used by downstream cost factories.
+        """
         super().__init__(system)
         self._limits = np.copy(limits)
 
@@ -40,7 +63,12 @@ class BoxThresholdCost(BaseCost):
         self._is_convex = False
         self._is_diff = False
         self._is_twice_diff = False
-        self._has_goal = True
+
+        if goal is None:
+            self._has_goal = False
+        else:
+            self._goal = np.copy(goal)
+            self._has_goal = True
 
     def eval_obs_cost(self, obs):
         if (obs < self._limits[:,0]).any() or (obs > self._limits[:,1]).any():

@@ -12,6 +12,15 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 class GaussRegFactory(CostFactory):
+    """
+    Cost factory for Gaussian regularization cost. This cost encourages the controller
+    to stick close to the distribution of the training set, and is typically used in
+    combination with another cost function. The factory returns a quadratic cost
+    with :math:`Q= w \\Sigma_x^{-1}` and goal = :math:`\mu_x`.
+
+    Hyperparameters:
+     - *reg_weight* (float, Lower: 10^-3, Upper: 10^4): Weight of regularization term.
+    """
     def __init__(self):
         pass
 

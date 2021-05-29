@@ -280,6 +280,8 @@ texinfo_documents = [
 # Matmul Fix
 highlight_language="python3"
 
+autodoc_member_order = 'bysource'
+
 # Documents to append as an appendix to all manuals.
 #texinfo_appendices = []
 

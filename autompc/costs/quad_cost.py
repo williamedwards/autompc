@@ -2,10 +2,30 @@
 
 import numpy as np
 
-from .cost import BaseCost
+from .cost import Cost
 
-class QuadCost(BaseCost):
+class QuadCost(Cost):
     def __init__(self, system, Q, R, F=None, goal=None):
+        """
+        Create quadratic cost.
+
+        Parameters
+        ----------
+        system : System
+            System for cost
+
+        Q : numpy array of shape (self.obs_dim, self.obs_dim)
+            Observation cost matrix
+
+        R : numpy array of shape (self.ctrl_dim, self.ctrl_dim)
+            Control cost matrix
+
+        F : numpy array of shape (self.ctrl_dim, self.ctrl_dim)
+            Terminal observation cost matrix
+
+        goal : numpy array of shape self.obs_dim
+            Goal state. Default is zero state
+        """
         super().__init__(system)
         if Q.shape != (system.obs_dim, system.obs_dim):
             raise ValueError("Q is the wrong shape")

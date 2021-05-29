@@ -9,6 +9,39 @@ def normalize(means, std, A):
         At.append((A[:,i] - means[i]) / std[i])
     return np.vstack(At).T
 
+def get_model_rmse(model, trajs, horizon=1):
+    """
+    Computes (unnormalized) RMSE at fixed horizon
+
+    Parameters
+    ----------
+    model : Model
+        Model class to consider
+
+    trajs : List of Trajectories
+        Trajectories on which to evaluate
+
+    horizon : int
+        Prediction horizon at which to evaluate.
+        Default is 1.
+    """
+    sqerrss = []
+    for traj in trajs:
+        if hasattr(model, "traj_to_states"):
+            state = model.traj_to_states(traj[:-horizon])
+        else:
+            state = traj.obs[:-horizon, :]
+        for k in range(horizon):
+            state = model.pred_batch(state, traj.ctrls[k:-(horizon-k), :])
+        if hasattr(model, "traj_to_states"):
+            state = state[:,:model.system.obs_dim]
+        actual = traj.obs[horizon:]
+        sqerrs = (state - actual) ** 2
+        sqerrss.append(sqerrs)
+    sqerrs = np.concatenate(sqerrss)
+    rmse = np.sqrt(np.mean(sqerrs, axis=None)*trajs[0].system.obs_dim)
+    return rmse
+
 def get_normalized_model_rmse(model, trajs, horiz=1):
     dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
     dy_means = np.mean(dY, axis=0)
@@ -28,24 +61,6 @@ def get_normalized_model_rmse(model, trajs, horiz=1):
         sqerrss.append(sqerrs)
     sqerrs = np.concatenate(sqerrss)
     rmse = np.sqrt(np.mean(sqerrs, axis=None))
-    return rmse
-
-def get_model_rmse(model, trajs, horizon=1):
-    sqerrss = []
-    for traj in trajs:
-        if hasattr(model, "traj_to_states"):
-            state = model.traj_to_states(traj[:-horizon])
-        else:
-            state = traj.obs[:-horizon, :]
-        for k in range(horizon):
-            state = model.pred_batch(state, traj.ctrls[k:-(horizon-k), :])
-        if hasattr(model, "traj_to_states"):
-            state = state[:,:model.system.obs_dim]
-        actual = traj.obs[horizon:]
-        sqerrs = (state - actual) ** 2
-        sqerrss.append(sqerrs)
-    sqerrs = np.concatenate(sqerrss)
-    rmse = np.sqrt(np.mean(sqerrs, axis=None)*trajs[0].system.obs_dim)
     return rmse
 
 def get_model_metric_rmse(model, trajs, perf_metric):

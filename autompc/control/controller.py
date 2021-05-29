@@ -4,13 +4,28 @@ from abc import ABC, abstractmethod
 from pdb import set_trace
 
 class ControllerFactory(ABC):
+    """
+    The ControllerFactroy creates a controller based
+    on a hyperparameter configuration.
+    """
     def __init__(self, system, **kwargs):
         self.system = system
         self.kwargs = kwargs
 
     def __call__(self, cfg, task, model):
         """
-        Returns initialized controller
+        Returns initialized controller.
+
+        Parameters
+        ----------
+        cfg : Configuration
+            Hyperparameter configuration for the controller
+
+        task : Task
+            Task which controller will solve
+
+        model : Model
+            System ID model to use for optimization
         """
         controller_kwargs = cfg.get_dictionary()
         controller_kwargs.update(self.kwargs)
@@ -19,12 +34,26 @@ class ControllerFactory(ABC):
 
     def get_configuration_space(self):
         """
-        Returns the controller ConfigurationSpace
+        Returns the controller ConfigurationSpace.
         """
         raise NotImplementedError
 
 class Controller(ABC):
     def __init__(self, system, task, model):
+        """
+        Initialize the controller.
+
+        Parameters
+        ----------
+        system : System
+            Robot system to control
+
+        task : Task
+            Task which controller will solve
+
+        model : Model
+            System ID model to use for optimization
+        """
         self.system = system
         self.model = model
         self.task = task
@@ -39,32 +68,17 @@ class Controller(ABC):
         Returns
         -------
             state : numpy array of size self.state_dim
-               Corresponding controller state
+               Corresponding controller state.  This is frequently,
+               but not always, equal to the underlying systme ID
+               model state.
         """
         raise NotImplementedError
-
-    #@abstractmethod
-    #def update_state(self, state, new_ctrl, new_obs):
-    #    """
-    #    Parameters
-    #    ----------
-    #        state : numpy array of size self.state_dim
-    #            Current controller state
-    #        new_ctrl : numpy array of size self.system.ctrl_dim
-    #            New control input
-    #        new_obs : numpy array of size self.system.obs_dim
-    #            New observation
-    #    Returns
-    #    -------
-    #        state : numpy array of size self.state_dim
-    #            Model state after observation and control
-    #    """
-    #    raise NotImplementedError
-
 
     @abstractmethod
     def run(self, state, new_obs):
         """
+        Run the controller for a given time step
+
         Parameters
         ----------
             state : numpy array of size self.state_dim
@@ -73,25 +87,27 @@ class Controller(ABC):
                 Current observation state.
         Returns
         -------
-            ctrl : Next control input
+            ctrl : numpy array of size self.system.ctrl_dim
+                Next control input
             newstate : numpy array of size self.state_dim
+                New controller state
         """
         raise NotImplementedError
     
-    @staticmethod
-    @abstractmethod
-    def is_compatible(system, task, model):
-        """
-        Returns true if the controller is compatible with
-        the given system, model, and task. Returns false
-        otherwise.
-        """
-        raise NotImplementedError
+    # @staticmethod
+    # @abstractmethod
+    # def is_compatible(system, task, model):
+    #     """
+    #     Returns true if the controller is compatible with
+    #     the given system, model, and task. Returns false
+    #     otherwise.
+    #     """
+    #     raise NotImplementedError
 
     @property
     @abstractmethod
     def state_dim(self):
         """
-        Returns the size of the model state.
+        Returns the size of the controller state.
         """
         raise NotImplementedError

@@ -610,6 +610,5 @@ class IterativeLQR(Controller):
         u = u0 + k0 @ (state - x0)
         if not silent:
             print('inside ilqr u0 = ', u0, 'u = ', u)
-        #set_trace()
         self._step_count += 1
         return u, None

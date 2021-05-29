@@ -1,8 +1,5 @@
 from collections import Iterable
 from .controller import Controller, ControllerFactory
-from ..constraint import Constraint
-from ..hyper import IntRangeHyperparam
-from ..cost import Cost
 from pdb import set_trace
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH

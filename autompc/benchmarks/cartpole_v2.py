@@ -12,7 +12,7 @@ from .benchmark import Benchmark
 from ..utils.data_generation import *
 from .. import System
 from ..tasks import Task
-from ..costs import ThresholdCost
+from ..costs import BoxThresholdCost
 
 def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
     """
@@ -35,13 +35,14 @@ def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
     return y
 
-class CartpoleSwingupBenchmark(Benchmark):
+class CartpoleSwingupV2Benchmark(Benchmark):
     def __init__(self, data_gen_method="uniform_random"):
         name = "cartpole_swingup"
         system = ampc.System(["theta", "omega", "x", "dx"], ["u"])
         system.dt = 0.05
 
-        cost = ThresholdCost(system, goal=np.zeros(4), threshold=0.2, obs_range=(0,3))
+        limits = np.array([[-0.2, 0.2], [-0.2, 0.2], [-10.0, 10.0], [-np.inf, np.inf]])
+        cost = BoxThresholdCost(system, limits, goal=np.zeros(4)) 
         task = Task(system)
         task.set_cost(cost)
         task.set_ctrl_bound("u", -20.0, 20.0)
@@ -56,7 +57,7 @@ class CartpoleSwingupBenchmark(Benchmark):
                 traj=traj)
 
     def dynamics(self, x, u):
-        return dt_cartpole_dynamics(x,u,self.system.dt,g=9.8,m=1,L=1,b=1.0)
+        return dt_cartpole_dynamics(x,u,self.system.dt,g=0.8,m=1,L=1,b=1.0)
 
     def visualize(self, fig, ax, traj, margin=5.0):
         ax.plot([-10000, 10000.0], [0.0, 0.0], "k-", lw=1)

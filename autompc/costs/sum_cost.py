@@ -4,10 +4,22 @@ from collections.abc import Iterable
 
 import numpy as np
 
-from .cost import BaseCost
+from .cost import Cost
 
-class SumCost(BaseCost):
+class SumCost(Cost):
     def __init__(self, system, costs):
+        """
+        A cost which is the sum of other cost terms. It can be created by combining
+        other Cost objects with the `+` operator
+
+        Parameters
+        ----------
+        system : System
+            System for the cost object.
+
+        costs : List of Costs
+            Cost objects to be summed.
+        """
         super().__init__(system)
         self._costs = costs
 

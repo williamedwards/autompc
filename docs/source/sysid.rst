@@ -4,15 +4,18 @@ sysid package
 SysID Base Classes 
 ------------------
  
-The Model Class
-^^^^^^^^^^^^^^^
-
-.. autoclass:: autompc.sysid.model.Model
-
 The ModelFactory Class
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: autompc.sysid.model.ModelFactory
+   :members:
+
+The Model Class
+^^^^^^^^^^^^^^^
+
+.. autoclass:: autompc.sysid.model.Model
+   :members:
+
 
 Supported System ID Models
 --------------------------

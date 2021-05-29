@@ -6,7 +6,7 @@ from pdb import set_trace
 # Internal library includes
 from .cost_factory import CostFactory
 from .sum_cost import SumCost
-from ..cs_utils import *
+from ..utils.cs_utils import *
 from . import QuadCost
 
 # External library includes
@@ -16,6 +16,10 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 class SumCostFactory(CostFactory):
+    """
+    A factory which produces sums of other cost terms. A SumCostFactory
+    can be crated by combining other costfactories with the `+` operator.
+    """
     def __init__(self, factories):
         self._factories = factories[:]
 

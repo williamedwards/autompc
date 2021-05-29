@@ -4,15 +4,18 @@ control package
 Control Base Classes 
 --------------------
  
-The Controller Class
-^^^^^^^^^^^^^^^^^^^^
-
-.. autoclass:: autompc.control.controller.Controller
-
 The ControllerFactory Class
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: autompc.control.controller.ControllerFactory
+   :members: __call__, get_configuration_space
+
+The Controller Class
+^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: autompc.control.controller.Controller
+   :members:
+
 
 Supported Controllers
 ---------------------
