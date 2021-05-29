@@ -19,14 +19,92 @@ from smac.facade.smac_hpo_facade import SMAC4HPO
 PipelineTuneResult = namedtuple("PipelineTuneResult", ["inc_cfg", "cfgs", 
     "inc_cfgs", "costs", "inc_costs", "truedyn_costs", "inc_truedyn_costs", 
     "surr_trajs", "truedyn_trajs", "surr_tune_result"])
+"""
+PipelineTuneREsult contains information about a tuning process.
+
+.. py:attribute:: inc_cfg
+    
+    The final tuned configuration.
+
+.. py:attribute:: cfgs
+
+    List of configurations. The configuration evaluated at each
+    tuning iteration.
+
+.. py:attribute:: inc_cfgs
+
+    The incumbent (best found so far) configuration at each
+    tuning iteration.
+
+.. py:attribute:: costs
+
+    The cost observed at each iteration of
+    tuning iteration.
+
+.. py:attribute:: inc_costs
+
+    The incumbent score at each tuning iteration.
+
+.. py:attribute:: truedyn_costs
+
+    The true dynamics cost observed at each iteration of
+    tuning iteration. None if true dynamics was not provided.
+
+.. py:attribute:: inc_truedyn_costs
+
+    The incumbent true dynamics cost observed at each iteration of
+    tuning iteration. None if true dynamics was not provided.
+
+.. py:attribute:: surr_trajs
+
+    The trajectory simulated at each tuning iteration with respect to the
+    surrogate model.
+
+.. py:attribute:: truedyn_trajs
+
+    The trajectory simulated at each tuning iteration with respect to the
+    true dynamics. None if true dynamics are not provided.
+
+.. py:attribute:: surr_tune_result
+
+    The ModelTuneResult from tuning the surrogate model, for modes "autotune"
+    and "autoselect".  None for other tuning modes.
+
+"""
 
 autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
         ARXFactory, KoopmanFactory]
-#autoselect_factories = [ARXFactory, KoopmanFactory]
 
 class PipelineTuner:
+    """
+    This class tunes SysID+MPC pipelines.
+    """
     def __init__(self, surrogate_mode="defaultcfg", surrogate_factory=None, surrogate_split=None, surrogate_cfg=None,
             surrogate_evaluator=None, surrogate_tune_holdout=0.25, surrogate_tune_metric="rmse"):
+        """
+        Parameters
+        ----------
+        surrogate_mode : string
+            Mode for selecting surrogate model. One of the following: "defaultcfg" - use the surrogate factories
+            default configuration, "fixedcfg" - use the surrogate configuration passed by surrogate_cfg,
+            "autotune" - automatically tune hyperparameters of surrogate, "autoselect" - automatically tune and
+            select surrogate model, "pretrain" - Use an already trained surrogate which is passed when the tuning
+            process is run.
+        surrogate_factory : ModelFactory
+            Factory for creating surrogate model. Required for all modes except for autoselect.
+        surrogate_split : float
+            Proportion of data to use for surrogate training.  Required for all modes except "pretrain"
+        surrogate_cfg : Configuration
+            Surrogate model config, required for "fixedcfg" mode
+        surrogate_evaluator : ModelEvaluator
+            Evaluator to use for surrogate tuning, used for "autoselect" and "autotune" modes. If not
+            passed, will use HoldoutEvaluator with default arguments.
+        surrogate_tune_holdout : float
+            Proportion of data to hold out for surrogate tuning. Used for "autotune" and "autoselect" modes.
+        surrogate_tune_metric : string
+            Model metric to use for surrogate tuning.  Used for "autotune" and "autoselect" modes. See documentation
+            of ModelEvaluator for more details.
+        """
         self.surrogate_mode = surrogate_mode
         self.surrogate_factory = surrogate_factory
         self.surrogate_split = surrogate_split
@@ -35,7 +113,7 @@ class PipelineTuner:
         self.surrogate_tune_holdout = surrogate_tune_holdout
         self.surrogate_tune_metric = surrogate_tune_metric
 
-    def get_surrogate(self, pipeline, trajs, rng, surrogate_tune_iters):
+    def _get_surrogate(self, pipeline, trajs, rng, surrogate_tune_iters):
         surrogate_tune_result = None
         if self.surrogate_mode == "defaultcfg":
             surrogate_cs = self.surrogate_factory.get_configuration_space()
@@ -72,6 +150,46 @@ class PipelineTuner:
 
     def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
             surrogate_tune_iters=100, special_debug=False):
+        """
+        Run tuning.
+
+        Parameters
+        ----------
+        pipeline : Pipeline
+            Pipeline to tune.
+
+        task : Task
+            Task specification to tune for
+
+        trajs : List of Trajectory
+            Trajectory training set.
+
+        n_iters : int
+            Number of tuning iterations
+
+        rng : numpy.random.Generator
+            RNG to use for tuning.
+
+        surrogate : Model
+            Surrogate model to use for tuning. Used for "pretrain" mode.
+
+        truedyn : obs, ctrl -> obs
+            True dynamics function. If passed, the true dynamics cost
+            will be evaluated for each iteration in addition to the surrogate
+            cost. However, this information will not be used for tuning.
+
+        surrogate_tune_iters : int
+            Number of iterations to use for surrogate tuning. Used for "autotune"
+            and "autoselect" modes. Default is 100
+
+        Returns
+        -------
+        controller : Controller
+            Final tuned controller.
+
+        tune_result : PipelineTuneResult
+            Additional tuning information.
+        """
         # Run surrogate training
         if surrogate is None:
             surr_size = int(self.surrogate_split * len(trajs))

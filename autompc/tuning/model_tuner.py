@@ -36,14 +36,67 @@ from pdb import set_trace
 
 ModelTuneResult = namedtuple("ModelTuneResult", ["inc_cfg", "cfgs", 
     "inc_cfgs", "costs", "inc_costs"])
+"""
+The ModelTuneResult contains information about a tuning process.
+
+.. py:attribute:: inc_cfg
+    
+    The final tuned configuration.
+
+.. py:attribute:: cfgs
+
+    List of configurations. The configuration evaluated at each
+    tuning iteration.
+
+.. py:attribute:: costs
+
+    The cost (evaluation score) observed at each iteration of
+    tuning iteration.
+
+.. py:attribute:: inc_cfgs
+
+    The incumbent (best found so far) configuration at each
+    tuning iteration.
+
+.. py:attribute:: inc_costs
+
+    The incumbent score at each tuning iteration.
+"""
 
 class ModelTuner:
+    """
+    The ModelTuner class is used for tuning system ID models based
+    on prediction accuracy.
+    """
     def __init__(self, system, evaluator):
+        """
+        Parameters
+        ----------
+        system : System
+            System for which models will be tuned
+        evaluator : ModelEvaluator
+            This evaluator object will be used to asses model
+            configurations
+        """
         self.system = system
         self.evaluator = evaluator
         self.model_factories = []
 
     def add_model_factory(self, model_factory, cs=None):
+        """
+        Add a model factory which is an option for tuning.
+        Multiple model factories can be added and the tuner
+        will select between them.
+
+        Parameters
+        ----------
+        model_factory : ModelFactory
+
+        cs : ConfigurationSpace
+            Configuration space for model factory. This only needs to be
+            passed if the configuration space is customized, otherwise
+            it will be derived from the model_factory.
+        """
         if cs is None:
             cs = model_factory.get_configuration_space()
         self.model_factories.append((model_factory, cs))
@@ -69,7 +122,26 @@ class ModelTuner:
 
 
 
-    def run(self, rng, n_iters=10, n_jobs = 1): 
+    def run(self, rng, n_iters=10): 
+        """
+        Run tuning process
+
+        Parameters
+        ----------
+        rng : numpy.random.Generator
+            Random number generator used for tuning
+
+        n_iters : int
+            Number of tuning iterations to run
+
+        Returns
+        -------
+        model : Model
+            Resulting model
+
+        tune_result : ModelTuneResult
+            Additional information from tuning process
+        """
         # Construct configuration space
         cs_combined = CS.ConfigurationSpace()
 
@@ -92,7 +164,7 @@ class ModelTuner:
                              })
 
         smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                tae_runner=self._evaluate, n_jobs=n_jobs)
+                tae_runner=self._evaluate)
 
         incumbent = smac.optimize()
 
