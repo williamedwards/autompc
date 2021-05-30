@@ -3,6 +3,8 @@
 
 2. Models
 
-3. Controllers
+3. [Controllers and Tasks](3_Controllers_and_Tasks.ipynb)
  
 4. [Pipelines](4_pipeline.ipynb)
+
+5. [Tuning](5_Tuning.ipynb)
