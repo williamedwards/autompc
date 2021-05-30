@@ -103,7 +103,7 @@ class SINDyFactory(ModelFactory):
         return cs
 
 class SINDy(Model):
-    def __init__(self, system, method, lasso_alpha=None, threshold=-2, poly_basis=False,
+    def __init__(self, system, method, lasso_alpha=None, threshold=1e-2, poly_basis=False,
             poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1, trig_interaction=False, time_mode="discrete"):
         super().__init__(system)
 
