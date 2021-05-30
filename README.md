@@ -12,8 +12,9 @@ To see AutoMPC in action, check out this [example](https://htmlpreview.github.io
  1. Clone the repository
  2. Install [PyTorch](https://pytorch.org/get-started/locally/)
  3. (Optional) For certain benchmarks to work, install OpenAI [gym](https://gym.openai.com/) and [Mujoco](http://www.mujoco.org/)
- 4. Run `pip install -r requirements.txt`
- 5. Run `pip install -e .`
+ 4. (Optional) To use DirectTranscriptionController, install IPOPT solver and cyipopt binding. See [instructions](https://cyipopt.readthedocs.io/en/latest/install.html)
+ 5. Run `pip install -r requirements.txt`
+ 6. Run `pip install -e .`
 
 ## Examples
 [Examples](examples/readme.md)
