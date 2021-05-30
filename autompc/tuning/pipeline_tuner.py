@@ -198,7 +198,7 @@ class PipelineTuner:
             surr_trajs = shuffled_trajs[:surr_size]
             sysid_trajs = shuffled_trajs[surr_size:]
 
-            surrogate, surr_tune_result = self.get_surrogate(pipeline, surr_trajs, rng, surrogate_tune_iters)
+            surrogate, surr_tune_result = self._get_surrogate(pipeline, surr_trajs, rng, surrogate_tune_iters)
         else:
             sysid_trajs = trajs
             surr_tune_result = None
