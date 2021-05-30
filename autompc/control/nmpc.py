@@ -4,11 +4,8 @@ from pdb import set_trace
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 
-import cvxpy as cp
+import cyipopt
 import numpy as np
-
-from pyoptsolver import OptProblem, OptConfig, OptSolver
-
 
 class TrajOptProblem(object):
     """Just a general interface for nonlinear optimization problems.
@@ -37,55 +34,10 @@ class TrajOptProblem(object):
         """This function computes the Jacobian at current solution x, if return_rowcol is True, it has to return row and col, too."""
         raise NotImplementedError("Sub-class has to implement get_jacobian function.")
 
-
-class BoundedConstraint(object):
-    """This class implements constraints that is like lb <= c <= ub"""
-    def __init__(self, dim, lb, ub):
-        self.dim = dim
-        self.lb = lb
-        self.ub = ub
-
-    def eval(self, xs, ret_grad=False):
-        raise NotImplementedError('Subclass has to implement eval function')
-
-
-class PathConstraint(BoundedConstraint):
-    def __init__(self, dim, lb, ub):
-        BoundedConstraint.__init__(self, dim, lb, ub)
-
-    def eval(self, x, u, ret_grad=False):
-        """For path constraint, both x and u are provided. For terminal, u is None and ret_grad returns one jacobian only"""
-        raise NotImplementedError("Subclass has to implement eval function.")
-
-
-class ConstrContainer(object):
-    """This container include information of constraints.
-    Basically, the user can insert various types of constraint into this container.
-    During insertion, they have to specify which point this constraint is evaluated.
-    """
-    def __init__(self):
-        self.terminal_constrs = []
-        self.point_constrs = []
-
-    def add_terminal(self, constr):
-        self.terminal_constrs.append(constr)
-    
-    def add_point(self, index, constr):
-        assert index >= 0
-        self.point_constrs.append((index, constr))
-
-    def compute_dim(self, horizon):
-        """Compute dimension of all constraints, it depends on horizon"""
-        dim1 = sum([tc.dim for tc in self.terminal_constrs])
-        dim2 = sum([pc.dim * (horizon if index is None else 1) for index, pc in self.point_constrs])
-        return dim1 + dim2
-
-
 class NonLinearMPCProblem(TrajOptProblem):
     """Just write the NonLinear MPC problem in the OptProblem style.
     """
     def __init__(self, system, model, task, horizon):
-        assert task.get_cost().is_diff()
         self.system = system
         self.task = task
         self.model = model
@@ -95,10 +47,8 @@ class NonLinearMPCProblem(TrajOptProblem):
         self.ctrl_dim = dc
         self.obs_dim = ds
         # now I can get the size of the problem
-        eq_cons = task.get_eq_constraints()
-        ineq_cons = task.get_eq_constraints()
         nx = ds * (horizon + 1) + dc * horizon  # x0 to xN, u0 to u_{N-1}
-        nf = horizon * (eq_cons.dim + ineq_cons.dim) + horizon * ds  # for dynamics and other constraints
+        nf = horizon * ds  # for dynamics and other constraints
         TrajOptProblem.__init__(self, nx, nf)
         self._create_cache()
 
@@ -158,35 +108,11 @@ class NonLinearMPCProblem(TrajOptProblem):
         pred_states = self.model.pred_parallel(self._state[:self.horizon], self._ctrl[:self.horizon])
         for i in range(self.horizon):
             self._c_dyn[i] = -self._state[i + 1] + pred_states[i]
-        # then path constraints
-        cr = 0  # means currow
-        eq_cons = self.task.get_eq_constraints()
-        ineq_cons = self.task.get_ineq_constraints()
-        for i in range(self.horizon):
-            v, j = eq_cons.eval_diff(self._state[1 + i])
-            self._c[cr: cr + v.size] = v
-            cr += v.size
-            v2, j2 = ineq_cons.eval_diff(self._state[1 + i])
-            self._c[cr: cr + v2.size] = v2
-            cr += v2.size
-        # currently we do not have terminal constraint so let it be, we will come back later
         return self._c
 
     def get_constr_bounds(self):
         """Just return the bounds of constraints"""
         clb, cub = np.zeros((2, self.dimc))
-        # start from terminal_constrs
-        cr = 0
-        eq_cons = self.task.get_eq_constraints()
-        ineq_cons = self.task.get_eq_constraints()
-        for i in range(self.horizon):
-            # v, j = self.task.eval_diff_eq_cons(obs[1 + i])
-            # self._c[cr: cr + v.size] = v
-            cr += eq_cons.dim
-            # v2, j2 = self.task.eval_diff_ineq_cons(obs[1 + i])
-            crv = cr + ineq_cons.dim
-            clb[cr: crv] = -1e10
-            cr = crv
         return clb, cub
 
     def get_variable_bounds(self):
@@ -223,20 +149,6 @@ class NonLinearMPCProblem(TrajOptProblem):
             cr = 0
             row = []
             col = []
-            # just routinely evalute equality and inequality constraints
-            eq_cons = self.task.get_eq_constraints()
-            ineq_cons = self.task.get_eq_constraints()
-            rowjac1, coljac1 = self._dense_to_rowcol((eq_cons.dim, dims), 0, 0)
-            rowjac2, coljac2 = self._dense_to_rowcol((ineq_cons.dim, dims), 0, 0)
-            base_x_idx = dims  # starts from the second point...
-            for i in range(self.horizon):
-                row.append(rowjac1 + cr)
-                col.append(coljac1 + base_x_idx + i * dims)
-                cr += eq_cons.dim
-                row.append(rowjac2 + cr)
-                col.append(coljac2 + base_x_idx + i * dims)
-                cr += ineq_cons.dim
-            # finally for dynamics
             _, mat1, mat2 = self.model.pred_diff(self._state[0], self._ctrl[0])
             srowptn, scolptn = self._dense_to_rowcol(mat1.shape, 0, 0)
             urowptn, ucolptn = self._dense_to_rowcol(mat2.shape, 0, 0)
@@ -261,16 +173,6 @@ class NonLinearMPCProblem(TrajOptProblem):
             # for terminal constraints first
             ###### Placeholder for terminal constraints
             # then other point constraints
-            eq_cons = self.task.get_eq_constraints()
-            ineq_cons = self.task.get_ineq_constraints()
-            for i in range(self.horizon):
-                v, j = eq_cons.eval_diff(self._state[1 + i])
-                self._jac[cg: cg + j.size] = j.flat
-                cg += j.size
-                v2, j2 = ineq_cons.eval_diff(self._state[1 + i])
-                self._jac[cg: cg + j2.size] = j2.flat
-                cg += j2.size
-            # finally for dynamics
             _, matss, matus = self.model.pred_diff_parallel(self._state[:self.horizon], self._ctrl[:self.horizon])
             for i in range(self.horizon):
                 mats, matu = matss[i], matus[i]
@@ -283,35 +185,27 @@ class NonLinearMPCProblem(TrajOptProblem):
             return self._jac
 
 
-class IpoptWrapper(OptProblem):
+class IpoptWrapper:
     """Just the ipopt style stuff"""
     def __init__(self, prob):
-        assert isinstance(prob, TrajOptProblem)
         self.prob = prob
-        OptProblem.__init__(self, prob.dimx, prob.dimc, prob.nnz)
-        self.get_lb()[:], self.get_ub()[:] = prob.get_constr_bounds()
-        self.get_xlb()[:], self.get_xub()[:] = prob.get_variable_bounds()
-        self.ipopt_style()
 
-    def __cost__(self, x):
+    def objective(self, x):
         return self.prob.get_cost(x)
 
-    def __gradient__(self, x, y):
-        y[:] = self.prob.get_gradient(x)
-        return True
+    def gradient(self, x):
+        return self.prob.get_gradient(x)
 
-    def __constraint__(self, x, y):
-        y[:] = self.prob.get_constraint(x)
-        return 0
+    def constraints(self, x):
+        return self.prob.get_constraint(x)
 
-    def __jacobian__(self, x, jac, row, col, rec):
-        if rec:
-            row_, col_ = self.prob.get_jacobian(x, True)
-            row[:] = row_
-            col[:] = col_
-        else:
-            jac[:] = self.prob.get_jacobian(x, False)
-        return 0
+    def jacobian(self, x):
+        jac = self.prob.get_jacobian(x, False)
+        return jac
+
+    def jacobianstructure(self):
+        x = np.zeros(self.prob.dimx)
+        return self.prob.get_jacobian(x, True)
 
 class DirectTranscriptionControllerFactory(ControllerFactory):
     """
@@ -367,24 +261,35 @@ class DirectTranscriptionController(Controller):
         """Solve the problem"""
         if not self._built:
             self._build_problem()
+
         dims = self.problem.obs_dim
-        self.wrapper.get_xlb()[:dims] = self.wrapper.get_xub()[:dims] = x0  # so I set this one
-        config = OptConfig(backend='ipopt', print_level=5, opt_tol=1e-3,
-                max_iter=10)
-        solver = OptSolver(self.wrapper, config)
+        lb, ub = self.problem.get_variable_bounds()
+        cl, cu = self.problem.get_constr_bounds()
+        lb[:dims] = ub[:dims] = x0
+        ipopt_prob = cyipopt.Problem(
+            n=self.problem.dimx,
+            m=self.problem.dimc,
+            problem_obj = self.wrapper,
+            lb=lb,
+            ub=ub,
+            cl=cl,
+            cu=cu
+        )
         if self._guess is None:
-            rst = solver.solve_rand()
+            guess = np.zeros(self.problem.dimx)
         else:
-            rst = solver.solve_guess(self._guess)
-        return rst
+            guess = self._guess
+
+        ipopt_prob.add_option("max_iter", 10)
+        sol, info = ipopt_prob.solve(guess)
+        return sol, info
 
     @property
     def state_dim(self):
-        return self.model.state_dim+self.model.ctrl_dim
+        return self.model.state_dim + self.model.ctrl_dim
 
     @staticmethod
     def is_compatible(system, task, model):
-        #TODO: this part is really confusing...
         return True  # this should be universal...
  
     def traj_to_state(self, traj):
@@ -395,16 +300,14 @@ class DirectTranscriptionController(Controller):
         x = self.model.update_state(state[:-self.system.ctrl_dim],
                 state[-self.system.ctrl_dim:], new_obs)
         self._x_cache = x
-        print('state is ', x)
-        rst = self._update_problem_and_solve(x)
-        print(rst.flag)
-        sol = rst.sol.copy()
+        sol, info = self._update_problem_and_solve(x)
+
         # update guess
-        self._guess = sol
+        self._guess = sol.copy()
         dims = self.problem.obs_dim
         dimu = self.problem.ctrl_dim
         idx0 = dims * (self.horizon + 1)
-        # print('path is ', sol[:idx0].reshape((-1, dims)))
         u = sol[idx0: idx0 + dimu]
         statenew = np.concatenate([x, u])
+
         return u, statenew
