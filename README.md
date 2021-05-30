@@ -19,6 +19,8 @@ To see AutoMPC in action, check out this [example](https://htmlpreview.github.io
 [Examples](examples/readme.md)
 
 ## Documentation
+Find the full API documentation online [here](https://autompc.readthedocs.io).
+
 Building the documentation requies Sphinx to be installed.  This can be done by running
 ```
 pip install sphinx
