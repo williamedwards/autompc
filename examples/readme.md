@@ -1,7 +1,7 @@
 # Table of Contents
 1. [Basics](1_basic.ipynb)
 
-2. Models
+2. [Models](2_Models.ipynb)
 
 3. [Controllers and Tasks](3_Controllers_and_Tasks.ipynb)
  
