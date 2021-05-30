@@ -9,6 +9,32 @@ import numpy as np
 from tqdm import tqdm
 
 def simulate(controller, init_obs, term_cond=None, dynamics=None, sim_model=None, max_steps=10000, silent=False):
+    """
+    Simulate a controller with respect to a dynamics function or simulation model.
+
+    Parameters
+    ----------
+    controller : Controller
+        Controller to simulate
+
+    init_obs : numpy array of size controller.system.obs_dim
+        Initial observation
+
+    term_cond : Function Trajectory -> bool
+        Function which returns true when termination condition is met.
+
+    dynamics : Function obs, control -> newobs
+        Function defining system dynamics
+
+    sim_model : Model
+        Simulation model.  Used when dynamics is None
+
+    max_steps : int
+        Maximum number of simulation steps allowed.  Default is 10000.
+
+    silent : bool
+        Suppress output if True.
+    """
     if dynamics is None and sim_model is None:
         raise ValueError("Must specify dynamics function or simulation model")
 

@@ -32,6 +32,9 @@ class ModelEvaluator(ABC):
             if metric == "rmse":
                 self.metric = lambda model, trajs: get_model_rmse(model, 
                         trajs, horizon=horizon)
+            elif metric == "rmsmens":
+                self.metric = lambda model, trajs: get_model_rmsmens(model, 
+                        trajs, horizon=horizon)
         else:
             self.metric = metric
 

@@ -18,6 +18,8 @@ Contents:
    source/costs
    source/evaluation
    source/tuning
+   source/graphs
+   source/utils
 
 
 ..

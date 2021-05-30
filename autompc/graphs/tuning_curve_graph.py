@@ -2,7 +2,19 @@ from ..tuning.pipeline_tuner import PipelineTuneResult
 from ..tuning.model_tuner import ModelTuneResult
 
 class TuningCurveGraph:
+    """
+    Graph tuning curve for either pipeline or model tuning
+    result.
+    """
     def __call__(self, ax, tune_result):
+        """
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Axes object on which to create graph
+        tune_result : ModelTuneResult or PipelineTuneResult
+            Tuning result to plot
+        """
         if isinstance(tune_result, PipelineTuneResult):
             if tune_result.inc_truedyn_costs is not None:
                 ax.plot(tune_result.inc_truedyn_costs, label="True Dyn. Cost") 
