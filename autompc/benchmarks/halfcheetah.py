@@ -1,0 +1,119 @@
+# Created by William Edwards (wre2@illinois.edu), 2021-01-09
+
+# Standard library includes
+import sys
+
+# External library includes
+import numpy as np
+import gym, mujoco_py
+
+# Project includes
+from .benchmark import Benchmark
+from ..utils.data_generation import *
+from .. import System
+from ..tasks import Task
+from ..costs import Cost
+
+env = gym.make("HalfCheetah-v2")
+
+def viz_halfcheetah_traj(traj, repeat):
+    for _ in range(repeat):
+        env.reset()
+        qpos = traj[0].obs[:9]
+        qvel = traj[0].obs[9:]
+        env.set_state(qpos, qvel)
+        for i in range(len(traj)):
+            u = traj[i].ctrl
+            env.step(u)
+            env.render()
+            time.sleep(0.05)
+        time.sleep(1)
+
+def halfcheetah_dynamics(x, u, n_frames=5):
+    old_state = env.sim.get_state()
+    old_qpos = old_state[1]
+    qpos = x[:len(old_qpos)]
+    qvel = x[len(old_qpos):]
+    new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel,
+            old_state.act, old_state.udd_state)
+    env.sim.set_state(new_state)
+    #env.sim.forward()
+    env.sim.data.ctrl[:] = u
+    for _ in range(n_frames):
+        env.sim.step()
+    new_qpos = env.sim.data.qpos
+    new_qvel = env.sim.data.qvel
+
+    return np.concatenate([new_qpos, new_qvel])
+
+class HalfcheetahCost(Cost):
+    def __init__(self):
+        self._is_quad = False
+        self._is_convex = False
+        self._is_diff = False
+        self._is_twice_diff = False
+        self._has_goal = False
+
+
+    def __call__(self, traj):
+        cum_reward = 0.0
+        for i in range(len(traj)-1):
+            reward_ctrl = -0.1 * np.square(traj[i].ctrl).sum()
+            reward_run = (traj[i+1, "x0"] - traj[i, "x0"]) / env.dt
+            cum_reward += reward_ctrl + reward_run
+        return 200 - cum_reward
+
+    def eval_obs_cost(self):
+        raise NotImplementedError
+
+    def eval_term_obs_cost(self):
+        raise NotImplementedError
+
+    def eval_ctrl_cost(self):
+        raise NotImplementedError
+
+def gen_trajs(system, num_trajs=1000, traj_len=1000, seed=42):
+    rng = np.random.default_rng(seed)
+    trajs = []
+    env.seed(int(rng.integers(1 << 30)))
+    env.action_space.seed(int(rng.integers(1 << 30)))
+    for i in range(num_trajs):
+        init_obs = env.reset()
+        traj = ampc.zeros(system, traj_len)
+        traj[0].obs[:] = np.concatenate([[0], init_obs])
+        for j in range(1, traj_len):
+            action = env.action_space.sample()
+            traj[j-1].ctrl[:] = action
+            #obs, reward, done, info = env.step(action)
+            obs = halfcheetah_dynamics(traj[j-1].obs[:], action)
+            traj[j].obs[:] = obs
+        trajs.append(traj)
+    return trajs
+
+
+
+class HalfcheetahBenchmark(Benchmark):
+    def __init__(self, data_gen_method="uniform_random"):
+        name = "halfcheetah"
+        system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)])
+        system.dt = env.dt
+
+        cost = HalfcheetahCost()
+        task = Task(system)
+        task.set_cost(cost)
+        task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
+        init_obs = np.concatenate([env.init_qpos, env.init_qvel])
+        task.set_init_obs(init_obs)
+        task.set_num_steps(200)
+
+        super().__init__(name, system, task, data_gen_method)
+
+    def dynamics(self, x, u):
+        return halfcheetah_dynamics(x,u)
+
+    def gen_trajs(self, seed, n_trajs, traj_len=200):
+        return gen_trajs(self.system, n_trajs, traj_len, seed)
+
+    @staticmethod
+    def data_gen_methods():
+        return ["uniform_random"]
