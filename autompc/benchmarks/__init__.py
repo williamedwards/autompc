@@ -1,3 +1,6 @@
 from .cartpole import CartpoleSwingupBenchmark
 from .cartpole_v2 import CartpoleSwingupV2Benchmark
-from .halfcheetah import HalfcheetahBenchmark
+try:
+    from .halfcheetah import HalfcheetahBenchmark
+except ImportError, ModuleNotFoundError:
+    pass
