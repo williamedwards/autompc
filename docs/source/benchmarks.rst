@@ -25,5 +25,5 @@ CartpoleSwingupV2Benchmark
 
 HalfcheetahBenchmark
 --------------------
-.. autoclass:: autompc.benchmarks.HalfcheetahBenchmark
+.. autoclass:: autompc.benchmarks.halfcheetah.HalfcheetahBenchmark
    :members: visualize
