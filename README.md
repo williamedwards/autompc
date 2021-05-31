@@ -5,7 +5,8 @@ AutoMPC can
  * Tune controllers without requiring access to the system
  * Provides a variety of controllers and optimizers
 
-To see AutoMPC in action, check out this [example](https://htmlpreview.github.io/?https://github.com/williamedwards/autompc/blob/main/examples/0_MainDemo.html).
+To see AutoMPC in action, check out this [example](https://htmlpreview.github.io/?https://github.com/williamedwards/autompc/blob/main/examples/0_MainDemo.html)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1O3tJDoHuLrcOUJL-9XzMfTs-GxHW-oPt?usp=sharing).
 
 ## Installation
 
