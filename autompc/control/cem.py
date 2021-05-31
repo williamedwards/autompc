@@ -12,8 +12,8 @@ import copy
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 
-from ..controller import Controller
-from ..task import Task
+from .controller import Controller
+from ..tasks.task import Task
 
 
 from numpy import sqrt, newaxis

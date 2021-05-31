@@ -4,9 +4,7 @@ import scipy.linalg as sla
 from pdb import set_trace
 from sklearn.linear_model import  Lasso
 
-from ..model import Model
-from ..hyper import ChoiceHyperparam, MultiChoiceHyperparam, FloatRangeHyperparam
-from ..gradient import gradzeros
+from .model import Model
 
 # Simulates 2-state system
 # x1[k+1] = x1[k] + x2[k]**3

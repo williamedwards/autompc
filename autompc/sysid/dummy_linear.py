@@ -1,7 +1,7 @@
 import numpy as np
 from pdb import set_trace
 
-from ..model import Model
+from .model import Model
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC

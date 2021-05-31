@@ -12,7 +12,7 @@ from .benchmark import Benchmark
 from ..utils.data_generation import *
 from .. import System
 from ..tasks import Task
-from ..costs import BoxThresholdCost
+from ..costs import BoxThresholdCost,ThresholdCost
 
 def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
     """
@@ -53,8 +53,7 @@ class CartpoleSwingupV2Benchmark(Benchmark):
         super().__init__(name, system, task, data_gen_method)
 
     def perf_metric(self, traj):
-        return threshold_metric(goal=np.zeros(2), threshold=0.2, obs_range=(0,2),
-                traj=traj)
+        return ThresholdCost(self.system, goal=np.zeros(2), threshold=0.2, obs_range=(0,2))(traj)
 
     def dynamics(self, x, u):
         return dt_cartpole_dynamics(x,u,self.system.dt,g=0.8,m=1,L=1,b=1.0)

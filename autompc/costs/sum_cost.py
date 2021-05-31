@@ -29,11 +29,11 @@ class SumCost(Cost):
 
     def get_cost_matrices(self):
         if self.is_quad:
-            Q = np.zeros((system.obs_dim, system.obs_dim))
-            F = np.zeros((system.obs_dim, system.obs_dim))
-            R = np.zeros((system.ctrl_dim, system.ctrl_dim))
+            Q = np.zeros((self.system.obs_dim, self.system.obs_dim))
+            F = np.zeros((self.system.obs_dim, self.system.obs_dim))
+            R = np.zeros((self.system.ctrl_dim, self.system.ctrl_dim))
 
-            for cost in costs:
+            for cost in self._costs:
                 Q_, R_, F_ = cost.get_cost_matrices()
                 Q += Q_
                 R += R_

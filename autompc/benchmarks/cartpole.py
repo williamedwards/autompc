@@ -52,8 +52,7 @@ class CartpoleSwingupBenchmark(Benchmark):
         super().__init__(name, system, task, data_gen_method)
 
     def perf_metric(self, traj):
-        return threshold_metric(goal=np.zeros(2), threshold=0.2, obs_range=(0,2),
-                traj=traj)
+        return ThresholdCost(self.system, goal=np.zeros(2), threshold=0.2, obs_range=(0,2))(traj)
 
     def dynamics(self, x, u):
         return dt_cartpole_dynamics(x,u,self.system.dt,g=9.8,m=1,L=1,b=1.0)
