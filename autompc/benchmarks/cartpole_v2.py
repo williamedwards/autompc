@@ -1,7 +1,8 @@
 # Created by William Edwards (wre2@illinois.edu), 2021-01-09
 
 # Standard library includes
-import sys
+import sys, os
+import pickle
 
 # External library includes
 import numpy as np
@@ -36,6 +37,11 @@ def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     return y
 
 class CartpoleSwingupV2Benchmark(Benchmark):
+    """
+    This benchmark uses the cartpole system and differs from CartpoleSwingupBenchmark
+    in that the performance metric requires the cartpole to stay within the [-10, 10]
+    range.
+    """
     def __init__(self, data_gen_method="uniform_random"):
         name = "cartpole_swingup"
         system = ampc.System(["theta", "omega", "x", "dx"], ["u"])
@@ -52,13 +58,29 @@ class CartpoleSwingupV2Benchmark(Benchmark):
 
         super().__init__(name, system, task, data_gen_method)
 
-    def perf_metric(self, traj):
-        return ThresholdCost(self.system, goal=np.zeros(2), threshold=0.2, obs_range=(0,2))(traj)
-
     def dynamics(self, x, u):
         return dt_cartpole_dynamics(x,u,self.system.dt,g=0.8,m=1,L=1,b=1.0)
 
     def visualize(self, fig, ax, traj, margin=5.0):
+        """
+        Visualize the cartpole trajectory.
+
+        Parameters
+        ----------
+        fig : matplotlib.figure.Figure
+            Figure to generate visualization in.
+
+        ax : matplotlib.axes.Axes
+            Axes to create visualization in.
+
+        traj : Trajectory
+            Trajectory to visualize
+
+        margin : float
+            Shift the viewing window by this amount when the 
+            cartpole reaches the edge of the screen
+        """
+
         ax.plot([-10000, 10000.0], [0.0, 0.0], "k-", lw=1)
         ax.set_xlim([-10.0, 10.0])
         ax.set_ylim([-2.0, 2.0])
@@ -120,6 +142,15 @@ class CartpoleSwingupV2Benchmark(Benchmark):
     def gen_trajs(self, seed, n_trajs, traj_len=200):
         rng = np.random.default_rng(seed)
         return self._gen_trajs(n_trajs, traj_len, rng)
+
+    def get_cached_tune_result(self):
+        dirname = os.path.dirname(__file__)
+        pklname = os.path.join(dirname, 
+                "../../assets/cached_tunes/cartpole_tune_result.pkl")
+        with open(pklname, "rb") as f:
+            tune_result = pickle.load(f)
+
+        return tune_result
 
 
     @staticmethod

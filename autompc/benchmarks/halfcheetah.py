@@ -93,6 +93,12 @@ def gen_trajs(system, num_trajs=1000, traj_len=1000, seed=42):
 
 
 class HalfcheetahBenchmark(Benchmark):
+    """
+    This benchmark uses the OpenAI gym halfcheetah benchmark and is consistent with the
+    experiments in the ICRA 2021 paper. The benchmark reuqires OpenAI gym and mujoco_py
+    to be installed.  The performance metric is
+    :math:`200-R` where :math:`R` is the gym reward.
+    """
     def __init__(self, data_gen_method="uniform_random"):
         name = "halfcheetah"
         system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)])
@@ -113,6 +119,20 @@ class HalfcheetahBenchmark(Benchmark):
 
     def gen_trajs(self, seed, n_trajs, traj_len=200):
         return gen_trajs(self.system, n_trajs, traj_len, seed)
+
+    def visualize(self, traj, repeat):
+        """
+        Visualize the half-cheetah trajectory using Gym functions.
+
+        Parameters
+        ----------
+        traj : Trajectory
+            Trajectory to visualize
+
+        repeat : int
+            Number of times to repeat trajectory in visualization
+        """
+        viz_halfcheetah_traj(traj, repeat)
 
     @staticmethod
     def data_gen_methods():

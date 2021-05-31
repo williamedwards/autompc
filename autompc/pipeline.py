@@ -18,7 +18,28 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 class Pipeline:
+    """
+    The Pipeline class represents a collection of MPC components, including
+    the model, controller, and cost function.  A Pipeline can provide
+    the joint configuration space over its constituent components, and
+    can instantiate an MPC given a configuration.
+    """
     def __init__(self, system, *components):
+        """
+        Parameters
+        ----------
+        system : System
+            Corresponding robot system
+
+        components : List of models, controllers, costs and corresponding factories.
+            The set of components which make up the pipeline: the model, the controller,
+            and the cost. For each of these components, you can either pass the factory
+            or the instantiated version.  For example, you must pass either a Controller
+            or a ControllerFactory, but not both. If the factory is passed, than its
+            hyperparameters will become part of the joint configuration space. If the 
+            instantiated version is passed, the component will be treated as fixed in
+            the pipeline.
+        """
         self.system = system
         self.model = None
         self.model_factory = None
@@ -66,10 +87,10 @@ class Pipeline:
         if not (self.cost or self.cost_factory):
             raise ValueError("Pipeline must contain cost or cost factory")
 
-    def is_compatible(self, system, task):
-        return True
-
     def get_configuration_space(self):
+        """
+        Return the pipeline configuration space.
+        """
         cs = CS.ConfigurationSpace()
         if self.model_factory:
             model_cs = self.model_factory.get_configuration_space()
@@ -84,6 +105,35 @@ class Pipeline:
         return cs
 
     def __call__(self, cfg, task, trajs, model=None):
+        """
+        Instantiate the MPC.
+
+        Parameters
+        ----------
+        cfg : Configuration
+            Configuration from the joint pipeline ConfigurationSpace
+
+        task : Task
+            Task which the MPC will solve
+
+        trajs : List of Trajectory
+            System ID training set
+
+        model : Model
+            A pre-trained model can be passed here which overrides
+            the configuration. Default is None.
+
+        Returns
+        -------
+        controller : Controller
+            The MPC controller
+
+        task : Task
+            The task with the instantiated cost
+
+        model : Model
+            The instantiated and trained model
+        """
         # First instantiate and train the model
         if not model:
             if self.model:

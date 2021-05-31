@@ -36,6 +36,13 @@ def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     return y
 
 class CartpoleSwingupBenchmark(Benchmark):
+    """
+    This benchmark uses the cartpole system and is consistent with the
+    experiments in the ICRA 2021 paper. The task is to move the pole
+    from the down position to the up position. The performance metric
+    returns 1 for every observation which is more than 0.2 away from the goal
+    in either the angle or angular velocity dimensions, and 0 otherwise.
+    """
     def __init__(self, data_gen_method="uniform_random"):
         name = "cartpole_swingup"
         system = ampc.System(["theta", "omega", "x", "dx"], ["u"])
@@ -51,13 +58,28 @@ class CartpoleSwingupBenchmark(Benchmark):
 
         super().__init__(name, system, task, data_gen_method)
 
-    def perf_metric(self, traj):
-        return ThresholdCost(self.system, goal=np.zeros(2), threshold=0.2, obs_range=(0,2))(traj)
-
     def dynamics(self, x, u):
         return dt_cartpole_dynamics(x,u,self.system.dt,g=9.8,m=1,L=1,b=1.0)
 
     def visualize(self, fig, ax, traj, margin=5.0):
+        """
+        Visualize the cartpole trajectory.
+
+        Parameters
+        ----------
+        fig : matplotlib.figure.Figure
+            Figure to generate visualization in.
+
+        ax : matplotlib.axes.Axes
+            Axes to create visualization in.
+
+        traj : Trajectory
+            Trajectory to visualize
+
+        margin : float
+            Shift the viewing window by this amount when the 
+            cartpole reaches the edge of the screen
+        """
         ax.plot([-10000, 10000.0], [0.0, 0.0], "k-", lw=1)
         ax.set_xlim([-10.0, 10.0])
         ax.set_ylim([-2.0, 2.0])
