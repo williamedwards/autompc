@@ -5,7 +5,6 @@ import sys
 
 # External library includes
 import numpy as np
-import gym, mujoco_py
 
 # Project includes
 from .benchmark import Benchmark
@@ -14,9 +13,7 @@ from .. import System
 from ..tasks import Task
 from ..costs import Cost
 
-env = gym.make("HalfCheetah-v2")
-
-def viz_halfcheetah_traj(traj, repeat):
+def viz_halfcheetah_traj(env, traj, repeat):
     for _ in range(repeat):
         env.reset()
         qpos = traj[0].obs[:9]
@@ -29,7 +26,7 @@ def viz_halfcheetah_traj(traj, repeat):
             time.sleep(0.05)
         time.sleep(1)
 
-def halfcheetah_dynamics(x, u, n_frames=5):
+def halfcheetah_dynamics(env, x, u, n_frames=5):
     old_state = env.sim.get_state()
     old_qpos = old_state[1]
     qpos = x[:len(old_qpos)]
@@ -47,19 +44,19 @@ def halfcheetah_dynamics(x, u, n_frames=5):
     return np.concatenate([new_qpos, new_qvel])
 
 class HalfcheetahCost(Cost):
-    def __init__(self):
+    def __init__(self, env):
         self._is_quad = False
         self._is_convex = False
         self._is_diff = False
         self._is_twice_diff = False
         self._has_goal = False
-
+        self.env = env
 
     def __call__(self, traj):
         cum_reward = 0.0
         for i in range(len(traj)-1):
             reward_ctrl = -0.1 * np.square(traj[i].ctrl).sum()
-            reward_run = (traj[i+1, "x0"] - traj[i, "x0"]) / env.dt
+            reward_run = (traj[i+1, "x0"] - traj[i, "x0"]) / self.env.dt
             cum_reward += reward_ctrl + reward_run
         return 200 - cum_reward
 
@@ -72,7 +69,7 @@ class HalfcheetahCost(Cost):
     def eval_ctrl_cost(self):
         raise NotImplementedError
 
-def gen_trajs(system, num_trajs=1000, traj_len=1000, seed=42):
+def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     rng = np.random.default_rng(seed)
     trajs = []
     env.seed(int(rng.integers(1 << 30)))
@@ -91,7 +88,6 @@ def gen_trajs(system, num_trajs=1000, traj_len=1000, seed=42):
     return trajs
 
 
-
 class HalfcheetahBenchmark(Benchmark):
     """
     This benchmark uses the OpenAI gym halfcheetah benchmark and is consistent with the
@@ -104,7 +100,11 @@ class HalfcheetahBenchmark(Benchmark):
         system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)])
         system.dt = env.dt
 
-        cost = HalfcheetahCost()
+        import gym, mujoco_py
+        env = gym.make("HalfCheetah-v2")
+        self.env = env
+
+        cost = HalfcheetahCost(env)
         task = Task(system)
         task.set_cost(cost)
         task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
@@ -112,13 +112,14 @@ class HalfcheetahBenchmark(Benchmark):
         task.set_init_obs(init_obs)
         task.set_num_steps(200)
 
+
         super().__init__(name, system, task, data_gen_method)
 
     def dynamics(self, x, u):
-        return halfcheetah_dynamics(x,u)
+        return halfcheetah_dynamics(self.env,x,u)
 
     def gen_trajs(self, seed, n_trajs, traj_len=200):
-        return gen_trajs(self.system, n_trajs, traj_len, seed)
+        return gen_trajs(self.env, self.system, n_trajs, traj_len, seed)
 
     def visualize(self, traj, repeat):
         """
@@ -132,7 +133,7 @@ class HalfcheetahBenchmark(Benchmark):
         repeat : int
             Number of times to repeat trajectory in visualization
         """
-        viz_halfcheetah_traj(traj, repeat)
+        viz_halfcheetah_traj(self.env, traj, repeat)
 
     @staticmethod
     def data_gen_methods():
