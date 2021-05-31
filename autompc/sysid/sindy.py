@@ -115,12 +115,6 @@ class SINDy(Model):
         self.time_mode = time_mode
         self.threshold = threshold
 
-    @staticmethod
-    def get_configuration_space(system):
-
-
-        return cs
-
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()
     

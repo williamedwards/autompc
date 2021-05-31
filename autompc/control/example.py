@@ -3,7 +3,7 @@
 import numpy as np
 import numpy.linalg as la
 
-from ..controller import Controller
+from .controller import Controller
 from ..hyper import IntRangeHyperparam
 
 class ExampleController(Controller):

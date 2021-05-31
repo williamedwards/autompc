@@ -4,7 +4,6 @@ from pdb import set_trace
 
 import numpy as np
 import numpy.linalg as la
-from control.matlab import dare
 
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import (UniformIntegerHyperparameter, 

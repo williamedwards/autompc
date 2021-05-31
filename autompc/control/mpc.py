@@ -1,8 +1,6 @@
 from collections import Iterable
-from ..controller import Controller
-from ..constraint import Constraint
-from ..hyper import IntRangeHyperparam
-from ..cost import Cost
+from .controller import Controller
+from ..costs.cost import Cost
 
 import cvxpy as cp
 import numpy as np
@@ -77,12 +75,12 @@ class LinearMPC(Controller):
         # constraints, eq first
         if self.eq_cons:
             A, b = self.eq_cons
-            for i in range(hoziron):
+            for i in range(horizon):
                 cons.append(A.dot(xs[i + 1][:dims] == b))
         # ineqs
         if self.ineq_cons:
             A, b = self.ineq_cons
-            for i in range(hoziron):
+            for i in range(horizon):
                 cons.append(A.dot(xs[i + 1][:dims] <= b))
         # set bounds...  assume broadcasting...
         oneh = np.ones((self.horizon + 1, 1))

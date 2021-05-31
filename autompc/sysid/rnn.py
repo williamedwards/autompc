@@ -5,7 +5,7 @@ import numpy.linalg as la
 
 import torch
 
-from ..model import Model, Hyper
+from .model import Model, Hyper
 
 class Net(torch.nn.Module):
     def __init__(self, 
