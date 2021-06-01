@@ -74,7 +74,10 @@ class SimpleDataset(Dataset):
 
 
 class MLPFactory(ModelFactory):
-    """Multi-layer perceptrons use feed-forward neural networks to predict the next system state.
+    """
+    The multi-layer perceptron (MLP) model uses a feed-forward neural network
+    architecutret to predict the system dynamics. The network size, activation
+    function, and learning rate are tunable hyperparameters.
 
     Parameters
 

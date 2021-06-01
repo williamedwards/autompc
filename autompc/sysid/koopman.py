@@ -13,14 +13,12 @@ import ConfigSpace.conditions as CSC
 
 class KoopmanFactory(ModelFactory):
     """
-    Koopman Docs
-    
-    This file identifies Koopman models of the form :math:`\dot{\Psi(x)} = A\Psi(x) + Bu`. 
+    This class identifies Koopman models of the form :math:`\dot{\Psi}(x) = A\Psi(x) + Bu`. 
     Given states :math:`x \in \mathbb{R}^n`, :math:`\Psi(x) \in \mathbb{R}^N` ---termed Koopman 
     basis functions--- are used to lift the dynamics in a higher-dimensional space
     where nonlinear functions of the system states evolve linearly. The identification
     of the Koopman model, specified by the A and B matrices, can be done in various ways, 
-    such as solving a least squares solution :math:`\|\dot{\Psi(x)} - [A, B][\Psi(x),u]^T\|`.
+    such as solving a least squares solution :math:`\|\dot{\Psi}(x) - [A, B][\Psi(x),u]^T\|`.
     
     The choice of the basis functions is an open research question. In this implementation, 
     we choose basis functions that depend only on the system states and not the control, 
@@ -28,7 +26,8 @@ class KoopmanFactory(ModelFactory):
     
 
     Hyperparameters:
-    - *method* (Type: str, Choices: ["lstsq", "lasso", "stable"): Method for training Koopman
+
+    - *method* (Type: str, Choices: ["lstsq", "lasso", "stable"]): Method for training Koopman
       operator.
     - *lasso_alpha* (Type: float, Low: 10^-10, High: 10^2, Defalt: 1.0): α parameter for Lasso
       regression. (Conditioned on method="lasso").

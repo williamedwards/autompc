@@ -25,7 +25,7 @@ class SINDyFactory(ModelFactory):
     R"""
     Sparse Identification of Nonlinear Dynamics (SINDy) is an system identification approach that works as follows. 
     Using a library of :math:`k` pre-selected functions (e.g. :math:`f \in \mathbb{R}^k`), it computes numerically the derivatives
-    of the system states (e.g. :math:`\dot{x} \in \mathbb{R}^n$`) iteratively solves a least-squares optimization 
+    of the system states (e.g. :math:`\dot{x} \in \mathbb{R}^n`) iteratively solves a least-squares optimization 
     to identify the weights :math:`K \in \mathbb{R}^{n \times k}` that best fit the data: e.g. :math:`\|\dot{x} - Kf(x) \|^2`. 
     In every iteration, functions whose weights are below a user-specified threshold :math:`\lambda` are discarded. 
     For more information, the reader is referred to https://arxiv.org/pdf/2004.08424.pdf

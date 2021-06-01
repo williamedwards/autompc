@@ -322,7 +322,13 @@ class LargeGaussianProcess(GPytorchGP):
 # this part implements the approximate GP
 class ApproximateGPModelFactory(ModelFactory):
     """
-    ApproximateGP Docs
+    Gaussian Processes (GPs) are a non-parametric regression method.  Since GPs have trouble
+    scaling to large training sets, this class provides a variational GP which automatically
+    selects a subset of the training data for inference. This functionality is provided by
+    the gPyTorch library. For more details see the original documentation_, and the
+    corresponding paper at https://arxiv.org/pdf/1411.2005.pdf 
+
+    .. _documentation: https://docs.gpytorch.ai/en/v1.1.1/examples/04_Variational_and_Approximate_GPs/SVGP_Regression_CUDA.html 
 
     Hyperparameters:
 
