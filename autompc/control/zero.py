@@ -11,6 +11,21 @@ import ConfigSpace.conditions as CSC
 
 from .controller import Controller, ControllerFactory
 
+class ZeroControllerFactory(ControllerFactory):
+    """
+    The Zero Controller outputs all zero controls and is useful for debugging.
+
+    Hyperparameters: *None*
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.Controller = ZeroController
+        self.name = "ZeroController"
+
+    def get_configuration_space(self):
+        cs = CS.ConfigurationSpace()
+        return cs
+
 class ZeroController(Controller):
     def __init__(self, system, task, model):
         super().__init__(system, task, model)

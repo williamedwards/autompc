@@ -246,6 +246,10 @@ class DirectTranscriptionController(Controller):
         self._guess = None
         self._x_dim = (self.horizon + 1) * system.obs_dim + self.horizon * system.ctrl_dim
 
+    def reset(self):
+        self._built = False
+        self._guess = None
+
     def set_guess(self, guess):
         if guess.size != self._xdim:
             raise Exception("Guess dimension should be %d" % self._x_dim)

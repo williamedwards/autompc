@@ -39,3 +39,7 @@ Model Predictive Path Integral (MPPI)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: autompc.control.MPPIFactory
+
+Zero Controller
+^^^^^^^^^^^^^^^
+.. autoclass:: autompc.control.ZeroControllerFactory

@@ -76,6 +76,9 @@ class IterativeLQR(Controller):
             raise Exception("mode has to be None/barrier/auglag")
 
     def reset(self):
+        self._need_recompute = True
+        self._step_count = 0
+        self._states = None
         self._guess = None
 
     @property

@@ -5,4 +5,4 @@ try:
 except ImportError:
     print("Missing optional dependency for NMPC")
 from .mppi import MPPI, MPPIFactory
-from .zero import ZeroController
+from .zero import ZeroController, ZeroControllerFactory
