@@ -38,7 +38,8 @@ class MPPIFactory(ControllerFactory):
 
     - *horizon* (Type: int, Lower: 5, Upper: 30, Default: 20): Controller horizon. This behaves in the same way as MPC controller.
     - *sigma* (Type: float, Lower: 0.1, Upper 2.0, Default: 1.0): Variance of the disturbance. Since the disturbance is Gaussian, the standard deviation is its square root. It is shared in all the control dimensions.
-    - *lmda* (Type: float, Lower: 0.1, Upper: 2.0, Default: 1.0): Higher value increases the cost of control noise and gets more samples around current contorl sequence. Generally smaller value works better.
+    - *lmda* (Type: float, Lower: 10^-4, Upper: 2.0, Default: 1.0): Higher value increases the cost of control noise and gets more samples around current contorl sequence. 
+        Generally smaller value works better.
     - *num_path* (Type: int, Lower: 100, Upper: 1000, Default: 200): Number of perturbed control sequence to sample. Generally the more the better and it scales better with vectorized and parallel computation.
     """
     def __init__(self, *args, **kwargs):
@@ -51,7 +52,7 @@ class MPPIFactory(ControllerFactory):
         horizon = CSH.UniformIntegerHyperparameter(name="horizon",
                 lower=5, upper=30, default_value=20)
         cs.add_hyperparameter(horizon)
-        sigma = CSH.UniformFloatHyperparameter(name='sigma', lower=0.1, upper=2.0, 
+        sigma = CSH.UniformFloatHyperparameter(name='sigma', lower=1e-4, upper=2.0, 
                 default_value=1.0)
         cs.add_hyperparameter(sigma)
         lmda = CSH.UniformFloatHyperparameter(name='lmda', lower=0.1, upper=2.0, 
@@ -64,7 +65,7 @@ class MPPIFactory(ControllerFactory):
 
 class MPPI:
     def __init__(self, system, task, model, **kwargs):
-    #def __init__(self, dyn_eqn, cost_eqn, terminal_cost, model, **kwargs):
+        self.kwargs = kwargs 
         self.model = model
         self.dyn_eqn = model.pred_parallel
         cost = task.get_cost()
@@ -99,6 +100,9 @@ class MPPI:
         # for the seed
         self.cur_step = 0
         self.niter = 1
+
+    def reset(self):
+        self.__init__(self, self.system, self.task, self.model, **self.kwargs)
 
     def update(self, costs, eps):
         """Based on the collected trajectory, update the action sequence.

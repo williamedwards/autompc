@@ -12,8 +12,15 @@ from .model import Model, ModelFactory
 #from ..hyper import IntRangeHyperparam
 
 class ARXFactory(ModelFactory):
-    """
-    ARX Docs
+    R"""
+    Autoregression with Exogenous Variable (ARX) learns the dynamics as
+    a linear function of the last :math:`k` observations and controls.
+    That is
+
+    .. math::
+        x_{t+1} = [x_t, \ldots x_{t-k+1}, u_t, \ldots, u_{t-k+1}] \theta
+
+    The model is trained least-squared linear regression.
 
     Hyperparameters:
 

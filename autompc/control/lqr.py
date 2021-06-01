@@ -197,7 +197,9 @@ class LQRFactory(ControllerFactory):
     It applies to linear system with quadratic cost function with respect to both state and control.
     It is proven that the optimal control policy is linear, i.e. :math:`u=-Kx` where :math:`x` is system state, :math:`K` is gain matrix, and :math:`u` is the control.
     The feedback :math:`K` is computed by solving Ricatti equations.
-    For more details we refer to `this slide <https://katefvision.github.io/katefSlides/RECITATIONtrajectoryoptimization_katef.pdf>`.
+    For more details refer to these slides_ .
+
+    .. _slides: https://katefvision.github.io/katefSlides/RECITATIONtrajectoryoptimization_katef.pdf
  
     Hyperparameters:
     

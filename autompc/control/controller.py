@@ -93,6 +93,14 @@ class Controller(ABC):
                 New controller state
         """
         raise NotImplementedError
+
+    def reset(self):
+        """
+        Re-initialize the controller. For controllers which
+        cache previous results to warm-start optimization, this
+        will clear the cache.
+        """
+        pass
     
     # @staticmethod
     # @abstractmethod
