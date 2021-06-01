@@ -141,12 +141,14 @@ class MLP(Model):
         nx, nu = system.obs_dim, system.ctrl_dim
         n_hidden_layers = int(n_hidden_layers)
         hidden_sizes = [hidden_size] * n_hidden_layers
-        print(f"use_cuda={use_cuda}")
         #print(f"{torch.cuda.is_available()=}")
         if use_cuda and torch.cuda.is_available():
             print("MLP Using Cuda")
         else:
-            print("MLP Not Using Cuda")
+            if use_cuda:
+                print("MLP Not Using Cuda because torch.cuda is not available")
+            else:
+                print("MLP Not Using Cuda")
         for i, size in enumerate([hidden_size_1, hidden_size_2, hidden_size_3,
                 hidden_size_4]):
             if size is not None:
