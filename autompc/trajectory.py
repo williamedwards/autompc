@@ -155,6 +155,9 @@ class Trajectory:
     def __len__(self):
         return self._size
 
+    def __str__(self):
+        return "Trajectory, length={}, system={}".format(self._size,self._system)
+
     @property
     def system(self):
         """

@@ -33,6 +33,11 @@ class System:
     def __eq__(self, other):
         return ((self.controls == other.controls) 
                 and (self.observations == other.observations))
+    
+    def __str__(self):
+        observation_str = '{} observations'.format(len(self._observations)) if len(self._observations) > 4 else '['+','.join(self._observations)+']'
+        control_str = '{} controls'.format(len(self._controls)) if len(self._controls) > 4 else '['+','.join(self._controls)+']'
+        return '{}({},{})'.format(self.__class__.__name__,observation_str,control_str)
 
     @property
     def controls(self):
