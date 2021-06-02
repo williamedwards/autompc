@@ -6,7 +6,7 @@ AutoMPC can
  * Provides a variety of controllers and optimizers
 
 To see AutoMPC in action, check out this example
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://drive.google.com/file/d/1w19fIzYi4r50XI1pW64xUqN_JBbbyK2L/view?usp=sharing).
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1w19fIzYi4r50XI1pW64xUqN_JBbbyK2L).
 
 ## Installation
 
