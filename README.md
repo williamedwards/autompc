@@ -32,7 +32,7 @@ to see an overview of the AutoMPC workflow.
 
 If you are interested, check out our [detailed examples](examples/readme.md) for more information on how to use the different parts of AutoMPC.
 
-## What algorithms does AutoMPC support
+## What algorithms does AutoMPC support?
 
 For System ID, AutoMPC supports
  * [Multi-layer Perceptrons](https://autompc.readthedocs.io/en/latest/source/sysid.html#multi-layer-perceptron)
@@ -44,8 +44,11 @@ For System ID, AutoMPC supports
 For control optimization, AutoMPC supports
  * [Linear Quadratic Regulator](https://autompc.readthedocs.io/en/latest/source/control.html#linear-quadratic-regulator-lqr)
  * [Iterative LQR](https://autompc.readthedocs.io/en/latest/source/control.html#iterative-linear-quadratic-regulator-ilqr)
- * [Direct Transcription](https://autompc.readthedocs.io/en/latest/source/control.html#model-predictive-path-integral-mppi)
+ * [Direct Transcription](https://autompc.readthedocs.io/en/latest/source/control.html#direct-transcription-dt)
  * [Model Path Predictive Integral](https://autompc.readthedocs.io/en/latest/source/control.html#model-predictive-path-integral-mppi)
+
+AutoMPC is also extensible, so you can use our tuning process with your own System ID and control methods.  We'd also welcome contributions
+of new algorithms to the package.
 
 ## Installation
 
