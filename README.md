@@ -6,7 +6,46 @@ AutoMPC can
  * Provides a variety of controllers and optimizers
 
 To see AutoMPC in action, check out this example
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://drive.google.com/file/d/1w19fIzYi4r50XI1pW64xUqN_JBbbyK2L/view?usp=sharing).
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1w19fIzYi4r50XI1pW64xUqN_JBbbyK2L).
+
+## Why AutoMPC?
+
+System ID and Model Predictive Control are powerful tools for building robot controllers, 
+but getting them up and running can take a lot of engineering work.  Acheiving good
+performance typically requires careful selection of a number of hyperparameters,
+including the MPC horizon, the terms of the objective function, and the parameters
+of the System ID algorithm.  AutoMPC automates the selection of these hyperparameters
+and provides a toolbox of algorithms to choose from.
+
+## How does AutoMPC work?
+
+AutoMPC tunes hyperparameters for the System ID, Control Optimizer, and objective function
+using a dataset collected offline.  In other words, AutoMPC does not need to interact
+with the robot during tuning.  This is accomplished by initially training a *surrogate*
+dynamics model.  During tuning, the surrogate dynamics are then used to simulate candidate
+controllers in order to evaluate closed-loop performance.
+
+## How to use AutoMPC?
+
+Check out are main example [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1w19fIzYi4r50XI1pW64xUqN_JBbbyK2L)
+to see an overview of the AutoMPC workflow.
+
+If you are interested, check out our [detailed examples](examples/readme.md) for more information on how to use the different parts of AutoMPC.
+
+## What algorithms does AutoMPC support
+
+For System ID, AutoMPC supports
+ * [Multi-layer Perceptrons](https://autompc.readthedocs.io/en/latest/source/sysid.html#multi-layer-perceptron)
+ * [Sparse Identification of Nonlinear Dynamics (SINDy)](https://autompc.readthedocs.io/en/latest/source/sysid.html#sparse-identification-of-nonlinear-dynamics-sindy)
+ * [Autoregression](https://autompc.readthedocs.io/en/latest/source/sysid.html#autoregression-arx)
+ * [Koopman Operators](https://autompc.readthedocs.io/en/latest/source/sysid.html#koopman)
+ * [Approximate Gaussian Processes](https://autompc.readthedocs.io/en/latest/source/sysid.html#approximate-gaussian-process)
+
+For control optimization, AutoMPC supports
+ * [Linear Quadratic Regulator](https://autompc.readthedocs.io/en/latest/source/control.html#linear-quadratic-regulator-lqr)
+ * [Iterative LQR](https://autompc.readthedocs.io/en/latest/source/control.html#iterative-linear-quadratic-regulator-ilqr)
+ * [Direct Transcription](https://autompc.readthedocs.io/en/latest/source/control.html#model-predictive-path-integral-mppi)
+ * [Model Path Predictive Integral](https://autompc.readthedocs.io/en/latest/source/control.html#model-predictive-path-integral-mppi)
 
 ## Installation
 
@@ -17,13 +56,11 @@ To see AutoMPC in action, check out this example
  5. Run `pip install -r requirements.txt`
  6. Run `pip install -e .`
 
-## Examples
-[Examples](examples/readme.md)
-
 ## Documentation
-Find the full API documentation online [here](https://autompc.readthedocs.io).
+[Python API Reference](https://autompc.readthedocs.io).
 
-Building the documentation requies Sphinx to be installed.  This can be done by running
+The documentation can also be built offline. This requires Sphinx to be installed,
+which can be done by running
 ```
 pip install sphinx
 ```
