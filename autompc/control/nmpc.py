@@ -210,7 +210,7 @@ class DirectTranscriptionControllerFactory(ControllerFactory):
     """
     Direct Transcription (DT) is a method to discretize an optimal control problem which is inherently continuous.
     Such discretization is usually necessary in order to get an optimization problem of finite dimensionality.
-    For a trajectory with time length :math:`T`_, it discretize the time interval into a equidistant grid of size :math:`N`, called knots.
+    For a trajectory with time length :math:`T`, it discretize the time interval into a equidistant grid of size :math:`N`, called knots.
     The state and control at each knot are optimized.
     The constraints are imposed at the knots, including system dynamics constraints.
     DT uses first-order Euler integration to approximate the constraints of system dynamics.
