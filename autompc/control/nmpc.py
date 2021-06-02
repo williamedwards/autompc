@@ -4,7 +4,6 @@ from pdb import set_trace
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 
-import cyipopt
 import numpy as np
 
 class TrajOptProblem(object):
@@ -221,6 +220,10 @@ class DirectTranscriptionControllerFactory(ControllerFactory):
     - *horizon* (Type: int, Lower: 1, High: 30, Default: 10): Control Horizon
     """
     def __init__(self, *args, **kwargs):
+        try:
+            import cyipopt
+        except:
+            raise ImportError("Missing dependency for Direct Transcription Controller")
         super().__init__(self, *args, **kwargs)
         self.Controller = DirectTranscriptionController
         self.name = "DirectTranscription"
@@ -239,7 +242,10 @@ class DirectTranscriptionController(Controller):
     cost is a Cost instance to compute fitness of a trajectory
     """
     def __init__(self, system, model, task, horizon):
-        # I prefer type checking, but clearly current API does not allow me so
+        try:
+            import cyipopt
+        except:
+            raise ImportError("Missing dependency for Direct Transcription Controller")
         Controller.__init__(self, system, model, task)
         self.horizon = int(np.ceil(horizon / system.dt))
         self._built = False
