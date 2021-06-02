@@ -32,7 +32,7 @@ to see an overview of the AutoMPC workflow.
 
 If you are interested, check out our [detailed examples](examples/readme.md) for more information on how to use the different parts of AutoMPC.
 
-## What algorithms does AutoMPC support
+## What algorithms does AutoMPC support?
 
 For System ID, AutoMPC supports
  * [Multi-layer Perceptrons](https://autompc.readthedocs.io/en/latest/source/sysid.html#multi-layer-perceptron)
