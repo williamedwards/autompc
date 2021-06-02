@@ -47,6 +47,9 @@ For control optimization, AutoMPC supports
  * [Direct Transcription](https://autompc.readthedocs.io/en/latest/source/control.html#model-predictive-path-integral-mppi)
  * [Model Path Predictive Integral](https://autompc.readthedocs.io/en/latest/source/control.html#model-predictive-path-integral-mppi)
 
+AutoMPC is also extensible, so you can use our tuning process with your own System ID and control methods.  We'd also welcome contributions
+of new algorithms to the package.
+
 ## Installation
 
  1. Clone the repository
