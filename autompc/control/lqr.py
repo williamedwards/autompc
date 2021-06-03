@@ -175,7 +175,7 @@ class FiniteHorizonLQR(Controller):
         # Implement control logic here
         modelstate = self.model.update_state(state[:-self.system.ctrl_dim],
                 state[-self.system.ctrl_dim:], new_obs)
-        x0 = self.task.get_cost().get_x0()
+        x0 = self.task.get_cost().get_goal()
         if x0.size < modelstate.size:
             state0 = np.zeros(modelstate.size)
             state0[:x0.size] = x0
@@ -225,6 +225,7 @@ class LQRFactory(ControllerFactory):
 
 class LQR(Controller):
     def __init__(self, system, task, model, finite_horizon, horizon=None):
+        super().__init__(system, task, model)
         if not isinstance(finite_horizon, bool):
             finite_horizon = True if finite_horizon == "true" else False
         if finite_horizon:

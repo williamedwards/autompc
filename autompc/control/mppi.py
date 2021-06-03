@@ -63,8 +63,9 @@ class MPPIFactory(ControllerFactory):
         cs.add_hyperparameter(num_path)
         return cs
 
-class MPPI:
+class MPPI(Controller):
     def __init__(self, system, task, model, **kwargs):
+        super().__init__(system, task, model)
         self.kwargs = kwargs 
         self.model = model
         self.dyn_eqn = model.pred_batch
@@ -102,7 +103,7 @@ class MPPI:
         self.niter = 1
 
     def reset(self):
-        self.__init__(self, self.system, self.task, self.model, **self.kwargs)
+        self.__init__(self.system, self.task, self.model, **self.kwargs)
 
     def update(self, costs, eps):
         """Based on the collected trajectory, update the action sequence.
