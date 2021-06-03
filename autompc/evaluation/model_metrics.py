@@ -43,10 +43,52 @@ def get_model_rmse(model, trajs, horizon=1):
     return rmse
 
 def get_model_rmsmens(model, trajs, horiz=1):
-    """
+    R"""
     Compute root mean squared model error, normalized step-wise (RMSMENS).
 
-    TODO equation.
+    Given a set of trajectories :math:`\mathcal{T}`, let :math:`x_{i,t} \in \mathbb{R}^n, u_{i,t} \in \mathbb{R}^m` denote the state and control input in the :math:`i^\textrm{th}` trajectory at time :math:`t`. 
+    Let :math:`L_i` denote the length of the :math:`i\textrm{th}` trajectory.  Given a predictive model :math:`g`, let :math:`g(i,t,k)` give the prediction for :math:`x_{i,t+k}` given the 
+    states :math:`\mathbf{x}_{i,1:t}` and controls :math:`\mathbf{u}_{i,1:t+k-1}`.
+    Let
+
+    .. math::
+        \sigma = \textrm{std} \{ x_{i,t+1} - x_{i,t} \mid i=1,\ldots,\left|\mathcal{T}\right|
+                        t=1,\ldots,L_i-1 \}
+        \textrm{,}
+
+    where the mean and standard deviation are computed element-wise.
+
+    Denote the :math:`k`-step Root Mean Squared Model Error, Normalized Step-wise, RMSMENS(:math:`k`), of :math:`g` with respect to :math:`\mathcal{T}` as
+
+    .. math::
+
+      \sqrt{
+       \frac{1}{n}
+        \left\lVert
+          \frac{1}{\left|\mathcal{T}\right|}
+          \sum_{i=1}^{\left|\mathcal{T}\right|}
+          \frac{1}{L_i-k  }
+          \sum_{t=1}^{L_i-k}\frac{1}{\sigma^2} e(i,t,k)^2
+        \right\rVert_1
+      }
+      \textrm{,}
+
+    where
+
+    .. math::
+      e(i,t,k) = g(i,t,k) - g(i,t,k-1) - (x_{i,t+k} - x_{i,t+k-1})
+
+    Parameters
+    ----------
+    model : Model
+        Model class to consider
+
+    trajs : List of Trajectories
+        Trajectories on which to evaluate
+
+    horizon : int
+        Prediction horizon at which to evaluate.
+        Default is 1.
     """
     dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
     dy_means = np.mean(dY, axis=0)
