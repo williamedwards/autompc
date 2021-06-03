@@ -2,7 +2,7 @@ Welcome to AutoMPC, a library for automating system identification and model pre
 AutoMPC can
  * Build SystemID models and Controllers
  * Evaluate and compare models and controllers
- * Tune controllers without requiring access to the system
+ * Tune controllers without requiring interactive access to the system
  * Provides a variety of controllers and optimizers
 
 To see AutoMPC in action, check out this [example](https://htmlpreview.github.io/?https://github.com/williamedwards/autompc/blob/main/examples/0_MainDemo.html)
