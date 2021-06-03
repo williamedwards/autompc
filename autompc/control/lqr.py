@@ -207,7 +207,7 @@ class LQRFactory(ControllerFactory):
     - *horizon* (Type: int, Low: 1, High: 1000, Default: 10): Length of control horizon. (Conditioned on finite_horizon="true").
     """
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.Controller = LQR
         self.name = "LQR"
 

@@ -1,7 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu), 2021-01-09
 
 # Standard library includes
-import sys
+import sys, time
 
 # External library includes
 import numpy as np
@@ -98,12 +98,12 @@ class HalfcheetahBenchmark(Benchmark):
     def __init__(self, data_gen_method="uniform_random"):
         name = "halfcheetah"
         system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)])
-        system.dt = env.dt
 
         import gym, mujoco_py
         env = gym.make("HalfCheetah-v2")
         self.env = env
 
+        system.dt = env.dt
         cost = HalfcheetahCost(env)
         task = Task(system)
         task.set_cost(cost)

@@ -43,7 +43,7 @@ class MPPIFactory(ControllerFactory):
     - *num_path* (Type: int, Lower: 100, Upper: 1000, Default: 200): Number of perturbed control sequence to sample. Generally the more the better and it scales better with vectorized and parallel computation.
     """
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.Controller = MPPI
         self.name = "MPPI"
 

@@ -224,7 +224,7 @@ class DirectTranscriptionControllerFactory(ControllerFactory):
             import cyipopt
         except:
             raise ImportError("Missing dependency for Direct Transcription Controller")
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.Controller = DirectTranscriptionController
         self.name = "DirectTranscription"
 
