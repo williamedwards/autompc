@@ -49,7 +49,7 @@ class SumCostFactory(CostFactory):
             set_subspace_configuration(cfg, "_sum_{}".format(i), fact_cfg)
             cost = factory(fact_cfg, task, trajs)
             costs.append(cost)
-        return sum(costs, start=SumCost(self.system, []))
+        return sum(costs, SumCost(self.system, []))
 
     def __add__(self, other):
         if isinstance(other, SumCostFactory):
