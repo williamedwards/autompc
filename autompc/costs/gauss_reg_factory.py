@@ -24,7 +24,7 @@ class GaussRegFactory(CostFactory):
     def __init__(self):
         pass
 
-    def get_configuration_space(self, system, task, Modle):
+    def get_configuration_space(self):
         cs = CS.ConfigurationSpace()
         reg_weight = CSH.UniformFloatHyperparameter("reg_weight",
                 lower=1e-3, upper=1e4, default_value=1.0, log=True)
