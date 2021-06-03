@@ -32,7 +32,7 @@ class CostFactory(ABC):
     #     raise NotImplementedError
 
     @abstractmethod
-    def __call__(self, cfg, trajs):
+    def __call__(self, cfg, task, trajs):
         """
         Build Cost according to configuration.
 
@@ -40,6 +40,9 @@ class CostFactory(ABC):
         ----------
         cfg : Configuration
             Cost hyperparameter configuration
+
+        task : Task
+            Input task
 
         trajs : List of Trajectory
             Trajectory training set. This is mostly used
@@ -54,4 +57,4 @@ class CostFactory(ABC):
         if isinstance(other, SumCostFactory):
             return other.__radd__(self)
         else:
-            return SumCostFactory([self, other])
+            return SumCostFactory(self.system, [self, other])

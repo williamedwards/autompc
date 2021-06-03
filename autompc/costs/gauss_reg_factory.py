@@ -34,12 +34,12 @@ class GaussRegFactory(CostFactory):
     def is_compatible(self, system, task, Model):
         return True
 
-    def __call__(self, system, task, model, trajs, cfg):
+    def __call__(self, cfg, task, trajs):
         X = np.concatenate([traj.obs[:,:] for traj in trajs])
         mean = np.mean(X, axis=0)
         cov = np.cov(X, rowvar=0)
         Q = cfg["reg_weight"] * la.inv(cov)
         F = np.zeros_like(Q)
-        R = np.zeros((system.ctrl_dim, system.ctrl_dim))
+        R = np.zeros((self.system.ctrl_dim, self.system.ctrl_dim))
 
-        return QuadCost(system, Q, R, F, goal=mean)
+        return QuadCost(self.system, Q, R, F, goal=mean)

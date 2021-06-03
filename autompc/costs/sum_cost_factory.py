@@ -20,7 +20,8 @@ class SumCostFactory(CostFactory):
     A factory which produces sums of other cost terms. A SumCostFactory
     can be crated by combining other costfactories with the `+` operator.
     """
-    def __init__(self, factories):
+    def __init__(self, system, factories):
+        super().__init__(system)
         self._factories = factories[:]
 
     @property
@@ -40,15 +41,15 @@ class SumCostFactory(CostFactory):
                 return False
         return True
 
-    def __call__(self, system, task, model, trajs, cfg):
+    def __call__(self, cfg, task, trajs):
         costs = []
         for i, factory in enumerate(self.factories):
-            fact_cs = factory.get_configuration_space(system, task, model.__class__)
+            fact_cs = factory.get_configuration_space()
             fact_cfg = fact_cs.get_default_configuration()
             set_subspace_configuration(cfg, "_sum_{}".format(i), fact_cfg)
-            cost = factory(system, task, model, trajs, fact_cfg)
+            cost = factory(fact_cfg, task, trajs)
             costs.append(cost)
-        return sum(costs, start=SumCost(system, []))
+        return sum(costs, start=SumCost(self.system, []))
 
     def __add__(self, other):
         if isinstance(other, SumCostFactory):
