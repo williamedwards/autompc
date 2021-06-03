@@ -67,7 +67,7 @@ class MPPI:
     def __init__(self, system, task, model, **kwargs):
         self.kwargs = kwargs 
         self.model = model
-        self.dyn_eqn = model.pred_parallel
+        self.dyn_eqn = model.pred_batch
         cost = task.get_cost()
         def cost_eqn(path, actions):
             costs = np.zeros(path.shape[0])

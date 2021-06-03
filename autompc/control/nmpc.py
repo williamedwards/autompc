@@ -104,7 +104,7 @@ class NonLinearMPCProblem(TrajOptProblem):
         self._x[:] = x
         self._c[:] = 0
         # first compute for dynamics
-        pred_states = self.model.pred_parallel(self._state[:self.horizon], self._ctrl[:self.horizon])
+        pred_states = self.model.pred_batch(self._state[:self.horizon], self._ctrl[:self.horizon])
         for i in range(self.horizon):
             self._c_dyn[i] = -self._state[i + 1] + pred_states[i]
         return self._c
