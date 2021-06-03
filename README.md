@@ -5,8 +5,8 @@ AutoMPC can
  * Tune controllers without requiring access to the system
  * Provides a variety of controllers and optimizers
 
-To see AutoMPC in action, check out this example
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1w19fIzYi4r50XI1pW64xUqN_JBbbyK2L).
+To see AutoMPC in action, check out this [example](https://htmlpreview.github.io/?https://github.com/williamedwards/autompc/blob/main/examples/0_MainDemo.html)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CNil-Cq24AjVtoArgWOW0ZvLNB-zcyGW).
 
 ## Why AutoMPC?
 
@@ -25,9 +25,11 @@ with the robot during tuning.  This is accomplished by initially training a *sur
 dynamics model.  During tuning, the surrogate dynamics are then used to simulate candidate
 controllers in order to evaluate closed-loop performance.
 
+For more details, see our [paper](https://motion.cs.illinois.edu/papers/ICRA2021_Edwards_AutoMPC.pdf)
+
 ## How to use AutoMPC?
 
-Check out are main example [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1w19fIzYi4r50XI1pW64xUqN_JBbbyK2L)
+Check out are [main example](https://htmlpreview.github.io/?https://github.com/williamedwards/autompc/blob/main/examples/0_MainDemo.html) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CNil-Cq24AjVtoArgWOW0ZvLNB-zcyGW)
 to see an overview of the AutoMPC workflow.
 
 If you are interested, check out our [detailed examples](examples/readme.md) for more information on how to use the different parts of AutoMPC.
