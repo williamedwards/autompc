@@ -21,8 +21,8 @@ class GaussRegFactory(CostFactory):
     Hyperparameters:
      - *reg_weight* (float, Lower: 10^-3, Upper: 10^4): Weight of regularization term.
     """
-    def __init__(self):
-        pass
+    def __init__(self, system):
+        super().__init__(system)
 
     def get_configuration_space(self):
         cs = CS.ConfigurationSpace()
