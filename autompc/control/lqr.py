@@ -74,7 +74,7 @@ def _finite_horz_dt_lqr(A, B, Q, R, N, F, horizon):
 #     - *horizon* (Type: int, Low: 1, High: 1000, Default: 10): Length of control horizon. (Conditioned on horizon_type="finite").
 #     """
 #     def __init__(self, *args, **kwargs):
-#         super().__init__(self, *args, **kwargs)
+#         super().__init__(*args, **kwargs)
 #         self.name  = "InfiniteHorizonLQR"
 # 
 #     def get_configuration_space(self):

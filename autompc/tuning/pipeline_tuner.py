@@ -230,7 +230,7 @@ class PipelineTuner:
                 print("Surrogate Final State: ", surr_traj[-1].obs)
                 info["surr_cost"] = surr_cost
                 info["surr_traj"] = (surr_traj.obs.tolist(), surr_traj.ctrls.tolist())
-            except numpy.linalg.LinAlgError:
+            except np.linalg.LinAlgError:
                 surr_cost = np.inf
                 info["surr_cost"] = surr_cost
                 info["surr_traj"] = None

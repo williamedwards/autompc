@@ -183,7 +183,7 @@ class MPPI:
 
 class MPPICopy(Controller):
     def __init__(self, system, task, model, **kwargs):
-        Controller.__init__(self, system, task, model)
+        Controller.__init__(system, task, model)
         self.n, self.m = system.obs_dim, system.ctrl_dim
         self.seed = kwargs.get('seed', 0)
         self.H = kwargs.get('H', 20)
