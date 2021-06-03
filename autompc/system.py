@@ -6,7 +6,7 @@ class System:
     control and observation dimensions and the labels for each control
     and observation variable.
     """
-    def __init__(self, observations, controls):
+    def __init__(self, observations, controls, dt=None):
         """
         Parameters
         ----------
@@ -15,6 +15,9 @@ class System:
 
         controls : List of strings
             Name of each control dimension
+
+        dt : float
+            Optional: Data time step for the system.
         """
         # Check inputs
         obs_set = set(observations)
@@ -30,6 +33,8 @@ class System:
         self._controls = controls[:]
         self._observations = observations[:]
 
+        self.dt = dt
+
     def __eq__(self, other):
         return ((self.controls == other.controls) 
                 and (self.observations == other.observations))
@@ -37,7 +42,13 @@ class System:
     def __str__(self):
         observation_str = '{} observations'.format(len(self._observations)) if len(self._observations) > 4 else '['+','.join(self._observations)+']'
         control_str = '{} controls'.format(len(self._controls)) if len(self._controls) > 4 else '['+','.join(self._controls)+']'
-        return '{}({},{})'.format(self.__class__.__name__,observation_str,control_str)
+        if self.dt is None:
+            return '{}({},{})'.format(self.__class__.__name__,observation_str,control_str)
+        else:
+            dt_str = "dt={.3f}".format(self.dt)
+            return '{}({},{},{})'.format(self.__class__.__name__,observation_str,control_str,dt_str)
+            
+
 
     @property
     def controls(self):
