@@ -73,15 +73,17 @@ class MPPI(Controller):
         def cost_eqn(path, actions):
             costs = np.zeros(path.shape[0])
             for i in range(path.shape[0]):
-                costs[i] += cost.eval_obs_cost(path[i,:])
+                costs[i] += cost.eval_obs_cost(path[i,:system.obs_dim])
                 costs[i] += cost.eval_ctrl_cost(actions[i,:])
             return costs
         def terminal_cost(path):
-            return cost.eval_term_obs_cost(path[-1])
+            last_obs = path[-1, :system.obs_dim]
+            term_cost = cost.eval_term_obs_cost(last_obs)
+            return term_cost
         self.cost_eqn = cost_eqn
         self.terminal_cost = terminal_cost
         system = model.system
-        self.dim_state, self.dim_ctrl = system.obs_dim, system.ctrl_dim
+        self.dim_state, self.dim_ctrl = model.state_dim, system.ctrl_dim
         self.seed = kwargs.get('seed', 0)
         self.H = kwargs.get('horizon', 20)
         print(f"H={self.H}")
@@ -149,16 +151,10 @@ class MPPI(Controller):
         # import pdb; pdb.set_trace()
         return costs, eps
 
-    @property
-    def state_dim(self):
-        return 0
-
-    def traj_to_state(self, traj):
-        return np.array([])
-
     def run(self, constate, new_obs):
         # first is to extract current state
-        x0 = new_obs
+        x0 = self.model.update_state(constate[:-self.system.ctrl_dim],
+                constate[-self.system.ctrl_dim:], new_obs)
         # then collect trajectories...
         for _ in range(self.niter):
             costs, eps = self.do_rollouts(x0, self.seed + self.cur_step)
@@ -167,14 +163,17 @@ class MPPI(Controller):
         # update the cached action sequence
         ret_action = self.act_sequence[0].copy()
         ret_action *= self.ctrl_scale
-        return ret_action, np.array([])
+        statenew = np.concatenate([x0, ret_action])
+
+        return ret_action, statenew
 
     def traj_to_state(self, traj):
-        return self.model.traj_to_state(traj)
+        return np.concatenate([self.model.traj_to_state(traj),
+                traj[-1].ctrl])
 
     @property
     def state_dim(self):
-        return self.model.state_dim
+        return self.model.state_dim + self.system.ctrl_dim
 
     @staticmethod
     def is_compatible(system, task, model):

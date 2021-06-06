@@ -164,11 +164,11 @@ class SINDy(Model):
         self.model = sindy_model
 
     def pred(self, state, ctrl):
-        xpred = self.pred_parallel(state.reshape((1,state.size)), 
+        xpred = self.pred_batch(state.reshape((1,state.size)), 
                 ctrl.reshape((1,ctrl.size)))[0,:]
         return xpred
 
-    def pred_parallel(self, states, ctrls):
+    def pred_batch(self, states, ctrls):
         if self.time_mode == "discrete":
             xpreds = self.model.predict(states, ctrls)
         else:
@@ -177,7 +177,7 @@ class SINDy(Model):
         return xpreds
 
     def pred_diff(self, state, ctrl):
-        pred, state_jac, ctrl_jac = self.pred_diff_parallel(
+        pred, state_jac, ctrl_jac = self.pred_diff_batch(
                 state.reshape((1,-1)), ctrl.reshape((1,-1)))
         pred = pred[0]
         state_jac = state_jac[0]
@@ -221,8 +221,8 @@ class SINDy(Model):
                     ctrl_jac[:,idx-self.state_dim] += coeff[coeff_idx] * grads[j]
         return state_jac, ctrl_jac
 
-    def pred_diff_parallel(self, states, ctrls):
-        xpred = self.pred_parallel(states, ctrls)
+    def pred_diff_batch(self, states, ctrls):
+        xpred = self.pred_batch(states, ctrls)
         p = states.shape[0]
         state_jac = np.zeros((p, self.state_dim, self.state_dim))
         ctrl_jac = np.zeros((p, self.state_dim, self.system.ctrl_dim))

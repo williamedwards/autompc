@@ -158,6 +158,8 @@ class Koopman(Model):
             print("Compute Stable Koopman")
             # call function
             A, _, _, _, B, _ = stabilize_discrete(X, U, Y)
+            A = np.real(A)
+            B = np.real(B)
 
         self.A, self.B = A, B
 

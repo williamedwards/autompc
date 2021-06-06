@@ -83,7 +83,8 @@ class IterativeLQR(Controller):
 
     @property
     def state_dim(self):
-        return self.model.state_dim + self.system.ctrl_dim
+        return np.concatenate([self.model.traj_to_state(traj),
+                traj[-1].ctrl])
 
     @staticmethod
     def is_compatible(system, task, model):
@@ -123,11 +124,12 @@ class IterativeLQR(Controller):
         def eval_obj(xs, us):
             obj = 0
             for i in range(H):
-                obj += dt * (cost.eval_obs_cost(xs[i]) + cost.eval_ctrl_cost(us[i]))
-            obj += cost.eval_term_obs_cost(xs[-1])
+                obj += dt * (cost.eval_obs_cost(xs[i, :self.system.obs_dim]) + cost.eval_ctrl_cost(us[i]))
+            obj += cost.eval_term_obs_cost(xs[-1, :self.system.obs_dim])
             return obj
 
-        dimx, dimu = self.system.obs_dim, self.system.ctrl_dim
+        dimx, dimu = self.model.state_dim, self.system.ctrl_dim
+        obsdim = self.system.obs_dim
         # handy variables...
         states, new_states = np.zeros((2, H + 1, dimx))
         ctrls, new_ctrls = np.zeros((2, H, dimu))
@@ -154,13 +156,17 @@ class IterativeLQR(Controller):
             if self.verbose:
                 print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
-            _, cost_jac, cost_hess = cost.eval_term_obs_cost_hess(states[H])
-            Vn = cost_hess
-            vn = cost_jac
+            _, cost_jac, cost_hess = cost.eval_term_obs_cost_hess(states[H, :obsdim])
+            Vn = np.zeros((dimx, dimx))
+            vn = np.zeros(dimx)
+            Vn[:obsdim, :obsdim] = cost_hess
+            vn[:obsdim] = cost_jac
             lin_cost_reduce = quad_cost_reduce = 0
             for t in range(H, 0, -1):  # so run for H steps...
                 # first assemble Ct and ct, they are linearized at current state
-                _, Qx, Q = cost.eval_obs_cost_hess(states[t - 1])
+                Q  = np.zeros((dimx, dimx))
+                Qx = np.zeros(dimx)
+                _, Qx[:obsdim], Q[:obsdim, :obsdim] = cost.eval_obs_cost_hess(states[t - 1, :obsdim])
                 _, Ru, R = cost.eval_ctrl_cost_hess(ctrls[t - 1])
                 Ct[:dimx, :dimx] = Q * dt
                 Ct[dimx:, dimx:] = R * dt
@@ -258,18 +264,19 @@ class IterativeLQR(Controller):
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks, ks
 
-    def run(self, info, new_obs, silent=True):
+    def run(self, constate, new_obs, silent=True):
         """Here I am assuming I reuse the controller for half horizon"""
-        if self.reuse_feedback == 0:
-            if self._guess is None:
-                self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
-            converged, states, ctrls, Ks, ks = self.compute_ilqr(new_obs, self._guess,
-                    silent=silent)
-            self._states = states
-            self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
-            return ctrls[0], None
+        # if self.reuse_feedback == 0:
+        #     if self._guess is None:
+        #         self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
+        #     converged, states, ctrls, Ks, ks = self.compute_ilqr(new_obs, self._guess,
+        #             silent=silent)
+        #     self._states = states
+        #     self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
+        #     return ctrls[0], None
         # Implement control logic here
-        state = new_obs
+        state = self.model.update_state(constate[:-self.system.ctrl_dim],
+                constate[-self.system.ctrl_dim:], new_obs)
         if self._need_recompute:
             converged, states, ctrls, Ks, ks = self.compute_ilqr(state, 
                     np.zeros((self.horizon, self.system.ctrl_dim)), silent=silent)
@@ -284,4 +291,5 @@ class IterativeLQR(Controller):
         if not silent:
             print('inside ilqr u0 = ', u0, 'u = ', u)
         self._step_count += 1
-        return u, None
+        statenew = np.concatenate([state, u])
+        return u, statenew

@@ -42,7 +42,7 @@ class NonLinearMPCProblem(TrajOptProblem):
         self.model = model
         self.horizon = horizon
         dc = system.ctrl_dim
-        ds = system.obs_dim
+        ds = model.state_dim
         self.ctrl_dim = dc
         self.obs_dim = ds
         # now I can get the size of the problem
@@ -75,9 +75,9 @@ class NonLinearMPCProblem(TrajOptProblem):
         cost = self.task.get_cost()
         self._x[:] = x  # copy contents in
         dt = self.system.dt
-        tc = cost.eval_term_obs_cost(self._state[-1])
+        tc = cost.eval_term_obs_cost(self._state[-1, :self.system.obs_dim])
         for i in range(self.horizon + 1):
-            tc += cost.eval_obs_cost(self._state[i]) * dt
+            tc += cost.eval_obs_cost(self._state[i, :self.system.obs_dim]) * dt
         for i in range(self.horizon):
             tc += cost.eval_ctrl_cost(self._ctrl[i]) * dt
         return tc
@@ -88,12 +88,12 @@ class NonLinearMPCProblem(TrajOptProblem):
         self._grad[:] = 0  # reset just in case
         # terminal one
         cost = self.task.get_cost()
-        _, gradtc = cost.eval_term_obs_cost_diff(self._state[-1])
-        self._grad_state[-1] = gradtc
+        _, gradtc = cost.eval_term_obs_cost_diff(self._state[-1, :self.system.obs_dim])
+        self._grad_state[-1, :self.system.obs_dim] = gradtc
         dt = self.system.dt
         for i in range(self.horizon + 1):
-            _, gradx = cost.eval_obs_cost_diff(self._state[i])
-            self._grad_state[i] += gradx * dt
+            _, gradx = cost.eval_obs_cost_diff(self._state[i, :self.system.obs_dim])
+            self._grad_state[i, :self.system.obs_dim] += gradx * dt
         for i in range(self.horizon):
             _, gradu = cost.eval_ctrl_cost_diff(self._ctrl[i])
             self._grad_ctrl[i] = gradu * dt
@@ -115,13 +115,16 @@ class NonLinearMPCProblem(TrajOptProblem):
         return clb, cub
 
     def get_variable_bounds(self):
-        obsbd = self.task.get_obs_bounds()
+        statebd = np.zeros((self.obs_dim, 2))
+        statebd[:,0] = -np.inf
+        statebd[:,1] = np.inf
+        statebd[:self.system.obs_dim, :] = self.task.get_obs_bounds()
         ctrlbd = self.task.get_ctrl_bounds()
         dc = self.ctrl_dim
         ds = self.obs_dim
         xlb, xub = np.zeros((2, self.dimx))
-        xlb[:(self.horizon + 1) * ds].reshape((-1, ds))[:] = obsbd[:, 0]
-        xub[:(self.horizon + 1) * ds].reshape((-1, ds))[:] = obsbd[:, 1]
+        xlb[:(self.horizon + 1) * ds].reshape((-1, ds))[:] = statebd[:, 0]
+        xub[:(self.horizon + 1) * ds].reshape((-1, ds))[:] = statebd[:, 1]
         xlb[-self.horizon * dc:].reshape((-1, dc))[:] = ctrlbd[:, 0]
         xub[-self.horizon * dc:].reshape((-1, dc))[:] = ctrlbd[:, 1]
         return xlb, xub
@@ -172,7 +175,7 @@ class NonLinearMPCProblem(TrajOptProblem):
             # for terminal constraints first
             ###### Placeholder for terminal constraints
             # then other point constraints
-            _, matss, matus = self.model.pred_diff_parallel(self._state[:self.horizon], self._ctrl[:self.horizon])
+            _, matss, matus = self.model.pred_diff_batch(self._state[:self.horizon], self._ctrl[:self.horizon])
             for i in range(self.horizon):
                 mats, matu = matss[i], matus[i]
                 self._jac[cg: cg + mats.size] = mats.flat
@@ -242,6 +245,7 @@ class DirectTranscriptionController(Controller):
     cost is a Cost instance to compute fitness of a trajectory
     """
     def __init__(self, system, model, task, horizon):
+        global cyipopt
         try:
             import cyipopt
         except:
@@ -272,7 +276,7 @@ class DirectTranscriptionController(Controller):
         if not self._built:
             self._build_problem()
 
-        dims = self.problem.obs_dim
+        dims = self.model.state_dim
         lb, ub = self.problem.get_variable_bounds()
         cl, cu = self.problem.get_constr_bounds()
         lb[:dims] = ub[:dims] = x0

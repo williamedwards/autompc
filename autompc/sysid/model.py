@@ -119,7 +119,7 @@ class Model(ABC):
             state : Numpy array of size (N, self.state_dim)
                 N predicted states
         """
-        n = self.system.obs_dim
+        n = self.state_dim
         m = states.shape[0]
         out = np.empty((m, n))
         for i in range(m):
@@ -170,7 +170,7 @@ class Model(ABC):
                        self.ctrl_dim)
                 Gradient of predicted model states wrt to ctrl
         """
-        n = self.system.obs_dim
+        n = self.state_dim
         m = states.shape[0]
         out = np.empty((m, n))
         state_jacs = np.empty((m, n, n))
