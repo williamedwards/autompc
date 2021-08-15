@@ -34,8 +34,7 @@ class ZeroController(Controller):
     def state_dim(self):
         return 0
 
-    @staticmethod
-    def is_compatible(system, task, model):
+    def is_compatible(self, system, task, model):
         return True
  
     def traj_to_state(self, traj):

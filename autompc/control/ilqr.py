@@ -59,7 +59,7 @@ class IterativeLQR(Controller):
         else:
             self.reuse_feedback = reuse_feedback
         self._guess = None
-        if ubounds is None and task.are_ctrl_bounded():
+        if ubounds is None and task.are_ctrl_bounded:
             bounds = task.get_ctrl_bounds()
             self.ubounds = (bounds[:,0], bounds[:,1])
         else:
@@ -86,13 +86,10 @@ class IterativeLQR(Controller):
         return np.concatenate([self.model.traj_to_state(traj),
                 traj[-1].ctrl])
 
-    @staticmethod
-    def is_compatible(system, task, model):
-        return (task.is_cost_quad()
-                and not task.are_obs_bounded()
-                and not task.are_ctrl_bounded()
-                and not task.eq_cons_present()
-                and not task.ineq_cons_present())
+    def is_compatible(self, system, task, model):
+        return (model.is_diff
+                and task.get_cost().is_twice_diff
+                and not task.are_obs_bounded)
  
     def traj_to_state(self, traj):
         return self.model.traj_to_state(traj)

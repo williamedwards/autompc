@@ -5,12 +5,20 @@ import ConfigSpace.conditions as CSC
 from .model import Model, ModelFactory
 from .mlp import MLPFactory
 from .arx import ARXFactory
+from .koopman import KoopmanFactory
+from .sindy import SINDyFactory
+from .largegp import ApproximateGPModelFactory
 from ..utils.cs_utils import add_configuration_space
 
 class AutoModelFactory(ModelFactory):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.factories = [MLPFactory(self.system), ARXFactory(self.system)]
+        self.factories = [MLPFactory(self.system), 
+                ARXFactory(self.system),
+                KoopmanFactory(self.system),
+                SINDyFactory(self.system),
+                ApproximateGPModelFactory(self.system)
+                ]
 
     def get_configuration_space(self):
         cs_combined = CS.ConfigurationSpace()
@@ -43,4 +51,3 @@ class AutoModelFactory(ModelFactory):
     def __call__(self, cfg_combined, *args, **kwargs):
         factory, cfg = self._get_factory_cfg(cfg_combined)
         return factory(cfg, *args, **kwargs)
-

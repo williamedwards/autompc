@@ -302,9 +302,8 @@ class DirectTranscriptionController(Controller):
     def state_dim(self):
         return self.model.state_dim + self.model.ctrl_dim
 
-    @staticmethod
-    def is_compatible(system, task, model):
-        return True  # this should be universal...
+    def is_compatible(self, system, task, model):
+        return (model.is_diff and task.get_cost().is_diff)
  
     def traj_to_state(self, traj):
         return np.concatenate([self.model.traj_to_state(traj),

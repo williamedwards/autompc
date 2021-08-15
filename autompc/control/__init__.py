@@ -1,3 +1,4 @@
+from .controller import Controller, ControllerFactory, MPCCompatibilityError
 from .lqr import LQRFactory, FiniteHorizonLQR, InfiniteHorizonLQR
 from .ilqr import IterativeLQR, IterativeLQRFactory
 try:

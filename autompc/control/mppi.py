@@ -175,9 +175,7 @@ class MPPI(Controller):
     def state_dim(self):
         return self.model.state_dim + self.system.ctrl_dim
 
-    @staticmethod
-    def is_compatible(system, task, model):
-        # MPPI works with all model/system/task unless there is hard constraints, but can't we?
+    def is_compatible(self, system, task, model):
         return True
 
 
@@ -271,8 +269,7 @@ class MPPICopy(Controller):
         cs.add_hyperparameter(num_traj)
         return cs
 
-    @staticmethod
-    def is_compatible(system, task, model):
+    def is_compatible(self, system, task, model):
         # MPPI works with all model/system/task unless there is hard constraints, but can't we?
         return True
  

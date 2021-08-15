@@ -3,6 +3,9 @@
 from abc import ABC, abstractmethod
 from pdb import set_trace
 
+class MPCCompatibilityError(Exception):
+    pass
+
 class ControllerFactory(ABC):
     """
     The ControllerFactroy creates a controller based
@@ -57,6 +60,8 @@ class Controller(ABC):
         self.system = system
         self.model = model
         self.task = task
+        if not self.is_compatible(system, task, model):
+            raise MPCCompatibilityError
 
     @abstractmethod
     def traj_to_state(self, traj):
@@ -102,15 +107,14 @@ class Controller(ABC):
         """
         pass
     
-    # @staticmethod
-    # @abstractmethod
-    # def is_compatible(system, task, model):
-    #     """
-    #     Returns true if the controller is compatible with
-    #     the given system, model, and task. Returns false
-    #     otherwise.
-    #     """
-    #     raise NotImplementedError
+    @abstractmethod
+    def is_compatible(self, system, task, model):
+        """
+        Returns true if the controller is compatible with
+        the given system, model, and task. Returns false
+        otherwise.
+        """
+        raise NotImplementedError
 
     @property
     @abstractmethod

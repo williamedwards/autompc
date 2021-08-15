@@ -2,9 +2,11 @@
 # Standard library includes
 from collections import namedtuple
 import pickle
+import multiprocessing
+multiprocessing.set_start_method("spawn")
 
 # Internal project includes
-from .. import zeros
+from .. import zeros, MPCCompatibilityError
 from ..utils import simulate
 from ..evaluation import HoldoutModelEvaluator
 from .model_tuner import ModelTuner
@@ -12,8 +14,10 @@ from ..sysid import MLPFactory, SINDyFactory, ApproximateGPModelFactory, ARXFact
 
 # External library includes
 import numpy as np
+import pynisher
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
+from smac.initial_design.latin_hypercube_design import LHDesign
 
 
 PipelineTuneResult = namedtuple("PipelineTuneResult", ["inc_cfg", "cfgs", 
@@ -74,6 +78,67 @@ PipelineTuneREsult contains information about a tuning process.
 
 autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
         ARXFactory, KoopmanFactory]
+
+
+#@pynisher.enforce_limits(wall_time_in_s=300, grace_period_in_s=10)
+class CfgEvaluator:
+    def __init__(self, pipeline, task, surrogate, sysid_trajs, truedyn):
+        self.pipeline = pipeline
+        self.task = task
+        self.surrogate = surrogate
+        self.sysid_trajs = sysid_trajs
+        self.truedyn = truedyn
+
+    def __call__(self, cfg):
+        pipeline = self.pipeline
+        task = self.task
+        surrogate = self.surrogate
+        sysid_trajs = self.sysid_trajs
+        truedyn = self.truedyn
+        info = dict()
+        try:
+            controller, cost, model = pipeline(cfg, task, sysid_trajs)
+            print("Simulating Surrogate Trajectory: ")
+            try:
+                controller.reset()
+                if task.has_num_steps():
+                    surr_traj = simulate(controller, task.get_init_obs(),
+                           task.term_cond, sim_model=surrogate, 
+                           max_steps=task.get_num_steps())
+                else:
+                    surr_traj = simulate(controller, task.get_init_obs(),
+                           task.term_cond, sim_model=surrogate)
+                cost = task.get_cost()
+                surr_cost = cost(surr_traj)
+                print("Surrogate Cost: ", surr_cost)
+                print("Surrogate Final State: ", surr_traj[-1].obs)
+                info["surr_cost"] = surr_cost
+                info["surr_traj"] = (surr_traj.obs.tolist(), surr_traj.ctrls.tolist())
+            except np.linalg.LinAlgError:
+                surr_cost = np.inf
+                info["surr_cost"] = surr_cost
+                info["surr_traj"] = None
+            
+            if not truedyn is None:
+                print("Simulating True Dynamics Trajectory")
+                controller, _, _ = pipeline(cfg, task, sysid_trajs, model=model)
+                controller.reset()
+                if task.has_num_steps():
+                    truedyn_traj = simulate(controller, task.get_init_obs(),
+                       task.term_cond, dynamics=truedyn, max_steps=task.get_num_steps())
+                else:
+                    truedyn_traj = simulate(controller, task.get_init_obs(),
+                       task.term_cond, dynamics=truedyn)
+                truedyn_cost = cost(truedyn_traj)
+                print("True Dynamics Cost: ", truedyn_cost)
+                print("True Dynamics Final State: ", truedyn_traj[-1].obs)
+                info["truedyn_cost"] = truedyn_cost
+                info["truedyn_traj"] = (truedyn_traj.obs.tolist(), 
+                        truedyn_traj.ctrls.tolist())
+        except MPCCompatibilityError:
+            surr_cost = np.inf
+
+        return surr_cost, info
 
 class PipelineTuner:
     """
@@ -148,6 +213,8 @@ class PipelineTuner:
             surrogate, surrogate_tune_result = model_tuner.run(rng, n_iters=surrogate_tune_iters) 
         return surrogate, surrogate_tune_result
 
+
+
     def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
             surrogate_tune_iters=100, special_debug=False):
         """
@@ -207,63 +274,40 @@ class PipelineTuner:
             with open("../../out/2021-05-17/surrogate.pkl", "wb") as f:
                 pickle.dump(surrogate, f)
             eval_idx = [0]
-        def eval_cfg(cfg):
-            info = dict()
-            controller, cost, model = pipeline(cfg, task, sysid_trajs)
-            if special_debug:
-                with open("../../out/2021-05-17/con_{}.pkl".format(eval_idx[0]), "wb") as f:
-                    pickle.dump(controller, f)
-                eval_idx[0] += 1
-            print("Simulating Surrogate Trajectory: ")
-            try:
-                controller.reset()
-                if task.has_num_steps():
-                    surr_traj = simulate(controller, task.get_init_obs(),
-                           task.term_cond, sim_model=surrogate, 
-                           max_steps=task.get_num_steps())
-                else:
-                    surr_traj = simulate(controller, task.get_init_obs(),
-                           task.term_cond, sim_model=surrogate)
-                cost = task.get_cost()
-                surr_cost = cost(surr_traj)
-                print("Surrogate Cost: ", surr_cost)
-                print("Surrogate Final State: ", surr_traj[-1].obs)
-                info["surr_cost"] = surr_cost
-                info["surr_traj"] = (surr_traj.obs.tolist(), surr_traj.ctrls.tolist())
-            except np.linalg.LinAlgError:
-                surr_cost = np.inf
-                info["surr_cost"] = surr_cost
-                info["surr_traj"] = None
-            
-            if not truedyn is None:
-                print("Simulating True Dynamics Trajectory")
-                controller, _, _ = pipeline(cfg, task, sysid_trajs, model=model)
-                controller.reset()
-                if task.has_num_steps():
-                    truedyn_traj = simulate(controller, task.get_init_obs(),
-                       task.term_cond, dynamics=truedyn, max_steps=task.get_num_steps())
-                else:
-                    truedyn_traj = simulate(controller, task.get_init_obs(),
-                       task.term_cond, dynamics=truedyn)
-                truedyn_cost = cost(truedyn_traj)
-                print("True Dynamics Cost: ", truedyn_cost)
-                print("True Dynamics Final State: ", truedyn_traj[-1].obs)
-                info["truedyn_cost"] = truedyn_cost
-                info["truedyn_traj"] = (truedyn_traj.obs.tolist(), 
-                        truedyn_traj.ctrls.tolist())
 
-            return surr_cost, info
+        eval_kwargs = dict()
+        eval_kwargs["pipeline"] = pipeline
+        eval_kwargs["surrogate"] = surrogate
+        eval_kwargs["task"] = task
+        eval_kwargs["sysid_trajs"] = sysid_trajs
+        eval_kwargs["truedyn"] = truedyn
+
+        #eval_cfg = pynisher.enforce_limits(wall_time_in_s=10, 
+        #        grace_period_in_s=10)(CfgEvaluator(**eval_kwargs))
+        eval_cfg = CfgEvaluator(**eval_kwargs)
+        eval_cfg_pickle = pickle.dumps(eval_cfg)
+        print("Pickled Size: ", len(eval_cfg_pickle))
+        cfg = pipeline.get_configuration_space().get_default_configuration()
+        cfg["_model:model"] = "ARX"
+        p = multiprocessing.Process(target=eval_cfg, args=(cfg,))
+        p.start()
+        p.join()
+        #print("Eval Result: ", eval_cfg(cfg))
 
         smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
         scenario = Scenario({"run_obj" : "quality",
                              "runcount-limit" : n_iters,
                              "cs" : pipeline.get_configuration_space(),
                              "deterministic" : "true",
-                             "limit_resources" : False
+                             "limit_resources" : False,
+                             #"cutoff" : 500,
+                             "abort_on_first_run_crash" : False
                              })
 
         smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                tae_runner=eval_cfg)
+                initial_design=LHDesign,
+                tae_runner=eval_cfg
+                )
 
         inc_cfg = smac.optimize()
 
@@ -273,6 +317,8 @@ class PipelineTuner:
 
         for key, val in smac.runhistory.data.items():
             cfg = smac.runhistory.ids_config[key.config_id]
+            if not val.additional_info:
+                continue
             if val.cost < inc_cost:
                 inc_cost = val.cost
                 if "truedyn_cost" in val.additional_info:

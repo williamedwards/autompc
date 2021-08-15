@@ -2,6 +2,13 @@
 
 import numpy as np
 
+class NumStepsTermCond:
+    def __init__(self, num_steps):
+        self.num_steps = num_steps
+
+    def __call__(self, traj):
+        return len(traj) >= self.num_steps
+
 class Task:
     """
     Defines a control task to be solved
@@ -49,7 +56,7 @@ class Task:
         num_steps : int
             Maximum number of steps.
         """
-        self._term_cond = lambda traj: len(traj) >= num_steps
+        self._term_cond = NumStepsTermCond(num_steps)
         self._num_steps = num_steps
 
     def has_num_steps(self):
@@ -212,6 +219,7 @@ class Task:
         self._ctrl_bounds[:,0] = lowers
         self._ctrl_bounds[:,1] = uppers
 
+    @property
     def are_obs_bounded(self):
         """
         Check whether task has observation bounds
@@ -227,6 +235,7 @@ class Task:
                 return True
         return False
 
+    @property
     def are_ctrl_bounded(self):
         """
         Check whether task has control bounds

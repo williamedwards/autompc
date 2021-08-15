@@ -11,6 +11,7 @@ from ConfigSpace.hyperparameters import (UniformIntegerHyperparameter,
 import ConfigSpace.conditions as CSC
 
 from .controller import Controller, ControllerFactory
+from control.matlab import dare
 
 def _dynamic_ricatti_equation(A, B, Q, R, N, Pk):
     return (A.T @ Pk @ A 
@@ -110,18 +111,15 @@ class InfiniteHorizonLQR(Controller):
     def state_dim(self):
         return self.model.state_dim + self.system.ctrl_dim
 
-    @staticmethod
-    def is_compatible(system, task, model):
-        return (model.is_linear 
-                and task.is_cost_quad()
-                and not task.are_obs_bounded()
-                and not task.are_ctrl_bounded()
-                and not task.eq_cons_present()
-                and not task.ineq_cons_present())
- 
     def traj_to_state(self, traj):
         return np.concatenate([self.model.traj_to_state(traj),
                 traj[-1].ctrl])
+
+    def is_compatible(self, system, task, model):
+        return (model.is_linear 
+                and task.get_cost().is_quad
+                and not task.are_obs_bounded
+                )
 
     def run(self, state, new_obs):
         # Implement control logic here
@@ -158,18 +156,15 @@ class FiniteHorizonLQR(Controller):
     def state_dim(self):
         return self.model.state_dim + self.system.ctrl_dim
 
-    @staticmethod
-    def is_compatible(system, task, model):
-        return (model.is_linear 
-                and task.is_cost_quad()
-                and not task.are_obs_bounded()
-                #and not task.are_ctrl_bounded()
-                and not task.eq_cons_present()
-                and not task.ineq_cons_present())
- 
     def traj_to_state(self, traj):
         return np.concatenate([self.model.traj_to_state(traj),
                 traj[-1].ctrl])
+
+    def is_compatible(self, system, task, model):
+        return (model.is_linear 
+                and task.get_cost().is_quad
+                and not task.are_obs_bounded
+                )
 
     def run(self, state, new_obs):
         # Implement control logic here
@@ -237,14 +232,12 @@ class LQR(Controller):
     def state_dim(self):
         return self._controller.state_dim
 
-    @staticmethod
-    def is_compatible(system, task, model):
+
+    def is_compatible(self, system, task, model):
         return (model.is_linear 
-                and task.is_cost_quad()
-                and not task.are_obs_bounded()
-                #and not task.are_ctrl_bounded()
-                and not task.eq_cons_present()
-                and not task.ineq_cons_present())
+                and task.get_cost().is_quad
+                and not task.are_obs_bounded
+                )
 
     def traj_to_state(self, traj):
         return self._controller.traj_to_state(traj)
