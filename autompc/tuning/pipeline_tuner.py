@@ -3,7 +3,9 @@
 from collections import namedtuple
 import pickle
 import multiprocessing
-multiprocessing.set_start_method("spawn")
+import contextlib
+import datetime
+import os, sys, glob, shutil
 
 # Internal project includes
 from .. import zeros, MPCCompatibilityError
@@ -18,6 +20,9 @@ import pynisher
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
 from smac.initial_design.latin_hypercube_design import LHDesign
+from smac.runhistory.runhistory import RunHistory
+from smac.stats.stats import Stats
+from smac.utils.io.traj_logging import TrajLogger
 
 
 PipelineTuneResult = namedtuple("PipelineTuneResult", ["inc_cfg", "cfgs", 
@@ -82,19 +87,66 @@ autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
 
 #@pynisher.enforce_limits(wall_time_in_s=300, grace_period_in_s=10)
 class CfgEvaluator:
-    def __init__(self, pipeline, task, surrogate, sysid_trajs, truedyn):
-        self.pipeline = pipeline
-        self.task = task
-        self.surrogate = surrogate
-        self.sysid_trajs = sysid_trajs
-        self.truedyn = truedyn
+    def __init__(self, tuning_data=None, run_dir=None, timeout=None, log_file_name=None):
+        if tuning_data is None and run_dir is None:
+            raise ValueError("Either tuning_data or run_dir must be passed")
+        self.tuning_data = tuning_data
+        self.run_dir = run_dir
+        self.timeout = timeout
+        if log_file_name is None and run_dir is not None:
+            log_file_name = os.path.join(run_dir, "log.txt")
+        self.log_file_name = log_file_name
+
+    def get_tuning_data(self):
+        if not self.tuning_data is None:
+            return self.tuning_data
+        with open(os.path.join(self.run_dir, "tuning_data.pkl"), "rb") as f:
+            return pickle.load(f)
 
     def __call__(self, cfg):
-        pipeline = self.pipeline
-        task = self.task
-        surrogate = self.surrogate
-        sysid_trajs = self.sysid_trajs
-        truedyn = self.truedyn
+        if self.timeout is None:
+            return self.run(cfg)
+
+        #p = multiprocessing.Process(target=self.run_mp, args=(cfg,))
+        ctx = multiprocessing.get_context("spawn")
+        q = ctx.Queue()
+        p = ctx.Process(target=self.run_mp, args=(cfg, q))
+        p.start()
+        p.join(timeout=self.timeout)
+        # p.join()
+        if p.exitcode is None:
+            print("CfgEvaluator: Evaluation timed out")
+            p.terminate()
+            return np.inf, dict()
+        if p.exitcode != 0:
+            print("CfgEvaluator: Exception during evaluation")
+            print("Exit code: ", p.exitcode)
+            return np.inf, dict()
+        else:
+            result = q.get()
+            return result
+
+    def run_mp(self, cfg, q):
+        if not self.log_file_name is None:
+            with open(self.log_file_name, "a") as f:
+                with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+                    try:
+                        result = self.run(cfg)
+                    except Exception as e:
+                        print("Exception raised: \n", str(e))
+                        raise e
+        else:
+            result = self.run(cfg)
+        q.put(result)
+
+    def run(self, cfg):
+        print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
+        tuning_data = self.get_tuning_data()
+        pipeline = tuning_data["pipeline"]
+        task = tuning_data["task"]
+        surrogate = tuning_data["surrogate"]
+        sysid_trajs = tuning_data["sysid_trajs"]
+        truedyn = tuning_data["truedyn"]
         info = dict()
         try:
             controller, cost, model = pipeline(cfg, task, sysid_trajs)
@@ -103,11 +155,13 @@ class CfgEvaluator:
                 controller.reset()
                 if task.has_num_steps():
                     surr_traj = simulate(controller, task.get_init_obs(),
-                           task.term_cond, sim_model=surrogate, 
-                           max_steps=task.get_num_steps())
+                        task.term_cond, sim_model=surrogate, 
+                        ctrl_bounds=task.get_ctrl_bounds(),
+                        max_steps=task.get_num_steps())
                 else:
                     surr_traj = simulate(controller, task.get_init_obs(),
-                           task.term_cond, sim_model=surrogate)
+                        ctrl_bounds=task.get_ctrl_bounds(),
+                        term_cond=task.term_cond, sim_model=surrogate)
                 cost = task.get_cost()
                 surr_cost = cost(surr_traj)
                 print("Surrogate Cost: ", surr_cost)
@@ -137,6 +191,10 @@ class CfgEvaluator:
                         truedyn_traj.ctrls.tolist())
         except MPCCompatibilityError:
             surr_cost = np.inf
+
+        if not self.log_file_name is None:
+            sys.stdout.close()
+            sys.stderr.close()
 
         return surr_cost, info
 
@@ -213,10 +271,68 @@ class PipelineTuner:
             surrogate, surrogate_tune_result = model_tuner.run(rng, n_iters=surrogate_tune_iters) 
         return surrogate, surrogate_tune_result
 
+    def _get_tuning_data(self, pipeline, task, trajs, truedyn, rng, surrogate, surrogate_tune_iters):
+        # Run surrogate training
+        if surrogate is None:
+            surr_size = int(self.surrogate_split * len(trajs))
+            shuffled_trajs = trajs[:]
+            rng.shuffle(shuffled_trajs)
+            surr_trajs = shuffled_trajs[:surr_size]
+            sysid_trajs = shuffled_trajs[surr_size:]
 
+            surrogate, surr_tune_result = self._get_surrogate(pipeline, surr_trajs, rng, surrogate_tune_iters)
+        else:
+            sysid_trajs = trajs
+            surr_tune_result = None
+
+        tuning_data = dict()
+        tuning_data["pipeline"] = pipeline
+        tuning_data["surrogate"] = surrogate
+        tuning_data["task"] = task
+        tuning_data["sysid_trajs"] = sysid_trajs
+        tuning_data["truedyn"] = truedyn
+
+        return tuning_data
+
+    def _get_restore_run_dir(self, restore_dir):
+        run_dirs = glob.glob(os.path.join(restore_dir, "run_*"))
+        for run_dir in reversed(sorted(run_dirs)):
+            if os.path.exists(os.path.join(run_dir, "smac", "run_1", "runhistory.json")):
+                return run_dir
+        raise FileNotFoundError("No valid restore files found")
+
+    def _copy_restore_data(self, restore_run_dir, new_run_dir):
+        # Copy tuning data
+        old_tuning_data = os.path.join(restore_run_dir, "tuning_data.pkl")
+        new_tuning_data = os.path.join(new_run_dir, "tuning_data.pkl")
+        shutil.copy(old_tuning_data, new_tuning_data)
+        # Copy log
+        old_log = os.path.join(restore_run_dir, "log.txt")
+        new_log = os.path.join(new_run_dir, "log.txt")
+        shutil.copy(old_log, new_log)
+        # Copy smac trajectory information
+        old_traj = os.path.join(restore_run_dir, "smac", "run_1", "traj_aclib2.json")
+        new_traj = os.path.join(new_run_dir, "smac", "run_1", "traj_aclib2.json")
+        shutil.copy(old_traj, new_traj)
+
+    def _load_smac_restore_data(self, restore_run_dir, scenario):
+        # Load runhistory
+        rh_path = os.path.join(restore_run_dir, "smac", "run_1", "runhistory.json")
+        runhistory = RunHistory()
+        runhistory.load_json(rh_path, scenario.cs)
+        # Load stats
+        stats_path = os.path.join(restore_run_dir, "smac", "run_1", "stats.json")
+        stats = Stats(scenario)
+        stats.load(stats_path)
+        # Load trajectory
+        traj_path = os.path.join(restore_run_dir, "smac", "run_1", "traj_aclib2.json")
+        trajectory = TrajLogger.read_traj_aclib_format(fn=traj_path, cs=scenario.cs)
+        incumbent = trajectory[-1]["incumbent"]
+
+        return runhistory, stats, incumbent
 
     def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
-            surrogate_tune_iters=100, special_debug=False):
+            surrogate_tune_iters=100, eval_timeout=600, output_dir=None, restore_dir=None,):
         """
         Run tuning.
 
@@ -249,6 +365,18 @@ class PipelineTuner:
             Number of iterations to use for surrogate tuning. Used for "autotune"
             and "autoselect" modes. Default is 100
 
+        eval_timeout : float
+            Maximum number of seconds to allow for tuning of a single configuration.
+            Default is 600.
+
+        output_dir : str
+            Output directory to store intermediate tuning information.  If None,
+            a filename will be automatically selected.
+
+        restore_dir : str
+            To resume a previous tuning process, pass the output_dir for the previous
+            tuning process here. 
+
         Returns
         -------
         controller : Controller
@@ -257,42 +385,35 @@ class PipelineTuner:
         tune_result : PipelineTuneResult
             Additional tuning information.
         """
-        # Run surrogate training
-        if surrogate is None:
-            surr_size = int(self.surrogate_split * len(trajs))
-            shuffled_trajs = trajs[:]
-            rng.shuffle(shuffled_trajs)
-            surr_trajs = shuffled_trajs[:surr_size]
-            sysid_trajs = shuffled_trajs[surr_size:]
 
-            surrogate, surr_tune_result = self._get_surrogate(pipeline, surr_trajs, rng, surrogate_tune_iters)
+        # Initialize output directories
+        if output_dir is None:
+            output_dir = "autompc-output_" + datetime.datetime.now().isoformat(timespec="seconds")
+        run_dir = os.path.join(output_dir, 
+            "run_{}".format(int(1000.0*datetime.datetime.utcnow().timestamp())))
+        smac_dir = os.path.join(run_dir, "smac")
+
+        if restore_dir:
+            restore_run_dir = self._get_restore_run_dir(restore_dir)
+
+        if os.path.exists(run_dir):
+            raise Exception("Run directory already exists")
+        os.mkdir(run_dir)
+
+        if not os.path.exists(smac_dir):
+            os.mkdir(smac_dir)
+        if not os.path.exists(os.path.join(smac_dir, "run_1")):
+            os.mkdir(os.path.join(smac_dir, "run_1"))
+
+        if not restore_dir:
+            tuning_data = self._get_tuning_data(pipeline, task, trajs, truedyn, rng, 
+                surrogate, surrogate_tune_iters)
+            with open(os.path.join(run_dir, "tuning_data.pkl"), "wb") as f:
+                pickle.dump(tuning_data, f)
         else:
-            sysid_trajs = trajs
-            surr_tune_result = None
+            self._copy_restore_data(restore_run_dir, run_dir)
 
-        if special_debug:
-            with open("../../out/2021-05-17/surrogate.pkl", "wb") as f:
-                pickle.dump(surrogate, f)
-            eval_idx = [0]
-
-        eval_kwargs = dict()
-        eval_kwargs["pipeline"] = pipeline
-        eval_kwargs["surrogate"] = surrogate
-        eval_kwargs["task"] = task
-        eval_kwargs["sysid_trajs"] = sysid_trajs
-        eval_kwargs["truedyn"] = truedyn
-
-        #eval_cfg = pynisher.enforce_limits(wall_time_in_s=10, 
-        #        grace_period_in_s=10)(CfgEvaluator(**eval_kwargs))
-        eval_cfg = CfgEvaluator(**eval_kwargs)
-        eval_cfg_pickle = pickle.dumps(eval_cfg)
-        print("Pickled Size: ", len(eval_cfg_pickle))
-        cfg = pipeline.get_configuration_space().get_default_configuration()
-        cfg["_model:model"] = "ARX"
-        p = multiprocessing.Process(target=eval_cfg, args=(cfg,))
-        p.start()
-        p.join()
-        #print("Eval Result: ", eval_cfg(cfg))
+        eval_cfg = CfgEvaluator(run_dir=run_dir, timeout=eval_timeout)
 
         smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
         scenario = Scenario({"run_obj" : "quality",
@@ -300,14 +421,29 @@ class PipelineTuner:
                              "cs" : pipeline.get_configuration_space(),
                              "deterministic" : "true",
                              "limit_resources" : False,
-                             #"cutoff" : 500,
-                             "abort_on_first_run_crash" : False
+                             "abort_on_first_run_crash" : False,
+                             "save_results_instantly" : True,
+                             "output_dir" : smac_dir
                              })
 
-        smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                initial_design=LHDesign,
-                tae_runner=eval_cfg
-                )
+        print("save instantly: ", scenario.save_results_instantly)
+
+        if not restore_dir:
+            smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
+                    initial_design=LHDesign,
+                    tae_runner=eval_cfg,
+                    run_id = 1
+                    )
+        else:
+            runhistory, stats, incumbent = self._load_smac_restore_data(restore_run_dir, scenario)
+            smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
+                    initial_design=LHDesign,
+                    tae_runner=eval_cfg,
+                    run_id = 1,
+                    runhistory=runhistory,
+                    stats=stats,
+                    restore_incumbent=incumbent
+                    )  
 
         inc_cfg = smac.optimize()
 

@@ -8,7 +8,7 @@ from .. import zeros, extend
 import numpy as np
 from tqdm import tqdm
 
-def simulate(controller, init_obs, term_cond=None, dynamics=None, sim_model=None, max_steps=10000, silent=False):
+def simulate(controller, init_obs, term_cond=None, dynamics=None, sim_model=None, max_steps=10000, ctrl_bounds=None, silent=False):
     """
     Simulate a controller with respect to a dynamics function or simulation model.
 
@@ -51,6 +51,8 @@ def simulate(controller, init_obs, term_cond=None, dynamics=None, sim_model=None
         itr = tqdm(range(max_steps), file=sys.stdout)
     for _  in itr:
         u, constate = controller.run(constate, sim_traj[-1].obs)
+        if ctrl_bounds is not None:
+            u = np.clip(u, ctrl_bounds[:,0], ctrl_bounds[:,1])
         if dynamics is None:
             simstate = sim_model.pred(simstate, u)
             x = simstate[:controller.system.obs_dim]
