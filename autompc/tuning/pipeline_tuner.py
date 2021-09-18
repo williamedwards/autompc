@@ -20,6 +20,7 @@ import pynisher
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
 from smac.initial_design.latin_hypercube_design import LHDesign
+from smac.initial_design.random_configuration_design import RandomConfigurations
 from smac.runhistory.runhistory import RunHistory
 from smac.stats.stats import Stats
 from smac.utils.io.traj_logging import TrajLogger
@@ -149,7 +150,7 @@ class CfgEvaluator:
         truedyn = tuning_data["truedyn"]
         info = dict()
         try:
-            controller, cost, model = pipeline(cfg, task, sysid_trajs)
+            controller, cost, model = pipeline(cfg, sysid_trajs)
             print("Simulating Surrogate Trajectory: ")
             try:
                 controller.reset()
@@ -175,7 +176,7 @@ class CfgEvaluator:
             
             if not truedyn is None:
                 print("Simulating True Dynamics Trajectory")
-                controller, _, _ = pipeline(cfg, task, sysid_trajs, model=model)
+                controller, _, _ = pipeline(cfg, sysid_trajs, model=model)
                 controller.reset()
                 if task.has_num_steps():
                     truedyn_traj = simulate(controller, task.get_init_obs(),
@@ -396,6 +397,8 @@ class PipelineTuner:
         if restore_dir:
             restore_run_dir = self._get_restore_run_dir(restore_dir)
 
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
         if os.path.exists(run_dir):
             raise Exception("Run directory already exists")
         os.mkdir(run_dir)
@@ -430,14 +433,14 @@ class PipelineTuner:
 
         if not restore_dir:
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                    initial_design=LHDesign,
+                    initial_design=RandomConfigurations,
                     tae_runner=eval_cfg,
                     run_id = 1
                     )
         else:
             runhistory, stats, incumbent = self._load_smac_restore_data(restore_run_dir, scenario)
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                    initial_design=LHDesign,
+                    initial_design=RandomConfigurations,
                     tae_runner=eval_cfg,
                     run_id = 1,
                     runhistory=runhistory,

@@ -97,15 +97,9 @@ def _finite_horz_dt_lqr(A, B, Q, R, N, F, horizon):
 class InfiniteHorizonLQR(Controller):
     def __init__(self, system, task, model):
         super().__init__(system, task, model)
-        A, B = model.to_linear()
-        state_dim = model.state_dim
-        Q, R, F = task.get_cost().get_cost_matrices()
-        Qp = np.zeros((state_dim, state_dim))
-        Qp[:Q.shape[0], :Q.shape[1]] = Q
-        X, L, K = dare(A, B, Qp, R)
-        self.K = K
-        self.Qp, self.Rp = Qp, R
+        self.initialized = False
         self.model = model
+        self.task = task
 
     @property
     def state_dim(self):
@@ -122,6 +116,15 @@ class InfiniteHorizonLQR(Controller):
                 )
 
     def run(self, state, new_obs):
+        if not self.initialized:
+            A, B = self.model.to_linear()
+            state_dim = self.model.state_dim
+            Q, R, F = self.task.get_cost().get_cost_matrices()
+            Qp = np.zeros((state_dim, state_dim))
+            Qp[:Q.shape[0], :Q.shape[1]] = Q
+            X, L, K = dare(A, B, Qp, R)
+            self.K = K
+            self.Qp, self.Rp = Qp, R
         # Implement control logic here
         modelstate = self.model.update_state(state[:-self.system.ctrl_dim],
                 state[-self.system.ctrl_dim:], new_obs)
@@ -136,21 +139,10 @@ class InfiniteHorizonLQR(Controller):
 class FiniteHorizonLQR(Controller):
     def __init__(self, system, task, model, horizon):
         super().__init__(system, task, model)
-        A, B = model.to_linear()
-        N = np.zeros((A.shape[0], B.shape[1]))
+        self.initialized = False
         self.horizon = horizon
-        state_dim = model.state_dim
-        #Q, R, F = task.get_quad_cost()
-        Q, R, F = task.get_cost().get_cost_matrices()
-        Qp = np.zeros((state_dim, state_dim))
-        Qp[:Q.shape[0], :Q.shape[1]] = Q
-        Fp = np.zeros((state_dim, state_dim))
-        Fp[:F.shape[0], :F.shape[1]] = F
-        self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, Fp, horizon)
-        self.Qp, self.Rp = Qp, R
         self.model = model
-        self.umin = task.get_ctrl_bounds()[:,0]
-        self.umax = task.get_ctrl_bounds()[:,1]
+        self.task = task
 
     @property
     def state_dim(self):
@@ -167,6 +159,20 @@ class FiniteHorizonLQR(Controller):
                 )
 
     def run(self, state, new_obs):
+        if not self.initialized:
+            A, B = self.model.to_linear()
+            N = np.zeros((A.shape[0], B.shape[1]))
+            state_dim = self.model.state_dim
+            #Q, R, F = task.get_quad_cost()
+            Q, R, F = self.task.get_cost().get_cost_matrices()
+            Qp = np.zeros((state_dim, state_dim))
+            Qp[:Q.shape[0], :Q.shape[1]] = Q
+            Fp = np.zeros((state_dim, state_dim))
+            Fp[:F.shape[0], :F.shape[1]] = F
+            self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, Fp, self.horizon)
+            self.Qp, self.Rp = Qp, R
+            self.umin = self.task.get_ctrl_bounds()[:,0]
+            self.umax = self.task.get_ctrl_bounds()[:,1]
         # Implement control logic here
         modelstate = self.model.update_state(state[:-self.system.ctrl_dim],
                 state[-self.system.ctrl_dim:], new_obs)

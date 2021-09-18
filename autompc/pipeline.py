@@ -6,6 +6,7 @@ from pdb import set_trace
 
 # Internal library includes
 from .utils.cs_utils import *
+from .utils.configuration_space import PipelineConfigurationSpace
 from .sysid.model import ModelFactory, Model
 from .control.controller import Controller, ControllerFactory
 from .costs.cost import Cost
@@ -24,12 +25,14 @@ class Pipeline:
     the joint configuration space over its constituent components, and
     can instantiate an MPC given a configuration.
     """
-    def __init__(self, system, *components):
+    def __init__(self, system, task, *components):
         """
         Parameters
         ----------
         system : System
             Corresponding robot system
+        task : Task
+            Task to be solved
 
         components : List of models, controllers, costs and corresponding factories.
             The set of components which make up the pipeline: the model, the controller,
@@ -41,6 +44,7 @@ class Pipeline:
             the pipeline.
         """
         self.system = system
+        self.task = task
         self.model = None
         self.model_factory = None
         self.controller = None
@@ -91,7 +95,7 @@ class Pipeline:
         """
         Return the pipeline configuration space.
         """
-        cs = CS.ConfigurationSpace()
+        cs = PipelineConfigurationSpace(self)
         if self.model_factory:
             model_cs = self.model_factory.get_configuration_space()
             add_configuration_space(cs, "_model", model_cs)
@@ -104,7 +108,11 @@ class Pipeline:
 
         return cs
 
-    def __call__(self, cfg, task, trajs, model=None):
+    def is_cfg_compatible(self, cfg):
+        controller, task, model = self(cfg, trajs=None, skip_train_model=True)
+        return controller.is_compatible(self.system, task, model)
+
+    def __call__(self, cfg, trajs, model=None, skip_train_model=False):
         """
         Instantiate the MPC.
 
@@ -112,9 +120,6 @@ class Pipeline:
         ----------
         cfg : Configuration
             Configuration from the joint pipeline ConfigurationSpace
-
-        task : Task
-            Task which the MPC will solve
 
         trajs : List of Trajectory
             System ID training set
@@ -140,20 +145,20 @@ class Pipeline:
                 model = self.model
             else:
                 model_cs = self.model_factory.get_configuration_space()
-                model_cfg = model_cs.get_default_configuration()
-                set_subspace_configuration(cfg, "_model", model_cfg)
-                model = self.model_factory(model_cfg, trajs)
+                model_cfg = create_subspace_configuration(cfg, "_model", model_cs,
+                    allow_inactive_with_values=True)
+                model = self.model_factory(model_cfg, trajs, skip_train_model=skip_train_model)
 
         # Then create the objective function
         if self.cost:
             cost = self.cost
         else:
             cost_cs = self.cost_factory.get_configuration_space()
-            cost_cfg = cost_cs.get_default_configuration()
-            set_subspace_configuration(cfg, "_cost", cost_cfg)
-            cost = self.cost_factory(cost_cfg, task, trajs)
+            cost_cfg = create_subspace_configuration(cfg, "_cost", cost_cs,
+                allow_inactive_with_values=True)
+            cost = self.cost_factory(cost_cfg, self.task, trajs)
 
-        new_task = copy.deepcopy(task)
+        new_task = copy.deepcopy(self.task)
         new_task.set_cost(cost)
 
         # Then initialize the controller
@@ -161,8 +166,8 @@ class Pipeline:
             controller = self.controller
         else:
             controller_cs = self.controller_factory.get_configuration_space()
-            controller_cfg = controller_cs.get_default_configuration()
-            set_subspace_configuration(cfg, "_ctrlr", controller_cfg)
+            controller_cfg = create_subspace_configuration(cfg, "_ctrlr",
+                controller_cs, allow_inactive_with_values=True)
             controller = self.controller_factory(controller_cfg, new_task, model)
 
-        return controller, task, model
+        return controller, new_task, model

@@ -145,18 +145,18 @@ class MLP(Model):
         n_hidden_layers = int(n_hidden_layers)
         hidden_sizes = [hidden_size] * n_hidden_layers
         #print(f"{torch.cuda.is_available()=}")
-        if use_cuda and torch.cuda.is_available():
-            print("MLP Using Cuda")
-        else:
-            if use_cuda:
-                print("MLP Not Using Cuda because torch.cuda is not available")
-            else:
-                print("MLP Not Using Cuda")
-        for i, size in enumerate([hidden_size_1, hidden_size_2, hidden_size_3,
-                hidden_size_4]):
-            if size is not None:
-                hidden_sizes[i] = size
-        print("hidden_sizes=", hidden_sizes)
+        # if use_cuda and torch.cuda.is_available():
+        #     print("MLP Using Cuda")
+        # else:
+        #     if use_cuda:
+        #         print("MLP Not Using Cuda because torch.cuda is not available")
+        #     else:
+        #         print("MLP Not Using Cuda")
+        # for i, size in enumerate([hidden_size_1, hidden_size_2, hidden_size_3,
+        #         hidden_size_4]):
+        #     if size is not None:
+        #         hidden_sizes[i] = size
+        #print("hidden_sizes=", hidden_sizes)
         self.net = ForwardNet(nx + nu, nx, hidden_sizes, nonlintype)
         self._train_data = (n_train_iters, n_batch, lr)
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 

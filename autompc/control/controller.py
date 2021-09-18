@@ -60,8 +60,8 @@ class Controller(ABC):
         self.system = system
         self.model = model
         self.task = task
-        if not self.is_compatible(system, task, model):
-            raise MPCCompatibilityError
+        # if not self.is_compatible(system, task, model):
+        #     raise MPCCompatibilityError
 
     @abstractmethod
     def traj_to_state(self, traj):

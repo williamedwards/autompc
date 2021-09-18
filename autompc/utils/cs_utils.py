@@ -5,7 +5,7 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 import copy
 
-from ConfigSpace import ConfigurationSpace
+from ConfigSpace import ConfigurationSpace, Configuration
 from ConfigSpace.hyperparameters import (
     Hyperparameter,
     Constant,
@@ -35,6 +35,14 @@ def set_subspace_configuration(cfg, prefix, sub_cfg, delimiter=":"):
     for key, val in cfg.get_dictionary().items():
         if key[:len(prefix)] == prefix:
             sub_cfg[_get_subkey(key, delimiter)] = val
+        
+def create_subspace_configuration(cfg, prefix, sub_cs, delimiter=":", **kwargs):
+    prefix = prefix + delimiter
+    values = dict()
+    for key, val in cfg.get_dictionary().items():
+        if key[:len(prefix)] == prefix:
+            values[_get_subkey(key, delimiter)] = val
+    return Configuration(sub_cs, values=values, **kwargs)
 
 def transfer_subspace_configuration(source_cfg, source_prefix, dest_cfg, dest_prefix,
         delimiter=":"):
@@ -94,8 +102,8 @@ def add_configuration_space(self,
         else:
             new_parameter.name = "%s%s%s" % (prefix, delimiter,
                                              new_parameter.name)
+        self._add_hyperparameter(new_parameter)
         new_parameters.append(new_parameter)
-    self.add_hyperparameters(new_parameters)
 
     conditions_to_add = []
     for condition in configuration_space.get_conditions():
@@ -119,22 +127,25 @@ def add_configuration_space(self,
         conditions_to_add.append(new_condition)
     self.add_conditions(conditions_to_add)
 
-    forbiddens_to_add = []
-    for forbidden_clause in configuration_space.forbidden_clauses:
-        # new_forbidden = copy.deepcopy(forbidden_clause)
-        new_forbidden = forbidden_clause
-        dlcs = new_forbidden.get_descendant_literal_clauses()
-        for dlc in dlcs:
-            if dlc.hyperparameter.name == prefix or \
-                            dlc.hyperparameter.name == '':
-                dlc.hyperparameter.name = prefix
-            elif not dlc.hyperparameter.name.startswith(
-                            "%s%s" % (prefix, delimiter)):
-                dlc.hyperparameter.name = "%s%s%s" % \
-                                          (prefix, delimiter,
-                                           dlc.hyperparameter.name)
-        forbiddens_to_add.append(new_forbidden)
-    self.add_forbidden_clauses(forbiddens_to_add)
+    if configuration_space.forbidden_clauses:
+        raise ValueError("Forbidden clauses currently not supported by AutoMPC.")
+
+    # forbiddens_to_add = []
+    # for forbidden_clause in configuration_space.forbidden_clauses:
+    #     # new_forbidden = copy.deepcopy(forbidden_clause)
+    #     new_forbidden = forbidden_clause
+    #     dlcs = new_forbidden.get_descendant_literal_clauses()
+    #     for dlc in dlcs:
+    #         if dlc.hyperparameter.name == prefix or \
+    #                         dlc.hyperparameter.name == '':
+    #             dlc.hyperparameter.name = prefix
+    #         elif not dlc.hyperparameter.name.startswith(
+    #                         "%s%s" % (prefix, delimiter)):
+    #             dlc.hyperparameter.name = "%s%s%s" % \
+    #                                       (prefix, delimiter,
+    #                                        dlc.hyperparameter.name)
+    #     forbiddens_to_add.append(new_forbidden)
+    # self.add_forbidden_clauses(forbiddens_to_add)
 
     conditions_to_add = []
     if parent_hyperparameter is not None:

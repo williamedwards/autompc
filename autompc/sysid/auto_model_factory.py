@@ -8,7 +8,7 @@ from .arx import ARXFactory
 from .koopman import KoopmanFactory
 from .sindy import SINDyFactory
 from .largegp import ApproximateGPModelFactory
-from ..utils.cs_utils import add_configuration_space
+from ..utils.cs_utils import *
 
 class AutoModelFactory(ModelFactory):
     def __init__(self, *args, **kwargs):
@@ -41,11 +41,9 @@ class AutoModelFactory(ModelFactory):
             if factory.name != cfg_combined["model"]:
                 continue
             cs = factory.get_configuration_space()
-            cfg = cs.get_default_configuration()
-            prefix = "_" + factory.name + ":"
-            for key, val in cfg_combined.get_dictionary().items():
-                if key[:len(prefix)] == prefix:
-                    cfg[key.split(":")[1]] = val
+            prefix = "_" + factory.name
+            cfg = create_subspace_configuration(cfg_combined, prefix, cs,
+                allow_inactive_with_values=True)
             return factory, cfg
 
     def __call__(self, cfg_combined, *args, **kwargs):
