@@ -88,7 +88,8 @@ autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
 
 #@pynisher.enforce_limits(wall_time_in_s=300, grace_period_in_s=10)
 class CfgEvaluator:
-    def __init__(self, tuning_data=None, run_dir=None, timeout=None, log_file_name=None):
+    def __init__(self, tuning_data=None, run_dir=None, timeout=None, log_file_name=None,
+                    controller_save_dir=None):
         if tuning_data is None and run_dir is None:
             raise ValueError("Either tuning_data or run_dir must be passed")
         self.tuning_data = tuning_data
@@ -97,6 +98,8 @@ class CfgEvaluator:
         if log_file_name is None and run_dir is not None:
             log_file_name = os.path.join(run_dir, "log.txt")
         self.log_file_name = log_file_name
+        self.eval_number = 0
+        self.controller_save_dir = controller_save_dir
 
     def get_tuning_data(self):
         if not self.tuning_data is None:
@@ -105,6 +108,7 @@ class CfgEvaluator:
             return pickle.load(f)
 
     def __call__(self, cfg):
+        self.eval_number += 1
         if self.timeout is None:
             return self.run(cfg)
 
@@ -190,6 +194,11 @@ class CfgEvaluator:
                 info["truedyn_cost"] = truedyn_cost
                 info["truedyn_traj"] = (truedyn_traj.obs.tolist(), 
                         truedyn_traj.ctrls.tolist())
+            
+            if self.controller_save_dir:
+                controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
+                with open(controller_save_fn, "wb") as f:
+                    pickle.dump(controller, f)
         except MPCCompatibilityError:
             surr_cost = np.inf
 
@@ -291,6 +300,7 @@ class PipelineTuner:
         tuning_data["surrogate"] = surrogate
         tuning_data["task"] = task
         tuning_data["sysid_trajs"] = sysid_trajs
+        tuning_data["surr_trajs"] = surr_trajs
         tuning_data["truedyn"] = truedyn
 
         return tuning_data
@@ -333,7 +343,8 @@ class PipelineTuner:
         return runhistory, stats, incumbent
 
     def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
-            surrogate_tune_iters=100, eval_timeout=600, output_dir=None, restore_dir=None,):
+            surrogate_tune_iters=100, eval_timeout=600, output_dir=None, restore_dir=None,
+            save_all_controllers=False, debug_return_evaluator=False):
         """
         Run tuning.
 
@@ -407,6 +418,12 @@ class PipelineTuner:
             os.mkdir(smac_dir)
         if not os.path.exists(os.path.join(smac_dir, "run_1")):
             os.mkdir(os.path.join(smac_dir, "run_1"))
+        if save_all_controllers:
+            controller_save_dir = os.path.join(run_dir, "saved_controllers")
+            if not os.path.exists(controller_save_dir):
+                os.mkdir(controller_save_dir)
+        else:
+            controller_save_dir = None
 
         if not restore_dir:
             tuning_data = self._get_tuning_data(pipeline, task, trajs, truedyn, rng, 
@@ -416,7 +433,11 @@ class PipelineTuner:
         else:
             self._copy_restore_data(restore_run_dir, run_dir)
 
-        eval_cfg = CfgEvaluator(run_dir=run_dir, timeout=eval_timeout)
+        eval_cfg = CfgEvaluator(run_dir=run_dir, timeout=eval_timeout,
+            controller_save_dir=controller_save_dir)
+
+        if debug_return_evaluator:
+            return eval_cfg
 
         smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
         scenario = Scenario({"run_obj" : "quality",
@@ -428,8 +449,6 @@ class PipelineTuner:
                              "save_results_instantly" : True,
                              "output_dir" : smac_dir
                              })
-
-        print("save instantly: ", scenario.save_results_instantly)
 
         if not restore_dir:
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,

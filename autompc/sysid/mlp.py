@@ -139,7 +139,7 @@ class MLP(Model):
             nonlintype='relu', n_train_iters=50, n_batch=64, lr=1e-3,
             hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
             hidden_size_4=None,
-            use_cuda=True):
+            use_cuda=True, seed=100):
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
         n_hidden_layers = int(n_hidden_layers)
@@ -152,11 +152,12 @@ class MLP(Model):
         #         print("MLP Not Using Cuda because torch.cuda is not available")
         #     else:
         #         print("MLP Not Using Cuda")
-        # for i, size in enumerate([hidden_size_1, hidden_size_2, hidden_size_3,
-        #         hidden_size_4]):
-        #     if size is not None:
-        #         hidden_sizes[i] = size
+        for i, size in enumerate([hidden_size_1, hidden_size_2, hidden_size_3,
+                hidden_size_4]):
+            if size is not None:
+                hidden_sizes[i] = size
         #print("hidden_sizes=", hidden_sizes)
+        torch.manual_seed(seed)
         self.net = ForwardNet(nx + nu, nx, hidden_sizes, nonlintype)
         self._train_data = (n_train_iters, n_batch, lr)
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
