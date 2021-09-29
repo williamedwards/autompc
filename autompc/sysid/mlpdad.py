@@ -139,7 +139,8 @@ class MLPDAD(Model):
             nonlintype='relu', n_train_iters=50, n_batch=64, lr=1e-3,
             hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
             hidden_size_4=None,
-            use_cuda=True):
+            use_cuda=True,
+            n_dad_iters=2): # TODO: Find good default
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
         n_hidden_layers = int(n_hidden_layers)
@@ -158,7 +159,7 @@ class MLPDAD(Model):
                 hidden_sizes[i] = size
         print("hidden_sizes=", hidden_sizes)
         self.net = ForwardNet(nx + nu, nx, hidden_sizes, nonlintype)
-        self._train_data = (n_train_iters, n_batch, lr)
+        self._train_data = (n_train_iters, n_batch, lr, n_dad_iters)
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
                 else torch.device('cpu'))
         self.net = self.net.double().to(self._device)
