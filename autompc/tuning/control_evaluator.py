@@ -22,6 +22,9 @@ class ConstantDistribution:
     def __call__(self, quantile):
         return self.val
 
+    def __str__(self):
+        return "<Constant Distribution, Val={}>".format(self.val)
+
 class NormalDistribution:
     def __init__(self, mu, sigma):
         self.mu = mu
@@ -29,3 +32,7 @@ class NormalDistribution:
 
     def __call__(self, quantile):
         return norm.ppf(quantile, loc=self.mu, scale=self.sigma)
+
+    def __str__(self):
+        return "<Normal Distribution, mean={}, std={}>".format(
+                self.mu, self.sigma)

@@ -13,6 +13,8 @@ from ..utils import simulate
 from ..evaluation import HoldoutModelEvaluator
 from .model_tuner import ModelTuner
 from ..sysid import MLPFactory, SINDyFactory, ApproximateGPModelFactory, ARXFactory, KoopmanFactory
+from .surrogate_evaluator import SurrogateEvaluator
+from .true_dynamics_evaluator import TrueDynamicsEvaluator
 
 # External library includes
 import numpy as np
@@ -28,9 +30,10 @@ from smac.utils.io.traj_logging import TrajLogger
 
 PipelineTuneResult = namedtuple("PipelineTuneResult", ["inc_cfg", "cfgs", 
     "inc_cfgs", "costs", "inc_costs", "truedyn_costs", "inc_truedyn_costs", 
-    "surr_trajs", "truedyn_trajs", "surr_tune_result"])
+    "surr_dists", "truedyn_dists", "truedyn_eval_infos", "surr_eval_infos", 
+    "surr_tune_result"]) # TODO update docstring
 """
-PipelineTuneREsult contains information about a tuning process.
+PipelineTuneResult contains information about a tuning process.
 
 .. py:attribute:: inc_cfg
     
@@ -85,11 +88,10 @@ PipelineTuneREsult contains information about a tuning process.
 autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
         ARXFactory, KoopmanFactory]
 
-
-#@pynisher.enforce_limits(wall_time_in_s=300, grace_period_in_s=10)
-class CfgEvaluator:
-    def __init__(self, tuning_data=None, run_dir=None, timeout=None, log_file_name=None,
+class CfgRunner:
+    def __init__(self, evaluation_quantile, tuning_data=None, run_dir=None, timeout=None, log_file_name=None,
                     controller_save_dir=None):
+        self.evaluation_quantile = evaluation_quantile
         if tuning_data is None and run_dir is None:
             raise ValueError("Either tuning_data or run_dir must be passed")
         self.tuning_data = tuning_data
@@ -120,11 +122,11 @@ class CfgEvaluator:
         p.join(timeout=self.timeout)
         # p.join()
         if p.exitcode is None:
-            print("CfgEvaluator: Evaluation timed out")
+            print("CfgRunner: Evaluation timed out")
             p.terminate()
             return np.inf, dict()
         if p.exitcode != 0:
-            print("CfgEvaluator: Exception during evaluation")
+            print("CfgRunner: Exception during evaluation")
             print("Exit code: ", p.exitcode)
             return np.inf, dict()
         else:
@@ -149,51 +151,23 @@ class CfgEvaluator:
         tuning_data = self.get_tuning_data()
         pipeline = tuning_data["pipeline"]
         task = tuning_data["task"]
-        surrogate = tuning_data["surrogate"]
         sysid_trajs = tuning_data["sysid_trajs"]
-        truedyn = tuning_data["truedyn"]
+        control_evaluator = tuning_data["control_evaluator"]
+        truedyn_evaluator = tuning_data["truedyn_evaluator"]
         info = dict()
+
         try:
-            controller, cost, model = pipeline(cfg, sysid_trajs)
-            print("Simulating Surrogate Trajectory: ")
-            try:
-                controller.reset()
-                if task.has_num_steps():
-                    surr_traj = simulate(controller, task.get_init_obs(),
-                        task.term_cond, sim_model=surrogate, 
-                        ctrl_bounds=task.get_ctrl_bounds(),
-                        max_steps=task.get_num_steps())
-                else:
-                    surr_traj = simulate(controller, task.get_init_obs(),
-                        ctrl_bounds=task.get_ctrl_bounds(),
-                        term_cond=task.term_cond, sim_model=surrogate)
-                cost = task.get_cost()
-                surr_cost = cost(surr_traj)
-                print("Surrogate Cost: ", surr_cost)
-                print("Surrogate Final State: ", surr_traj[-1].obs)
-                info["surr_cost"] = surr_cost
-                info["surr_traj"] = (surr_traj.obs.tolist(), surr_traj.ctrls.tolist())
-            except np.linalg.LinAlgError:
-                surr_cost = np.inf
-                info["surr_cost"] = surr_cost
-                info["surr_traj"] = None
-            
-            if not truedyn is None:
-                print("Simulating True Dynamics Trajectory")
-                controller, _, _ = pipeline(cfg, sysid_trajs, model=model)
-                controller.reset()
-                if task.has_num_steps():
-                    truedyn_traj = simulate(controller, task.get_init_obs(),
-                       task.term_cond, dynamics=truedyn, max_steps=task.get_num_steps())
-                else:
-                    truedyn_traj = simulate(controller, task.get_init_obs(),
-                       task.term_cond, dynamics=truedyn)
-                truedyn_cost = cost(truedyn_traj)
-                print("True Dynamics Cost: ", truedyn_cost)
-                print("True Dynamics Final State: ", truedyn_traj[-1].obs)
-                info["truedyn_cost"] = truedyn_cost
-                info["truedyn_traj"] = (truedyn_traj.obs.tolist(), 
-                        truedyn_traj.ctrls.tolist())
+            controller, _, _ = pipeline(cfg, sysid_trajs)
+            surr_dist, surr_eval_info = control_evaluator(controller)
+            truedyn_dist, truedyn_eval_info = truedyn_evaluator(controller)
+            surr_cost = surr_dist(self.evaluation_quantile)
+            truedyn_cost = truedyn_dist(self.evaluation_quantile)
+            info["surr_cost"] = surr_cost
+            info["surr_dist"] = str(surr_dist)
+            info["surr_eval_info"] = surr_eval_info
+            info["truedyn_cost"] = truedyn_cost
+            info["truedyn_dist"] = str(truedyn_dist)
+            info["truedyn_eval_info"] = truedyn_eval_info
             
             if self.controller_save_dir:
                 controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
@@ -212,8 +186,10 @@ class PipelineTuner:
     """
     This class tunes SysID+MPC pipelines.
     """
-    def __init__(self, surrogate_mode="defaultcfg", surrogate_factory=None, surrogate_split=None, surrogate_cfg=None,
-            surrogate_evaluator=None, surrogate_tune_holdout=0.25, surrogate_tune_metric="rmse"):
+    def __init__(self, surrogate_mode="defaultcfg", surrogate_factory=None, surrogate_split=None, 
+            surrogate_cfg=None, evaluation_quantile=0.5,
+            surrogate_evaluator=None, surrogate_tune_holdout=0.25, surrogate_tune_metric="rmse",
+            control_evaluator_class=None, control_evaluator_kwargs=dict()): # TODO update docstring
         """
         Parameters
         ----------
@@ -245,41 +221,9 @@ class PipelineTuner:
         self.surrogate_evaluator = surrogate_evaluator
         self.surrogate_tune_holdout = surrogate_tune_holdout
         self.surrogate_tune_metric = surrogate_tune_metric
-
-    def _get_surrogate(self, pipeline, trajs, rng, surrogate_tune_iters):
-        surrogate_tune_result = None
-        if self.surrogate_mode == "defaultcfg":
-            surrogate_cs = self.surrogate_factory.get_configuration_space()
-            surrogate_cfg = surrogate_cs.get_default_configuration()
-            surrogate = self.surrogate_factory(surrogate_cfg, trajs)
-        elif self.surrogate_mode == "fixedcfg":
-            surrogate = self.surrogate_factory(self.surrogate_cfg, trajs)
-        elif self.surrogate_mode == "autotune":
-            evaluator = self.surrogate_evaluator
-            if evaluator is None:
-                evaluator = HoldoutModelEvaluator(
-                        holdout_prop = self.surrogate_tune_holdout,
-                        metric = self.surrogate_tune_metric,
-                        system=pipeline.system,
-                        trajs=trajs,
-                        rng=rng)
-            model_tuner = ModelTuner(pipeline.system, evaluator) 
-            model_tuner.add_model_factory(self.surrogate_factory)
-            surrogate, surrogate_tune_result = model_tuner.run(rng, n_iters=surrogate_tune_iters) 
-        elif self.surrogate_mode == "autoselect":
-            evaluator = self.surrogate_evaluator
-            if evaluator is None:
-                evaluator = HoldoutModelEvaluator(
-                        holdout_prop = self.surrogate_tune_holdout,
-                        metric = self.surrogate_tune_metric,
-                        system=pipeline.system,
-                        trajs=trajs,
-                        rng=rng)
-            model_tuner = ModelTuner(pipeline.system, evaluator) 
-            for factory in autoselect_factories:
-                model_tuner.add_model_factory(factory(pipeline.system))
-            surrogate, surrogate_tune_result = model_tuner.run(rng, n_iters=surrogate_tune_iters) 
-        return surrogate, surrogate_tune_result
+        self.control_evaluator_class = control_evaluator_class
+        self.control_evaluator_kwargs = control_evaluator_kwargs
+        self.evaluation_quantile = evaluation_quantile
 
     def _get_tuning_data(self, pipeline, task, trajs, truedyn, rng, surrogate, surrogate_tune_iters):
         # Run surrogate training
@@ -290,19 +234,39 @@ class PipelineTuner:
             surr_trajs = shuffled_trajs[:surr_size]
             sysid_trajs = shuffled_trajs[surr_size:]
 
-            surrogate, surr_tune_result = self._get_surrogate(pipeline, surr_trajs, rng, surrogate_tune_iters)
+            if self.surrogate_factory is None:
+                surrogate_factory = MLPFactory(pipeline.system)
+            else:
+                surrogate_factory = self.surrogate_factory
+
+            control_eval_rng = np.random.default_rng(rng.integers(1 << 31))
+            if self.control_evaluator_class is None:
+                control_evaluator = SurrogateEvaluator(pipeline.system, task, surr_trajs,
+                        surrogate_factory, rng=rng, surrogate_cfg = self.surrogate_cfg,
+                        surrogate_mode=self.surrogate_mode, 
+                        surrogate_tune_iters=surrogate_tune_iters, 
+                        **self.control_evaluator_kwargs)
+            else:
+                control_evaluator = self.control_evaluator_class(pipeline.system, task,
+                        surr_trajs, rng=control_eval_rng)
         else:
             sysid_trajs = trajs
-            surr_tune_result = None
+            control_evaluator = SurrogateEvaluator(pipeline.system, task, surr_trajs=None,
+                    surrogate_factory=None, rng=control_eval_rng, surrogate=self.surrogate)
+
+        if not truedyn is None:
+            truedyn_evaluator = TrueDynamicsEvaluator(pipeline.system, task, trajs=None,
+                    dynamics = truedyn)
+        else:
+            truedyn_evaluator = None
 
         tuning_data = dict()
         tuning_data["pipeline"] = pipeline
-        tuning_data["surrogate"] = surrogate
+        tuning_data["control_evaluator"] = control_evaluator
         tuning_data["task"] = task
         tuning_data["sysid_trajs"] = sysid_trajs
         tuning_data["surr_trajs"] = surr_trajs
-        tuning_data["truedyn"] = truedyn
-        tuning_data["surr_tune_result"] = surr_tune_result
+        tuning_data["truedyn_evaluator"] = truedyn_evaluator
 
         return tuning_data
 
@@ -343,10 +307,58 @@ class PipelineTuner:
 
         return runhistory, stats, incumbent
 
+    def _get_tune_result(self, tuning_data, runhistory):
+        cfgs, inc_cfgs, costs, inc_costs, truedyn_costs, inc_truedyn_costs, surr_dists, \
+            truedyn_dists, surr_eval_infos, truedyn_eval_infos =  [], [], [], [], [], [], [], [], [], []
+        inc_cost = float("inf")
+
+        for key, val in runhistory.data.items():
+            cfg = runhistory.ids_config[key.config_id]
+            if not val.additional_info:
+                continue
+            if val.cost < inc_cost:
+                inc_cost = val.cost
+                if "truedyn_cost" in val.additional_info:
+                    inc_truedyn_cost = val.additional_info["truedyn_cost"]
+                inc_cfg = cfg
+            inc_costs.append(inc_cost)
+            inc_cfgs.append(inc_cfg)
+            cfgs.append(cfg)
+            costs.append(val.cost)
+            surr_eval_infos
+            surr_dists.append(val.additional_info["surr_dist"])
+            surr_eval_infos.append(val.additional_info["surr_eval_info"])
+            if "truedyn_cost" in val.additional_info:
+                inc_truedyn_costs.append(inc_truedyn_cost)
+                truedyn_costs.append(val.additional_info["truedyn_cost"])
+                truedyn_dists.append(val.additional_info["truedyn_dist"])
+                truedyn_eval_infos.append(val.additional_info["truedyn_eval_info"])
+
+        control_evaluator = tuning_data["control_evaluator"]
+        if hasattr(control_evaluator, "surr_tune_result"):
+            surr_tune_result = control_evaluator.surr_tune_result
+        else:
+            surr_tune_result = None
+
+        tune_result = PipelineTuneResult(inc_cfg = inc_cfg,
+                cfgs = cfgs,
+                inc_cfgs = inc_cfgs,
+                costs = costs,
+                inc_costs = inc_costs,
+                truedyn_costs = truedyn_costs,
+                inc_truedyn_costs = inc_truedyn_costs,
+                surr_dists = surr_dists,
+                truedyn_dists = truedyn_dists,
+                surr_eval_infos = surr_eval_infos,
+                truedyn_eval_infos = truedyn_eval_infos,
+                surr_tune_result = surr_tune_result)
+
+        return tune_result
+
     def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
             surrogate_tune_iters=100, eval_timeout=600, output_dir=None, restore_dir=None,
             save_all_controllers=False, use_default_initial_design=False,
-            debug_return_evaluator=False):
+            debug_return_evaluator=False): #TODO update docstring
         """
         Run tuning.
 
@@ -438,7 +450,7 @@ class PipelineTuner:
                 tuning_data = pickle.load(f)
             surrogate_tune_result = tunning_data["surrogate_tune_result"]
 
-        eval_cfg = CfgEvaluator(run_dir=run_dir, timeout=eval_timeout,
+        eval_cfg = CfgRunner(self.evaluation_quantile, run_dir=run_dir, timeout=eval_timeout,
             controller_save_dir=controller_save_dir)
 
         if debug_return_evaluator:
@@ -479,52 +491,10 @@ class PipelineTuner:
 
         inc_cfg = smac.optimize()
 
-        cfgs, inc_cfgs, costs, inc_costs, truedyn_costs, inc_truedyn_costs, surr_trajs,\
-                truedyn_trajs =  [], [], [], [], [], [], [], []
-        inc_cost = float("inf")
-
-        for key, val in smac.runhistory.data.items():
-            cfg = smac.runhistory.ids_config[key.config_id]
-            if not val.additional_info:
-                continue
-            if val.cost < inc_cost:
-                inc_cost = val.cost
-                if "truedyn_cost" in val.additional_info:
-                    inc_truedyn_cost = val.additional_info["truedyn_cost"]
-                inc_cfg = cfg
-            inc_costs.append(inc_cost)
-            inc_cfgs.append(inc_cfg)
-            cfgs.append(cfg)
-            costs.append(val.cost)
-            if val.additional_info["surr_traj"] is not None:
-                surr_obs, surr_ctrls = val.additional_info["surr_traj"]
-                surr_traj = zeros(pipeline.system, len(surr_obs))
-                surr_traj.obs[:] = surr_obs
-                surr_traj.ctrls[:] = surr_ctrls
-                surr_trajs.append(surr_traj)
-            else:
-                surr_trajs.append(None)
-            if "truedyn_cost" in val.additional_info:
-                inc_truedyn_costs.append(inc_truedyn_cost)
-                truedyn_costs.append(val.additional_info["truedyn_cost"])
-                truedyn_obs, truedyn_ctrls = val.additional_info["truedyn_traj"]
-                truedyn_traj = zeros(pipeline.system, len(truedyn_obs))
-                truedyn_traj.obs[:] = truedyn_obs
-                truedyn_traj.ctrls[:] = truedyn_ctrls
-                truedyn_trajs.append(truedyn_traj)
-
-        tune_result = PipelineTuneResult(inc_cfg = inc_cfg,
-                cfgs = cfgs,
-                inc_cfgs = inc_cfgs,
-                costs = costs,
-                inc_costs = inc_costs,
-                truedyn_costs = truedyn_costs,
-                inc_truedyn_costs = inc_truedyn_costs,
-                surr_trajs = surr_trajs,
-                truedyn_trajs = truedyn_trajs,
-                surr_tune_result = surr_tune_result)
 
         # Generate final model and controller
-        controller, cost, model = pipeline(inc_cfg, task, sysid_trajs)
+        controller, cost, model = pipeline(inc_cfg, task, tuning_data["sysid_trajs"])
+
+        tune_result = self._get_tune_result(tuning_data, smac.runhistory)
 
         return controller, tune_result

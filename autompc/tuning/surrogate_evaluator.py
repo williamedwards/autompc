@@ -3,15 +3,22 @@ from .control_evaluator import ControlEvaluator, ConstantDistribution
 from ..utils import simulate
 
 class SurrogateEvaluator(ControlEvaluator):
-    def __init__(self, system, task, trajs, surrogate_factory, rng=None, surrogate_cfg=None,
-                    surrogate_mode="defaultcfg", surrogate_tune_iters=100):
+    def __init__(self, system, task, trajs, surrogate_factory, rng=None, 
+            surrogate_cfg=None, surrogate_mode="defaultcfg", 
+            surrogate_tune_iters=100, surrogate=None):
         super().__init__(system, task, trajs)
         self.surr_trajs = trajs
         self.surrogate_mode = surrogate_mode
         self.surrogate_factory = surrogate_factory
         self.surrogate_cfg = surrogate_cfg
+        self.surrogate = surrogate
 
-        self.surrogate, self.surr_tune_result = self._get_surrogate(self.surr_trajs, rng, surrogate_tune_iters)
+        if surrogate is None:
+            self.surrogate, self.surr_tune_result = self._get_surrogate(self.surr_trajs, 
+                    rng, surrogate_tune_iters)
+        else:
+            self.surrogate = surrogate
+            self.surr_tune_result = None
 
     def _get_surrogate(self, trajs, rng, surrogate_tune_iters):
         surrogate_tune_result = None
@@ -32,7 +39,8 @@ class SurrogateEvaluator(ControlEvaluator):
                         rng=rng)
             model_tuner = ModelTuner(self.system, evaluator) 
             model_tuner.add_model_factory(self.surrogate_factory)
-            surrogate, surrogate_tune_result = model_tuner.run(rng, n_iters=surrogate_tune_iters) 
+            surrogate, surrogate_tune_result = model_tuner.run(rng, 
+                    n_iters=surrogate_tune_iters) 
         elif self.surrogate_mode == "autoselect":
             evaluator = self.surrogate_evaluator
             if evaluator is None:
@@ -45,7 +53,8 @@ class SurrogateEvaluator(ControlEvaluator):
             model_tuner = ModelTuner(self.system, evaluator) 
             for factory in autoselect_factories:
                 model_tuner.add_model_factory(factory(self.system))
-            surrogate, surrogate_tune_result = model_tuner.run(rng, n_iters=surrogate_tune_iters) 
+            surrogate, surrogate_tune_result = model_tuner.run(rng, 
+                    n_iters=surrogate_tune_iters) 
         return surrogate, surrogate_tune_result
 
     def __call__(self, controller):
