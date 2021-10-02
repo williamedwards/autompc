@@ -302,6 +302,7 @@ class PipelineTuner:
         tuning_data["sysid_trajs"] = sysid_trajs
         tuning_data["surr_trajs"] = surr_trajs
         tuning_data["truedyn"] = truedyn
+        tuning_data["surr_tune_result"] = surr_tune_result
 
         return tuning_data
 
@@ -344,7 +345,8 @@ class PipelineTuner:
 
     def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
             surrogate_tune_iters=100, eval_timeout=600, output_dir=None, restore_dir=None,
-            save_all_controllers=False, debug_return_evaluator=False):
+            save_all_controllers=False, use_default_initial_design=False,
+            debug_return_evaluator=False):
         """
         Run tuning.
 
@@ -432,6 +434,9 @@ class PipelineTuner:
                 pickle.dump(tuning_data, f)
         else:
             self._copy_restore_data(restore_run_dir, run_dir)
+            with open(os.path.join(run_dir, "tuning_data.pkl"), "rb") as f:
+                tuning_data = pickle.load(f)
+            surrogate_tune_result = tunning_data["surrogate_tune_result"]
 
         eval_cfg = CfgEvaluator(run_dir=run_dir, timeout=eval_timeout,
             controller_save_dir=controller_save_dir)
@@ -450,16 +455,21 @@ class PipelineTuner:
                              "output_dir" : smac_dir
                              })
 
+        if not use_default_initial_design:
+            initial_design = RandomConfigurations
+        else:
+            initial_design = None
+
         if not restore_dir:
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                    initial_design=RandomConfigurations,
+                    initial_design=initial_design,
                     tae_runner=eval_cfg,
                     run_id = 1
                     )
         else:
             runhistory, stats, incumbent = self._load_smac_restore_data(restore_run_dir, scenario)
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                    initial_design=RandomConfigurations,
+                    initial_design=initial_design,
                     tae_runner=eval_cfg,
                     run_id = 1,
                     runhistory=runhistory,

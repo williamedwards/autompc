@@ -1,8 +1,19 @@
-from .pipeline_evaluator import PipelineEvaluator
+import numpy as np
+from .control_evaluator import ControlEvaluator, ConstantDistribution
 from ..utils import simulate
 
-class SurrogateEvaluator(PipelineEvaluator):
-    def _get_surrogate(self, pipeline, trajs, rng, surrogate_tune_iters):
+class SurrogateEvaluator(ControlEvaluator):
+    def __init__(self, system, task, trajs, surrogate_factory, rng=None, surrogate_cfg=None,
+                    surrogate_mode="defaultcfg", surrogate_tune_iters=100):
+        super().__init__(system, task, trajs)
+        self.surr_trajs = trajs
+        self.surrogate_mode = surrogate_mode
+        self.surrogate_factory = surrogate_factory
+        self.surrogate_cfg = surrogate_cfg
+
+        self.surrogate, self.surr_tune_result = self._get_surrogate(self.surr_trajs, rng, surrogate_tune_iters)
+
+    def _get_surrogate(self, trajs, rng, surrogate_tune_iters):
         surrogate_tune_result = None
         if self.surrogate_mode == "defaultcfg":
             surrogate_cs = self.surrogate_factory.get_configuration_space()
@@ -16,10 +27,10 @@ class SurrogateEvaluator(PipelineEvaluator):
                 evaluator = HoldoutModelEvaluator(
                         holdout_prop = self.surrogate_tune_holdout,
                         metric = self.surrogate_tune_metric,
-                        system=pipeline.system,
+                        system=self.system,
                         trajs=trajs,
                         rng=rng)
-            model_tuner = ModelTuner(pipeline.system, evaluator) 
+            model_tuner = ModelTuner(self.system, evaluator) 
             model_tuner.add_model_factory(self.surrogate_factory)
             surrogate, surrogate_tune_result = model_tuner.run(rng, n_iters=surrogate_tune_iters) 
         elif self.surrogate_mode == "autoselect":
@@ -28,31 +39,17 @@ class SurrogateEvaluator(PipelineEvaluator):
                 evaluator = HoldoutModelEvaluator(
                         holdout_prop = self.surrogate_tune_holdout,
                         metric = self.surrogate_tune_metric,
-                        system=pipeline.system,
+                        system=self.system,
                         trajs=trajs,
                         rng=rng)
-            model_tuner = ModelTuner(pipeline.system, evaluator) 
+            model_tuner = ModelTuner(self.system, evaluator) 
             for factory in autoselect_factories:
-                model_tuner.add_model_factory(factory(pipeline.system))
+                model_tuner.add_model_factory(factory(self.system))
             surrogate, surrogate_tune_result = model_tuner.run(rng, n_iters=surrogate_tune_iters) 
         return surrogate, surrogate_tune_result
 
-    def __init__(self, system, task, trajs, pipeline, surrogate_factory, surrogate_split=0.5, 
-                    surrogate_mode="defaultcfg", surrogate_tune_iters=100):
-        super().__init__(system, task, trajs, pipeline)
-        surr_size = int(surrogate_split * len(trajs))
-        shuffled_trajs = trajs[:]
-        rng.shuffle(shuffled_trajs)
-        self.surr_trajs = shuffled_trajs[:surr_size]
-        self.sysid_trajs = shuffled_trajs[surr_size:]
-        self.surrogate_mode = surrogate_mode
-        self.surrogate_factory = surrogate_factory
-
-        self.surrogate, self.surr_tune_result = self._get_surrogate(pipeline, self.surr_trajs, rng, surrogate_tune_iters)
-
-    def __call__(self, cfg):
+    def __call__(self, controller):
         info = dict()
-        controller, cost, model = self.pipeline(cfg, self.sysid_trajs)
         print("Simulating Surrogate Trajectory: ")
         try:
             controller.reset()
@@ -77,7 +74,7 @@ class SurrogateEvaluator(PipelineEvaluator):
             info["surr_traj"] = None
 
         # Return constant distribution
-        distribution = lambda: surr_cost
+        distribution = ConstantDistribution(surr_cost)
 
         return distribution, surr_cost
         

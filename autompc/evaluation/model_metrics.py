@@ -9,6 +9,22 @@ def normalize(means, std, A):
         At.append((A[:,i] - means[i]) / std[i])
     return np.vstack(At).T
 
+def get_model_residuals(model, trajs, horizon=1):
+    resids = []
+    for traj in trajs:
+        if hasattr(model, "traj_to_states"):
+            state = model.traj_to_states(traj[:-horizon])
+        else:
+            state = traj.obs[:-horizon, :]
+        for k in range(horizon):
+            state = model.pred_batch(state, traj.ctrls[k:-(horizon-k), :])
+        if hasattr(model, "traj_to_states"):
+            state = state[:,:model.system.obs_dim]
+        actual = traj.obs[horizon:]
+        resid = state - actual
+        resids.append(resid)
+    return np.vstack(resids)
+
 def get_model_rmse(model, trajs, horizon=1):
     """
     Computes (unnormalized) RMSE at fixed horizon
