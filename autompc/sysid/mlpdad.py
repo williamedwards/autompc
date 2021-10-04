@@ -201,7 +201,7 @@ class MLPDAD(Model):
         lossfun = torch.nn.SmoothL1Loss()
         best_loss = float("inf")
         best_params = None
-        print("Training MLPDAD: ", end="")
+        print("Training Initial MLP: ", end="\n")
         for i in tqdm(range(n_iter), file=sys.stdout):
             cum_loss = 0.0
             for i, (x, y) in enumerate(dataloader):
@@ -215,6 +215,89 @@ class MLPDAD(Model):
         self.net.eval()
         for param in self.net.parameters():
             param.requires_grad_(False)
+
+        #print("X" + str(X))
+
+        best_net = self.net
+        best_loss = cum_loss
+
+        print("Training MLP with DAD: ", end="\n")
+        for i in tqdm(range(n_dad_iter), file=sys.stdout):
+            # Reset dataset to initial state
+            X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
+            dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
+            U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs]) 
+            print("Predicting Trajectories: ", end="\n")
+            for traj in tqdm(trajs, file=sys.stdout):
+            #for traj in trajs:
+                predictedTrajectory = np.array([self.pred(traj[0].obs, traj[0].ctrl)]) # Initial Value at T = 1
+                for t in range(1, traj.obs.shape[0] - 1): # Adding timesteps 2 through T - 1
+                    predictedTrajectory = np.concatenate((predictedTrajectory, np.array([self.pred(predictedTrajectory[t - 1], traj[t].ctrl)])))
+                #print("done predicting")
+                #newX = np.delete(predictedTrajectories, 0, 1)
+                #newX = np.concatenate([obs[1:] for obs in predictedTrajectory]) # Remove T = 0 and list all trajectories
+                #np.concatenate((X, newX))
+                #X = np.concatenate((X, np.delete(predictedTrajectory, 0, 1)))
+                X = np.concatenate((X, predictedTrajectory))
+                #print("X" + str(X))
+                sigma = traj.obs[1]
+                xhat = predictedTrajectory[0]
+                difference = sigma - xhat
+                newDY = np.array([difference])
+                for t2 in range(1, predictedTrajectory.shape[0]):
+                    sigma = traj.obs[t2 + 1]
+                    xhat = predictedTrajectory[t2]
+                    difference = sigma - xhat
+                    newDY = np.append(newDY, np.array([difference]), axis=0)
+                
+                dY = np.concatenate((dY, newDY))
+                U = np.concatenate((U, traj.ctrls[1:]))
+                #print("a")
+
+            XU = np.concatenate((X, U), axis = 1) # stack X and U together
+            self.xu_means = np.mean(XU, axis=0)
+            self.xu_std = np.std(XU, axis=0)
+            XUt = transform_input(self.xu_means, self.xu_std, XU)
+
+            self.dy_means = np.mean(dY, axis=0)
+            self.dy_std = np.std(dY, axis=0)
+            dYt = transform_input(self.dy_means, self.dy_std, dY)
+            # concatenate data
+            feedX = XUt
+            predY = dYt
+            dataset = SimpleDataset(feedX, predY)
+            dataloader = DataLoader(dataset, batch_size=n_batch, shuffle=True)
+            # now I can perform training... using torch default dataset holder
+            self.net.train()
+            for param in self.net.parameters():
+                param.requires_grad_(True)
+            optim = torch.optim.Adam(self.net.parameters(), lr=lr)
+            lossfun = torch.nn.SmoothL1Loss()
+            best_loss = float("inf")
+            best_params = None
+            print("Training MLPDAD: ", end="\n")
+            for i in tqdm(range(n_iter), file=sys.stdout):
+                cum_loss = 0.0
+                for i, (x, y) in enumerate(dataloader):
+                    optim.zero_grad()
+                    x = x.to(self._device)
+                    predy = self.net(x)
+                    loss = lossfun(predy, y.to(self._device))
+                    loss.backward()
+                    cum_loss += loss.item()
+                    optim.step()
+            self.net.eval()
+            for param in self.net.parameters():
+                param.requires_grad_(False)
+
+            print(cum_loss)
+            if(cum_loss < best_loss) : 
+                self.net = best_net
+                best_loss = cum_loss
+
+        self.net = best_net
+                
+                    
 
     def pred(self, state, ctrl):
         X = np.concatenate([state, ctrl])
