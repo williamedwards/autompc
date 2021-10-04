@@ -263,30 +263,10 @@ class IterativeLQR(Controller):
 
     def run(self, constate, new_obs, silent=True):
         """Here I am assuming I reuse the controller for half horizon"""
-        # if self.reuse_feedback == 0:
-        #     if self._guess is None:
-        #         self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
-        #     converged, states, ctrls, Ks, ks = self.compute_ilqr(new_obs, self._guess,
-        #             silent=silent)
-        #     self._states = states
-        #     self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
-        #     return ctrls[0], None
-        # Implement control logic here
-        state = self.model.update_state(constate[:-self.system.ctrl_dim],
-                constate[-self.system.ctrl_dim:], new_obs)
-        if self._need_recompute:
-            converged, states, ctrls, Ks, ks = self.compute_ilqr(state, 
-                    np.zeros((self.horizon, self.system.ctrl_dim)), silent=silent)
-            self._states, self._ctrls, self._gain, self._ks = states, ctrls, Ks, ks
-            self._need_recompute = False
-            self._step_count = 0
-            # import pdb; pdb.set_trace()
-        if self._step_count == self.reuse_feedback:
-            self._need_recompute = True  # recompute when last trajectory is finished... Good choice or not?
-        x0, u0, k0 = self._states[self._step_count], self._ctrls[self._step_count], self._gain[self._step_count]
-        u = u0 + k0 @ (state - x0)
-        if not silent:
-            print('inside ilqr u0 = ', u0, 'u = ', u)
-        self._step_count += 1
-        statenew = np.concatenate([state, u])
-        return u, statenew
+        if self._guess is None:
+            self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
+        converged, states, ctrls, Ks, ks = self.compute_ilqr(new_obs, self._guess,
+                silent=silent)
+        self._states = states
+        self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
+        return ctrls[0], None

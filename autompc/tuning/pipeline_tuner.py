@@ -357,7 +357,7 @@ class PipelineTuner:
 
     def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
             surrogate_tune_iters=100, eval_timeout=600, output_dir=None, restore_dir=None,
-            save_all_controllers=False, use_default_initial_design=False,
+            save_all_controllers=False, use_default_initial_design=True,
             debug_return_evaluator=False): #TODO update docstring
         """
         Run tuning.
