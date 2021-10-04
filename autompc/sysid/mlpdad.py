@@ -222,6 +222,7 @@ class MLPDAD(Model):
         # Train New Models and Add Data as Demonstrator
         best_net = self.net.copy_
         best_loss = cum_loss
+        best_params = self.net.parameters()
 
         print("Training MLP with DAD: ", end="\n")
         for n in tqdm(range(n_dad_iter), file=sys.stdout):
@@ -273,7 +274,7 @@ class MLPDAD(Model):
             optim = torch.optim.Adam(self.net.parameters(), lr=lr)
             lossfun = torch.nn.SmoothL1Loss()
             best_loss = float("inf")
-            best_params = None
+
             print("Training MLPDAD: ", end="\n")
             for i in tqdm(range(n_iter), file=sys.stdout):
                 cum_loss = 0.0
@@ -289,13 +290,14 @@ class MLPDAD(Model):
             for param in self.net.parameters():
                 param.requires_grad_(False)
 
-            print(cum_loss)
-            if(cum_loss < best_loss) : 
-                self.net = best_net
+
+            if(cum_loss < best_loss): 
+                best_net = self.net
                 best_loss = cum_loss
+                best_params = self.net.parameters()
 
         self.net = best_net # TODO Check to see that these are not object references
-                
+        # print(best_params)
                     
 
     def pred(self, state, ctrl):
