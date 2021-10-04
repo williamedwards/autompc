@@ -177,6 +177,8 @@ class MLPDAD(Model):
     def train(self, trajs, silent=False, seed=100):
         torch.manual_seed(seed)
         n_iter, n_batch, lr, n_dad_iter = self._train_data
+
+        # Initial Training of Model
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
@@ -216,30 +218,27 @@ class MLPDAD(Model):
         for param in self.net.parameters():
             param.requires_grad_(False)
 
-        #print("X" + str(X))
 
-        best_net = self.net
+        # Train New Models and Add Data as Demonstrator
+        best_net = self.net.copy_
         best_loss = cum_loss
 
         print("Training MLP with DAD: ", end="\n")
-        for i in tqdm(range(n_dad_iter), file=sys.stdout):
+        for n in tqdm(range(n_dad_iter), file=sys.stdout):
             # Reset dataset to initial state
             X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
             dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
             U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs]) 
-            print("Predicting Trajectories: ", end="\n")
+            print("Generating Predicted Trajectories: ", end="\n")
             for traj in tqdm(trajs, file=sys.stdout):
-            #for traj in trajs:
                 predictedTrajectory = np.array([self.pred(traj[0].obs, traj[0].ctrl)]) # Initial Value at T = 1
                 for t in range(1, traj.obs.shape[0] - 1): # Adding timesteps 2 through T - 1
                     predictedTrajectory = np.concatenate((predictedTrajectory, np.array([self.pred(predictedTrajectory[t - 1], traj[t].ctrl)])))
-                #print("done predicting")
-                #newX = np.delete(predictedTrajectories, 0, 1)
-                #newX = np.concatenate([obs[1:] for obs in predictedTrajectory]) # Remove T = 0 and list all trajectories
-                #np.concatenate((X, newX))
-                #X = np.concatenate((X, np.delete(predictedTrajectory, 0, 1)))
+
+                # Adding feedX values
                 X = np.concatenate((X, predictedTrajectory))
-                #print("X" + str(X))
+
+                # Adding delta Y values with obs(t) - pred(t - 1)
                 sigma = traj.obs[1]
                 xhat = predictedTrajectory[0]
                 difference = sigma - xhat
@@ -252,7 +251,6 @@ class MLPDAD(Model):
                 
                 dY = np.concatenate((dY, newDY))
                 U = np.concatenate((U, traj.ctrls[1:]))
-                #print("a")
 
             XU = np.concatenate((X, U), axis = 1) # stack X and U together
             self.xu_means = np.mean(XU, axis=0)
@@ -267,7 +265,8 @@ class MLPDAD(Model):
             predY = dYt
             dataset = SimpleDataset(feedX, predY)
             dataloader = DataLoader(dataset, batch_size=n_batch, shuffle=True)
-            # now I can perform training... using torch default dataset holder
+
+            # train Nth model
             self.net.train()
             for param in self.net.parameters():
                 param.requires_grad_(True)
@@ -295,7 +294,7 @@ class MLPDAD(Model):
                 self.net = best_net
                 best_loss = cum_loss
 
-        self.net = best_net
+        self.net = best_net # TODO Check to see that these are not object references
                 
                     
 
