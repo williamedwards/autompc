@@ -198,13 +198,16 @@ class PipelineTuner:
             surr_trajs = shuffled_trajs[:surr_size]
             sysid_trajs = shuffled_trajs[surr_size:]
 
+            print("Surr Traj Last: ", surr_trajs[-1][-1].obs)
+            print("Sysid Traj Last: ", sysid_trajs[-1][-1].obs)
+
             surrogate, surr_tune_result = self._get_surrogate(pipeline, surr_trajs, rng, surrogate_tune_iters)
         else:
             sysid_trajs = trajs
             surr_tune_result = None
 
         if special_debug:
-            with open("../../out/2021-05-17/surrogate.pkl", "wb") as f:
+            with open("out/2021-09-26/surrogate.pkl", "wb") as f:
                 pickle.dump(surrogate, f)
             eval_idx = [0]
         def eval_cfg(cfg):

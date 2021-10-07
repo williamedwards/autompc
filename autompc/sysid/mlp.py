@@ -138,7 +138,7 @@ class MLP(Model):
     def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
             nonlintype='relu', n_train_iters=50, n_batch=64, lr=1e-3,
             hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
-            hidden_size_4=None,
+            hidden_size_4=None, seed=100,
             use_cuda=True):
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
@@ -157,6 +157,7 @@ class MLP(Model):
             if size is not None:
                 hidden_sizes[i] = size
         print("hidden_sizes=", hidden_sizes)
+        torch.manual_seed(seed)
         self.net = ForwardNet(nx + nu, nx, hidden_sizes, nonlintype)
         self._train_data = (n_train_iters, n_batch, lr)
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 

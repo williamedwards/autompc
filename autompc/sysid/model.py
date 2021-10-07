@@ -20,7 +20,7 @@ class ModelFactory(ABC):
         self.system = system
         self.kwargs = kwargs
 
-    def __call__(self, cfg, train_trajs, silent=False):
+    def __call__(self, cfg, train_trajs, silent=False, skip_train_model=False):
         """
         Returns a model trained for the given 
         system and configuration.
@@ -33,12 +33,15 @@ class ModelFactory(ABC):
                 Model training data set
             silent : bool
                 Whether to produce output during training
+            skip_train_model : bool
+                Skip model training when True.
         """
         model_args = cfg.get_dictionary()
         model_args.update(self.kwargs)
         model = self.Model(self.system, **model_args)
         model.factory = self
-        model.train(train_trajs, silent=silent)
+        if not skip_train_model:
+            model.train(train_trajs, silent=silent)
 
         return model
 

@@ -162,7 +162,7 @@ class Pipeline:
         else:
             controller_cs = self.controller_factory.get_configuration_space()
             controller_cfg = controller_cs.get_default_configuration()
-            set_subspace_configuration(cfg, "_controller", controller_cfg)
+            set_subspace_configuration(cfg, "_ctrlr", controller_cfg)
             controller = self.controller_factory(controller_cfg, new_task, model)
 
-        return controller, task, model
+        return controller, new_task, model
