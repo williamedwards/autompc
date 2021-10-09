@@ -12,6 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
+import copy
 
 from pdb import set_trace
 
@@ -178,6 +179,16 @@ class MLPDAD(Model):
         torch.manual_seed(seed)
         n_iter, n_batch, lr, n_dad_iter = self._train_data
 
+        originalNet = copy.deepcopy(self.net)
+        # for name, param in self.net.named_parameters():
+        #     if param.requires_grad:
+        #         print(name, param.data)
+
+        # print("\nOriginal Net")
+        # for name, param in originalNet.named_parameters():
+        #     if param.requires_grad:
+        #         print(name, param.data)
+
         # Initial Training of Model
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
@@ -220,38 +231,38 @@ class MLPDAD(Model):
 
 
         # Train New Models and Add Data as Demonstrator
-        best_net = self.net.copy_
+        best_net = self.net
         best_loss = cum_loss
         best_params = self.net.parameters()
 
         print("Training MLP with DAD: ", end="\n")
         for n in tqdm(range(n_dad_iter), file=sys.stdout):
             # Reset dataset to initial state
-            X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
-            dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
-            U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs]) 
+            # X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
+            # dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
+            # U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs]) 
             print("Generating Predicted Trajectories: ", end="\n")
             for traj in tqdm(trajs, file=sys.stdout):
-                predictedTrajectory = np.array([self.pred(traj[0].obs, traj[0].ctrl)]) # Initial Value at T = 1
-                for t in range(1, traj.obs.shape[0] - 1): # Adding timesteps 2 through T - 1
+                predictedTrajectory = np.array([self.pred(traj[0].obs, traj[0].ctrl)]) # Initial Value at T = 1, xhat 1
+                for t in range(1, traj.obs.shape[0] - 2): # Adding timesteps 2 through T - 1
                     predictedTrajectory = np.concatenate((predictedTrajectory, np.array([self.pred(predictedTrajectory[t - 1], traj[t].ctrl)])))
 
                 # Adding feedX values
                 X = np.concatenate((X, predictedTrajectory))
 
                 # Adding delta Y values with obs(t) - pred(t - 1)
-                sigma = traj.obs[1]
+                sigma = traj.obs[2] # sigma 
                 xhat = predictedTrajectory[0]
                 difference = sigma - xhat
                 newDY = np.array([difference])
-                for t2 in range(1, predictedTrajectory.shape[0]):
-                    sigma = traj.obs[t2 + 1]
-                    xhat = predictedTrajectory[t2]
+                for t in range(1, predictedTrajectory.shape[0]):
+                    sigma = traj.obs[t + 2]
+                    xhat = predictedTrajectory[t]
                     difference = sigma - xhat
-                    newDY = np.append(newDY, np.array([difference]), axis=0)
+                    newDY = np.append(newDY, np.array([difference]), axis=0) # TODO: Check and then remove axis=0 if it is default
                 
                 dY = np.concatenate((dY, newDY))
-                U = np.concatenate((U, traj.ctrls[1:]))
+                U = np.concatenate((U, traj.ctrls[1:-1]))
 
             XU = np.concatenate((X, U), axis = 1) # stack X and U together
             self.xu_means = np.mean(XU, axis=0)
@@ -268,6 +279,7 @@ class MLPDAD(Model):
             dataloader = DataLoader(dataset, batch_size=n_batch, shuffle=True)
 
             # train Nth model
+            self.net = copy.deepcopy(originalNet)
             self.net.train()
             for param in self.net.parameters():
                 param.requires_grad_(True)
@@ -290,13 +302,16 @@ class MLPDAD(Model):
             for param in self.net.parameters():
                 param.requires_grad_(False)
 
+            # TODO: Add evaluation for cumulative loss based on the original dataset, in the future consider hold out dataset
+
+            # TODO: Add for debuggin purposes array that holds all previous models
 
             if(cum_loss < best_loss): 
                 best_net = self.net
                 best_loss = cum_loss
                 best_params = self.net.parameters()
 
-        self.net = best_net # TODO Check to see that these are not object references
+        self.net = best_net
         # print(best_params)
                     
 
