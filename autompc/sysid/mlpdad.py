@@ -296,11 +296,11 @@ class MLPDAD(Model):
 
             # TODO: Add evaluation for cumulative loss based on the original dataset, in the future consider hold out dataset
 
-            # TODO: Add for debuggin purposes array that holds all previous models
+            #ebuggin purposes array that holds all previous models
             trainedModels.append(copy.deepcopy(self.net))
 
             if(cum_loss < best_loss): 
-                best_net = self.net
+                best_net = copy.deepcopy(self.net)
                 best_loss = cum_loss
 
         self.net = best_net
