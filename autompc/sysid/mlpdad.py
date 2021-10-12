@@ -227,8 +227,9 @@ class MLPDAD(Model):
         best_loss = cum_loss
         best_params = self.net.parameters()
 
-        print("Training MLP with DAD: ", end="\n")
-        for n in tqdm(range(n_dad_iter), file=sys.stdout):
+        print("\nTraining MLP with DAD: ", end="\n")
+        for n in range(n_dad_iter):
+            print("DaD Iteration", n, "of", n_dad_iter, end="\n")
             # Reset dataset to initial state
             # X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
             # dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
