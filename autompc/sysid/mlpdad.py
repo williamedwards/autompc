@@ -204,8 +204,7 @@ class MLPDAD(Model):
             param.requires_grad_(True)
         optim = torch.optim.Adam(self.net.parameters(), lr=lr)
         lossfun = torch.nn.SmoothL1Loss()
-        best_loss = float("inf")
-        best_params = None
+
         print("Training Initial MLP: ", end="\n")
         for i in tqdm(range(n_iter), file=sys.stdout):
             cum_loss = 0.0
@@ -225,7 +224,6 @@ class MLPDAD(Model):
         # Train New Models and Add Data as Demonstrator
         best_net = self.net
         best_loss = cum_loss
-        best_params = self.net.parameters()
 
         print("\nTraining MLP with DAD: ", end="\n")
         for n in range(n_dad_iter):
@@ -252,12 +250,12 @@ class MLPDAD(Model):
                     sigma = traj.obs[t + 2]
                     xhat = predictedTrajectory[t]
                     difference = sigma - xhat
-                    newDY = np.append(newDY, np.array([difference]), axis=0) # TODO: Check and then remove axis=0 if it is default
+                    newDY = np.append(newDY, np.array([difference]), axis=0)
                 
                 dY = np.concatenate((dY, newDY))
                 U = np.concatenate((U, traj.ctrls[1:-1]))
-
-            XU = np.concatenate((X, U), axis = 1) # stack X and U together
+    
+            XU = np.concatenate((X, U), axis = 1) # stack X and U together as X | U
             self.xu_means = np.mean(XU, axis=0)
             self.xu_std = np.std(XU, axis=0)
             XUt = transform_input(self.xu_means, self.xu_std, XU)
@@ -271,14 +269,13 @@ class MLPDAD(Model):
             dataset = SimpleDataset(feedX, predY)
             dataloader = DataLoader(dataset, batch_size=n_batch, shuffle=True)
 
-            # train Nth model
+            # train Nth model on untrained model
             self.net = copy.deepcopy(originalNet)
             self.net.train()
             for param in self.net.parameters():
                 param.requires_grad_(True)
             optim = torch.optim.Adam(self.net.parameters(), lr=lr)
             lossfun = torch.nn.SmoothL1Loss()
-            best_loss = float("inf")
 
             print("Training MLPDAD: ", end="\n")
             for i in tqdm(range(n_iter), file=sys.stdout):
@@ -302,10 +299,8 @@ class MLPDAD(Model):
             if(cum_loss < best_loss): 
                 best_net = self.net
                 best_loss = cum_loss
-                best_params = self.net.parameters()
 
         self.net = best_net
-        # print(best_params)
                     
 
     def pred(self, state, ctrl):
