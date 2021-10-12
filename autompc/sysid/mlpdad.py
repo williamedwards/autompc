@@ -180,14 +180,6 @@ class MLPDAD(Model):
         n_iter, n_batch, lr, n_dad_iter = self._train_data
 
         originalNet = copy.deepcopy(self.net)
-        # for name, param in self.net.named_parameters():
-        #     if param.requires_grad:
-        #         print(name, param.data)
-
-        # print("\nOriginal Net")
-        # for name, param in originalNet.named_parameters():
-        #     if param.requires_grad:
-        #         print(name, param.data)
 
         # Initial Training of Model
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
