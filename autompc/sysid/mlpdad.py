@@ -222,10 +222,12 @@ class MLPDAD(Model):
 
 
         # Train New Models and Add Data as Demonstrator
-        best_net = self.net
+        best_net = copy.deepcopy(self.net)
         best_loss = cum_loss
 
-        trainedModels = [copy.deepcopy(self.net)]
+        # trainedModels = [copy.deepcopy(self.net)]
+        trainedModels = [self.net]
+        modelsLoss = [cum_loss]
 
         print("\nTraining MLP with DAD: ", end="\n")
         for n in range(n_dad_iter):
@@ -295,9 +297,16 @@ class MLPDAD(Model):
                 param.requires_grad_(False)
 
             # TODO: Add evaluation for cumulative loss based on the original dataset, in the future consider hold out dataset
+            # traj = trajs[0]
+            # predictedTrajectory = np.array([traj[0].obs, traj[0].ctrl)]) # Initial Value at T = 1, T = 0 is redundant
+            #     for t in range(1, traj.obs.shape[0] - 1): # Adding timesteps 2 through T
+            #         predictedTrajectory = np.concatenate((predictedTrajectory, np.array([self.pred(predictedTrajectory[t - 1], traj[t].ctrl)])))
 
-            #ebuggin purposes array that holds all previous models
-            trainedModels.append(copy.deepcopy(self.net))
+            #debugging models array that holds all previous models
+            #trainedModels.append(copy.deepcopy(self.net))
+            trainedModels.append(self.net)
+            modelsLoss.append(cum_loss)
+
 
             if(cum_loss < best_loss): 
                 best_net = copy.deepcopy(self.net)
