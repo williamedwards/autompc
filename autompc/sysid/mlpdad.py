@@ -225,6 +225,8 @@ class MLPDAD(Model):
         best_net = self.net
         best_loss = cum_loss
 
+        trainedModels = [copy.deepcopy(self.net)]
+
         print("\nTraining MLP with DAD: ", end="\n")
         for n in range(n_dad_iter):
             print("DaD Iteration", n, "of", n_dad_iter, end="\n")
@@ -295,6 +297,7 @@ class MLPDAD(Model):
             # TODO: Add evaluation for cumulative loss based on the original dataset, in the future consider hold out dataset
 
             # TODO: Add for debuggin purposes array that holds all previous models
+            trainedModels.append(copy.deepcopy(self.net))
 
             if(cum_loss < best_loss): 
                 best_net = self.net
