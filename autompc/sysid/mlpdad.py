@@ -239,7 +239,7 @@ class MLPDAD(Model):
 
         print("\nTraining MLP with DAD: ", end="\n")
         for n in range(n_dad_iter):
-            print("DaD Iteration", n, "of", n_dad_iter, end="\n")
+            print("DaD Iteration", n + 1, "of", n_dad_iter, end="\n")
             # Reset dataset to initial state
             # X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
             # dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
@@ -291,7 +291,7 @@ class MLPDAD(Model):
         minError = min(modelsLoss)
         min_index = modelsLoss.index(minError)
 
-        self.net = modelsLoss[min_index]
+        self.net = trainedModels[min_index]
 
     def evaluateAccuracy(self, trajs, lossfun):
         cum_loss = 0
