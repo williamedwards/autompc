@@ -17,6 +17,7 @@ import copy
 from pdb import set_trace
 
 from .model import Model, ModelFactory
+from autompc.sysid import model
 
 def transform_input(xu_means, xu_std, XU):
     XUt = []
@@ -175,17 +176,9 @@ class MLPDAD(Model):
     def state_dim(self):
         return self.system.obs_dim
 
-    def train(self, trajs, silent=False, seed=100):
-        torch.manual_seed(seed)
+    def trainMLP(self, XU, dY): #Set self.net to the net you want to train before
         n_iter, n_batch, lr, n_dad_iter = self._train_data
 
-        originalNet = copy.deepcopy(self.net)
-
-        # Initial Training of Model
-        X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
-        dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
-        U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
-        XU = np.concatenate((X, U), axis = 1) # stack X and U together
         self.xu_means = np.mean(XU, axis=0)
         self.xu_std = np.std(XU, axis=0)
         XUt = transform_input(self.xu_means, self.xu_std, XU)
@@ -193,7 +186,7 @@ class MLPDAD(Model):
         self.dy_means = np.mean(dY, axis=0)
         self.dy_std = np.std(dY, axis=0)
         dYt = transform_input(self.dy_means, self.dy_std, dY)
-        # concatenate data
+
         feedX = XUt
         predY = dYt
         dataset = SimpleDataset(feedX, predY)
@@ -205,29 +198,44 @@ class MLPDAD(Model):
         optim = torch.optim.Adam(self.net.parameters(), lr=lr)
         lossfun = torch.nn.SmoothL1Loss()
 
-        print("Training Initial MLP: ", end="\n")
         for i in tqdm(range(n_iter), file=sys.stdout):
-            cum_loss = 0.0
+            #cum_loss = 0.0
             for i, (x, y) in enumerate(dataloader):
                 optim.zero_grad()
                 x = x.to(self._device)
                 predy = self.net(x)
                 loss = lossfun(predy, y.to(self._device))
                 loss.backward()
-                cum_loss += loss.item()
+                #cum_loss += loss.item()
                 optim.step()
         self.net.eval()
         for param in self.net.parameters():
             param.requires_grad_(False)
 
+    def train(self, trajs, silent=False, seed=100):
+        torch.manual_seed(seed)
+        n_iter, n_batch, lr, n_dad_iter = self._train_data
+
+        originalNet = copy.deepcopy(self.net)
+
+        # Initial Training of Model
+        X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
+        dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
+        U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
+        XU = np.concatenate((X, U), axis = 1) # stack X and U together
 
         # Train New Models and Add Data as Demonstrator
-        best_net = copy.deepcopy(self.net)
-        best_loss = cum_loss
+        print("\nTraining Initial MLP: ", end="\n")
+        self.trainMLP(XU, dY) # self.net gets trained
+        best_net = self.net
+        print(id(best_net))
+        #best_loss = cum_loss
 
         # trainedModels = [copy.deepcopy(self.net)]
         trainedModels = [self.net]
-        modelsLoss = [cum_loss]
+
+        lossfun = torch.nn.SmoothL1Loss()
+        modelsLoss = [self.evaluateAccuracy(trajs, lossfun)]
 
         print("\nTraining MLP with DAD: ", end="\n")
         for n in range(n_dad_iter):
@@ -238,63 +246,31 @@ class MLPDAD(Model):
             # U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs]) 
             print("Generating Predicted Trajectories: ", end="\n")
             for traj in tqdm(trajs, file=sys.stdout):
-                predictedTrajectory = np.array([self.pred(traj[0].obs, traj[0].ctrl)]) # Initial Value at T = 1, xhat 1
-                for t in range(1, traj.obs.shape[0] - 2): # Adding timesteps 2 through T - 1
-                    predictedTrajectory = np.concatenate((predictedTrajectory, np.array([self.pred(predictedTrajectory[t - 1], traj[t].ctrl)])))
+                # predictedTrajectory = np.array([self.pred(traj[0].obs, traj[0].ctrl)]) # Initial Value at T = 1, xhat 1
+                # for t in range(1, traj.obs.shape[0] - 2): # Adding timesteps 2 through T - 1
+                #     predictedTrajectory = np.concatenate((predictedTrajectory, np.array([self.pred(predictedTrajectory[t - 1], traj[t].ctrl)])))
 
+                # Generate predictions into a trajectory of 0 through T - 1
+                predictedTrajectory = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls, maxTimestep=traj.obs.shape[0] - 2)
                 # Adding feedX values
-                X = np.concatenate((X, predictedTrajectory))
+                X = np.concatenate((X, predictedTrajectory[1:])) #Exclude xhat 0 as it is an observed value
 
-                # Adding delta Y values with obs(t) - pred(t - 1)
-                sigma = traj.obs[2] # sigma 
-                xhat = predictedTrajectory[0]
-                difference = sigma - xhat
-                newDY = np.array([difference])
-                for t in range(1, predictedTrajectory.shape[0]):
-                    sigma = traj.obs[t + 2]
-                    xhat = predictedTrajectory[t]
-                    difference = sigma - xhat
-                    newDY = np.append(newDY, np.array([difference]), axis=0)
+                # Predicted traj is {0,1,...,T-1}                    
+                xi = traj.obs[2:] # From t = 2 to t = T
+                xhat = predictedTrajectory[1:] # From t = 1 to t = T - 1
+                newDY = xi - xhat
                 
                 dY = np.concatenate((dY, newDY))
                 U = np.concatenate((U, traj.ctrls[1:-1]))
     
-            XU = np.concatenate((X, U), axis = 1) # stack X and U together as X | U
-            self.xu_means = np.mean(XU, axis=0)
-            self.xu_std = np.std(XU, axis=0)
-            XUt = transform_input(self.xu_means, self.xu_std, XU)
-
-            self.dy_means = np.mean(dY, axis=0)
-            self.dy_std = np.std(dY, axis=0)
-            dYt = transform_input(self.dy_means, self.dy_std, dY)
-            # concatenate data
-            feedX = XUt
-            predY = dYt
-            dataset = SimpleDataset(feedX, predY)
-            dataloader = DataLoader(dataset, batch_size=n_batch, shuffle=True)
+            XU = np.concatenate((X, U), axis=1) # stack X and U together as X | U
 
             # train Nth model on untrained model
-            self.net = copy.deepcopy(originalNet)
-            self.net.train()
-            for param in self.net.parameters():
-                param.requires_grad_(True)
-            optim = torch.optim.Adam(self.net.parameters(), lr=lr)
-            lossfun = torch.nn.SmoothL1Loss()
+            print("Training MLP: ", end="\n")
+            self.net = copy.deepcopy(originalNet) # Reset self.net for training
+            self.trainMLP(XU, dY)
 
-            print("Training MLPDAD: ", end="\n")
-            for i in tqdm(range(n_iter), file=sys.stdout):
-                cum_loss = 0.0
-                for i, (x, y) in enumerate(dataloader):
-                    optim.zero_grad()
-                    x = x.to(self._device)
-                    predy = self.net(x)
-                    loss = lossfun(predy, y.to(self._device))
-                    loss.backward()
-                    cum_loss += loss.item()
-                    optim.step()
-            self.net.eval()
-            for param in self.net.parameters():
-                param.requires_grad_(False)
+            predictionError = self.evaluateAccuracy(trajs, lossfun)
 
             # TODO: Add evaluation for cumulative loss based on the original dataset, in the future consider hold out dataset
             # traj = trajs[0]
@@ -304,15 +280,53 @@ class MLPDAD(Model):
 
             #debugging models array that holds all previous models
             #trainedModels.append(copy.deepcopy(self.net))
-            trainedModels.append(self.net)
-            modelsLoss.append(cum_loss)
+            trainedModels.append(copy.deepcopy(self.net))
+            modelsLoss.append(predictionError)
 
 
-            if(cum_loss < best_loss): 
-                best_net = copy.deepcopy(self.net)
-                best_loss = cum_loss
+            # if(predictionError < best_loss): 
+            #     best_net = copy.deepcopy(self.net)
+            #     best_loss = predictionError
 
-        self.net = best_net
+        minError = min(modelsLoss)
+        min_index = modelsLoss.index(minError)
+
+        self.net = modelsLoss[min_index]
+
+    def evaluateAccuracy(self, trajs, lossfun):
+        cum_loss = 0
+        for traj in trajs:
+            predTraj = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls[:-1]) # Exclude T + 1
+            difference = predTraj[1:] - traj.obs[1:] # Exclude initial observation
+            for t in range(1, traj.obs.shape[0]):
+                # for i in range
+                predY = predTraj[t]
+                y = traj[t].obs
+                loss = np.sum(np.absolute(predY - y)) # Until I can get the loss function parameter working
+                cum_loss += loss
+                # loss = lossfun(predTraj[t], traj[t].obs)
+                # #loss = lossfun(1, 3)
+                # cum_loss += loss.item()
+        
+        return cum_loss
+            
+        #     x = x.to(self._device)
+        #     predy = self.net(x)
+        #     loss = lossfun(predy, y.to(self._device))
+        #     loss.backward()
+        #     cum_loss += loss.item()
+
+    # self.net and the correct xu and dy means need to be set before running this method
+    def generatePredictedTrajectoryObservations(self, initialState, ctrls, maxTimestep=-1):
+        predictedTrajectory = np.array([initialState])
+        # Will make predictions for all control inputs
+        timesteps = ctrls.shape[0] # 20 controls will create timesteps 0 through 20 which is 21 timesteps.
+        if(timesteps > maxTimestep and maxTimestep != -1):
+            timesteps = maxTimestep
+
+        for t in range(0, timesteps):
+            predictedTrajectory = np.concatenate((predictedTrajectory, np.array([self.pred(predictedTrajectory[t], ctrls[t])])))
+        return predictedTrajectory
                     
 
     def pred(self, state, ctrl):
