@@ -179,6 +179,8 @@ class MLPDAD(Model):
     def trainMLP(self, XU, dY): #Set self.net to the net you want to train before
         n_iter, n_batch, lr, n_dad_iter = self._train_data
 
+        print("Training MLP with \nXU:\n", XU, "\ndY:\n", dY)
+
         self.xu_means = np.mean(XU, axis=0)
         self.xu_std = np.std(XU, axis=0)
         XUt = transform_input(self.xu_means, self.xu_std, XU)
@@ -216,7 +218,9 @@ class MLPDAD(Model):
         torch.manual_seed(seed)
         n_iter, n_batch, lr, n_dad_iter = self._train_data
 
+        print("Initial self.net id: \t", id(self.net))
         originalNet = copy.deepcopy(self.net)
+        print("Original Net id: \t", id(originalNet))
 
         # Initial Training of Model
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
@@ -227,15 +231,18 @@ class MLPDAD(Model):
         # Train New Models and Add Data as Demonstrator
         print("\nTraining Initial MLP: ", end="\n")
         self.trainMLP(XU, dY) # self.net gets trained
-        best_net = self.net
-        print(id(best_net))
+        print("Init train self.net id: \t", id(self.net))
+        # best_net = self.net
+        # print(id(best_net))
         #best_loss = cum_loss
 
         # trainedModels = [copy.deepcopy(self.net)]
         trainedModels = [self.net]
+        print("self.net in list id: \t", id(trainedModels[0]))
 
         lossfun = torch.nn.SmoothL1Loss()
         modelsLoss = [self.evaluateAccuracy(trajs, lossfun)]
+        print("InitialModel error: ", modelsLoss[0])
 
         print("\nTraining MLP with DAD: ", end="\n")
         for n in range(n_dad_iter):
@@ -252,23 +259,38 @@ class MLPDAD(Model):
 
                 # Generate predictions into a trajectory of 0 through T - 1
                 predictedTrajectory = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls, maxTimestep=traj.obs.shape[0] - 2)
+                print("Observed traj: \n", traj.obs)
+                print("\nObserved prediction: (We want to use [1, T-1]\n", predictedTrajectory)
+
                 # Adding feedX values
                 X = np.concatenate((X, predictedTrajectory[1:])) #Exclude xhat 0 as it is an observed value
+                print("\nFull X is now: \n", X)
 
                 # Predicted traj is {0,1,...,T-1}                    
                 xi = traj.obs[2:] # From t = 2 to t = T
                 xhat = predictedTrajectory[1:] # From t = 1 to t = T - 1
                 newDY = xi - xhat
+                print("Xi values from T [2,T]: \n", xi)
+                print("xhat values from T [1,T-1] \n", xhat)
+                print("dY to be appended: \n", newDY)
                 
+                print("old dY: \n", dY)
                 dY = np.concatenate((dY, newDY))
+                print("dY with newDY: \n", dY)
+
+                print("old U: \n", U)
                 U = np.concatenate((U, traj.ctrls[1:-1]))
+                print("new U: \n", U)
     
             XU = np.concatenate((X, U), axis=1) # stack X and U together as X | U
+            print("Combined XU: \n", XU)
 
             # train Nth model on untrained model
             print("Training MLP: ", end="\n")
             self.net = copy.deepcopy(originalNet) # Reset self.net for training
+            print("before train self.net id model #", n + 2, ":\t", id(self.net))
             self.trainMLP(XU, dY)
+            print("after train self.net id model #", n + 2, ":\t", id(self.net))
 
             predictionError = self.evaluateAccuracy(trajs, lossfun)
 
@@ -280,9 +302,12 @@ class MLPDAD(Model):
 
             #debugging models array that holds all previous models
             #trainedModels.append(copy.deepcopy(self.net))
-            trainedModels.append(copy.deepcopy(self.net))
+            trainedModels.append(self.net)
             modelsLoss.append(predictionError)
 
+            for i in range(0, len(trainedModels)):
+                print("Model #", i, id(trainedModels[i]), "\tLoss: ", modelsLoss[i])
+            
 
             # if(predictionError < best_loss): 
             #     best_net = copy.deepcopy(self.net)
