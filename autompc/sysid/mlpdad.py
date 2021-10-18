@@ -14,6 +14,8 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 import copy
 
+import matplotlib.pyplot as plt
+
 from pdb import set_trace
 
 from .model import Model, ModelFactory
@@ -214,6 +216,8 @@ class MLPDAD(Model):
         for param in self.net.parameters():
             param.requires_grad_(False)
 
+        return (self.xu_means, self.xu_std, self.dy_means, self.dy_std)
+
     def train(self, trajs, silent=False, seed=100):
         torch.manual_seed(seed)
         n_iter, n_batch, lr, n_dad_iter = self._train_data
@@ -230,7 +234,7 @@ class MLPDAD(Model):
 
         # Train New Models and Add Data as Demonstrator
         print("\nTraining Initial MLP: ", end="\n")
-        self.trainMLP(XU, dY) # self.net gets trained
+        normalizationParams = self.trainMLP(XU, dY) # self.net gets trained
         print("Init train self.net id: \t", id(self.net))
         # best_net = self.net
         # print(id(best_net))
@@ -242,7 +246,17 @@ class MLPDAD(Model):
 
         lossfun = torch.nn.SmoothL1Loss()
         modelsLoss = [self.evaluateAccuracy(trajs, lossfun)]
-        print("InitialModel error: ", modelsLoss[0])
+        print("Initial Model error: ", modelsLoss[0])
+
+        modelsNormParams = [normalizationParams]
+        print("Initial Model norm params: ", modelsNormParams[0])
+
+
+        # Debug for comparing trajectories on iteration
+        thetaData = []
+        omegaData = []
+        xData = []
+        dxData = []
 
         print("\nTraining MLP with DAD: ", end="\n")
         for n in range(n_dad_iter):
@@ -260,7 +274,7 @@ class MLPDAD(Model):
                 # Generate predictions into a trajectory of 0 through T - 1
                 predictedTrajectory = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls, maxTimestep=traj.obs.shape[0] - 2)
                 print("Observed traj: \n", traj.obs)
-                print("\nObserved prediction: (We want to use [1, T-1]\n", predictedTrajectory)
+                print("\nObserved prediction: (We want to use [1, T-1])\n", predictedTrajectory)
 
                 # Adding feedX values
                 X = np.concatenate((X, predictedTrajectory[1:])) #Exclude xhat 0 as it is an observed value
@@ -285,11 +299,21 @@ class MLPDAD(Model):
             XU = np.concatenate((X, U), axis=1) # stack X and U together as X | U
             print("Combined XU: \n", XU)
 
+
+            # Test traj
+            predictTraj = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls, maxTimestep=traj.obs.shape[0] - 1)
+
+            thetaData.append(predictTraj[:,0])
+            omegaData.append(predictTraj[:,1])
+            xData.append(predictTraj[:,2])
+            dxData.append(predictTraj[:,3])
+            
+
             # train Nth model on untrained model
             print("Training MLP: ", end="\n")
             self.net = copy.deepcopy(originalNet) # Reset self.net for training
             print("before train self.net id model #", n + 2, ":\t", id(self.net))
-            self.trainMLP(XU, dY)
+            normalizationParams = self.trainMLP(XU, dY)
             print("after train self.net id model #", n + 2, ":\t", id(self.net))
 
             predictionError = self.evaluateAccuracy(trajs, lossfun)
@@ -303,20 +327,76 @@ class MLPDAD(Model):
             #debugging models array that holds all previous models
             #trainedModels.append(copy.deepcopy(self.net))
             trainedModels.append(self.net)
+            modelsNormParams.append(normalizationParams)
             modelsLoss.append(predictionError)
 
+            print("Initial Model norm params: ", modelsNormParams[0])
+
+            print("\n\t\t\t\t\t\t\t xu_means, xu_std, dy_means, dy_std")
             for i in range(0, len(trainedModels)):
-                print("Model #", i, id(trainedModels[i]), "\tLoss: ", modelsLoss[i])
+                print("Model #", i, id(trainedModels[i]), "\tLoss: ", modelsLoss[i], "\tNorm Params: ", modelsNormParams[i])
             
 
             # if(predictionError < best_loss): 
             #     best_net = copy.deepcopy(self.net)
             #     best_loss = predictionError
 
+            # Evaluate for last model
+            predictTraj = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls, maxTimestep=traj.obs.shape[0] - 1)
+
+            thetaData.append(predictTraj[:,0])
+            omegaData.append(predictTraj[:,1])
+            xData.append(predictTraj[:,2])
+            dxData.append(predictTraj[:,3])
+
         minError = min(modelsLoss)
         min_index = modelsLoss.index(minError)
 
         self.net = trainedModels[min_index]
+
+        normalizationParams = modelsNormParams[min_index]
+        self.xu_means= normalizationParams[0]
+        self.xu_std= normalizationParams[1]
+        self.dy_means= normalizationParams[2]
+        self.dy_std= normalizationParams[3]
+
+        timesteps = [0]
+        for t in range(1, trajs[0].obs.shape[0]):
+            timesteps.append(t)
+
+        plt.plot(timesteps, trajs[0].obs[:,0].tolist(), label = "theta Observation")
+        for n in range(n_dad_iter):
+            plt.plot(timesteps, thetaData[n].tolist(), label = "theta Prediction: " + str(n + 1))
+
+        plt.legend()
+        plt.savefig('trajectorythetadebug.png', dpi=300, bbox_inches='tight')
+        plt.clf()
+
+        plt.plot(timesteps, trajs[0].obs[:,1].tolist(), label = "omega Observation")
+        for n in range(n_dad_iter):
+            plt.plot(timesteps, omegaData[n].tolist(), label = "omega Prediction: " + str(n + 1))
+
+        plt.legend()
+        plt.savefig('trajectoryomegadebug.png', dpi=300, bbox_inches='tight')
+        plt.clf()
+
+        plt.plot(timesteps, trajs[0].obs[:,2].tolist(), label = "x Observation")
+        for n in range(n_dad_iter):
+            plt.plot(timesteps, xData[n].tolist(), label = "x Prediction: " + str(n + 1))
+
+        plt.legend()
+        plt.savefig('trajectoryXdebug.png', dpi=300, bbox_inches='tight')
+        plt.clf()
+
+        plt.plot(timesteps, trajs[0].obs[:,3].tolist(), label = "dx Observation")
+        for n in range(n_dad_iter):
+            plt.plot(timesteps, dxData[n].tolist(), label = "dx Prediction: " + str(n + 1))
+
+        plt.legend()
+        plt.savefig('trajectoryDXdebug.png', dpi=300, bbox_inches='tight')
+        plt.clf()
+
+        
 
     def evaluateAccuracy(self, trajs, lossfun):
         cum_loss = 0
