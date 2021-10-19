@@ -12,8 +12,8 @@ from ..utils.cs_utils import add_configuration_space, create_subspace_configurat
 class AutoControllerFactory(ControllerFactory):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.factories = [LQRFactory(self.system), 
-                IterativeLQRFactory(self.system),
+        self.factories = [IterativeLQRFactory(self.system),
+                LQRFactory(self.system), 
                 DirectTranscriptionControllerFactory(self.system),
                 MPPIFactory(self.system)
                 ]
