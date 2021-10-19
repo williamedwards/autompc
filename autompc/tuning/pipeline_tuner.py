@@ -2,9 +2,11 @@
 # Standard library includes
 from collections import namedtuple
 import pickle
+import queue
 import multiprocessing
 import contextlib
 import datetime
+import time
 import os, sys, glob, shutil
 
 # Internal project includes
@@ -90,7 +92,7 @@ autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
 
 class CfgRunner:
     def __init__(self, evaluation_quantile, tuning_data=None, run_dir=None, timeout=None, log_file_name=None,
-                    controller_save_dir=None):
+                    controller_save_dir=None, eval_result_dir=None):
         self.evaluation_quantile = evaluation_quantile
         if tuning_data is None and run_dir is None:
             raise ValueError("Either tuning_data or run_dir must be passed")
@@ -102,6 +104,7 @@ class CfgRunner:
         self.log_file_name = log_file_name
         self.eval_number = 0
         self.controller_save_dir = controller_save_dir
+        self.eval_result_dir = eval_result_dir
 
     def get_tuning_data(self):
         if not self.tuning_data is None:
@@ -118,9 +121,17 @@ class CfgRunner:
         ctx = multiprocessing.get_context("spawn")
         q = ctx.Queue()
         p = ctx.Process(target=self.run_mp, args=(cfg, q))
+        start_time = time.time()
         p.start()
+        while p.is_alive():
+            if time.time() - start_time > self.timeout:
+                break
+            try:
+                result = q.get(block=True, timeout=10.0)
+                break
+            except queue.Empty:
+                continue
         p.join(timeout=self.timeout)
-        # p.join()
         if p.exitcode is None:
             print("CfgRunner: Evaluation timed out")
             p.terminate()
@@ -130,7 +141,7 @@ class CfgRunner:
             print("Exit code: ", p.exitcode)
             return np.inf, dict()
         else:
-            result = q.get()
+            #result = q.get()
             return result
 
     def run_mp(self, cfg, q):
@@ -142,9 +153,12 @@ class CfgRunner:
                     except Exception as e:
                         print("Exception raised: \n", str(e))
                         raise e
+                    print("Putting Result... ", end="")
+                    q.put(result)
+                    print("Done.")
         else:
             result = self.run(cfg)
-        q.put(result)
+            q.put(result)
 
     def run(self, cfg):
         print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
@@ -159,15 +173,16 @@ class CfgRunner:
         try:
             controller, _, _ = pipeline(cfg, sysid_trajs)
             surr_dist, surr_eval_info = control_evaluator(controller)
-            truedyn_dist, truedyn_eval_info = truedyn_evaluator(controller)
             surr_cost = surr_dist(self.evaluation_quantile)
-            truedyn_cost = truedyn_dist(self.evaluation_quantile)
             info["surr_cost"] = surr_cost
             info["surr_dist"] = str(surr_dist)
             info["surr_eval_info"] = surr_eval_info
-            info["truedyn_cost"] = truedyn_cost
-            info["truedyn_dist"] = str(truedyn_dist)
-            info["truedyn_eval_info"] = truedyn_eval_info
+            if not truedyn_evaluator is None:
+                truedyn_dist, truedyn_eval_info = truedyn_evaluator(controller)
+                truedyn_cost = truedyn_dist(self.evaluation_quantile)
+                info["truedyn_cost"] = truedyn_cost
+                info["truedyn_dist"] = str(truedyn_dist)
+                info["truedyn_eval_info"] = truedyn_eval_info
             
             if self.controller_save_dir:
                 controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
@@ -176,9 +191,9 @@ class CfgRunner:
         except MPCCompatibilityError:
             surr_cost = np.inf
 
-        if not self.log_file_name is None:
-            sys.stdout.close()
-            sys.stderr.close()
+        # if not self.log_file_name is None:
+        #     sys.stdout.close()
+        #     sys.stderr.close()
 
         return surr_cost, info
 
@@ -248,7 +263,7 @@ class PipelineTuner:
                         **self.control_evaluator_kwargs)
             else:
                 control_evaluator = self.control_evaluator_class(pipeline.system, task,
-                        surr_trajs, rng=control_eval_rng)
+                        surr_trajs, rng=control_eval_rng, **self.control_evaluator_kwargs)
         else:
             sysid_trajs = trajs
             control_evaluator = SurrogateEvaluator(pipeline.system, task, surr_trajs=None,
@@ -418,6 +433,7 @@ class PipelineTuner:
         run_dir = os.path.join(output_dir, 
             "run_{}".format(int(1000.0*datetime.datetime.utcnow().timestamp())))
         smac_dir = os.path.join(run_dir, "smac")
+        eval_result_dir = os.path.join(run_dir, "eval_results")
 
         if restore_dir:
             restore_run_dir = self._get_restore_run_dir(restore_dir)
@@ -430,6 +446,8 @@ class PipelineTuner:
 
         if not os.path.exists(smac_dir):
             os.mkdir(smac_dir)
+        if not os.path.exists(eval_result_dir):
+            os.mkdir(eval_result_dir)
         if not os.path.exists(os.path.join(smac_dir, "run_1")):
             os.mkdir(os.path.join(smac_dir, "run_1"))
         if save_all_controllers:
@@ -448,10 +466,10 @@ class PipelineTuner:
             self._copy_restore_data(restore_run_dir, run_dir)
             with open(os.path.join(run_dir, "tuning_data.pkl"), "rb") as f:
                 tuning_data = pickle.load(f)
-            surrogate_tune_result = tunning_data["surrogate_tune_result"]
+            #surrogate_tune_result = tuning_data["surr_tune_result"]
 
         eval_cfg = CfgRunner(self.evaluation_quantile, run_dir=run_dir, timeout=eval_timeout,
-            controller_save_dir=controller_save_dir)
+            controller_save_dir=controller_save_dir, eval_result_dir=eval_result_dir)
 
         if debug_return_evaluator:
             return eval_cfg

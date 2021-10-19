@@ -1,6 +1,6 @@
 import numpy as np
 from .surrogate_evaluator import SurrogateEvaluator
-from .control_evaluator import ControlEvaluator, NormalDistribution
+from .control_evaluator import ControlEvaluator, NormalDistribution, ConstantDistribution
 from ..utils import simulate
 
 
@@ -64,8 +64,13 @@ class BootstrapSurrogateEvaluator(SurrogateEvaluator):
             info["surr_costs"].append(surr_cost)
             info["surr_trajs"].append(surr_traj)
 
-        distribution = NormalDistribution(np.mean(info["surr_costs"]), np.std(info["surr_costs"]))
+        mean = np.mean(info["surr_costs"])
+        std = np.std(info["surr_costs"])
+        if not np.allclose(std, 0.0):
+            distribution = NormalDistribution(mean, std)
+        else:
+            distribution = ConstantDistribution(mean)
 
-        print("Surrogate Distribution: Mean {:.2f} Stddev {:.2f}".format(distribution.mu, distribution.sigma))
+        print("Surrogate Distribution: Mean {:.2f} Stddev {:.2f}".format(mean, std))
 
         return distribution, info

@@ -70,7 +70,7 @@ class SurrogateEvaluator(ControlEvaluator):
             else:
                 surr_traj = simulate(controller, self.task.get_init_obs(),
                     ctrl_bounds=self.task.get_ctrl_bounds(),
-                    term_cond=self.task.term_cond, sim_model=surrogate)
+                    term_cond=self.task.term_cond, sim_model=self.surrogate)
             cost = self.task.get_cost()
             surr_cost = cost(surr_traj)
             print("Surrogate Cost: ", surr_cost)
