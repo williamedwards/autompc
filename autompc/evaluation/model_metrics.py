@@ -58,6 +58,41 @@ def get_model_rmse(model, trajs, horizon=1):
     rmse = np.sqrt(np.mean(sqerrs, axis=None)*trajs[0].system.obs_dim)
     return rmse
 
+def get_model_abs_error(model, trajs, horizon=1):
+    """
+    Computes mean absolute at fixed horizon
+
+    Parameters
+    ----------
+    model : Model
+        Model class to consider
+
+    trajs : List of Trajectories
+        Trajectories on which to evaluate
+
+    horizon : int
+        Prediction horizon at which to evaluate.
+        Default is 1.
+    """
+
+    abserrss = []
+    for traj in trajs:
+        if hasattr(model, "traj_to_states"):
+            state = model.traj_to_states(traj[:-horizon])
+        else:
+            state = traj.obs[:-horizon, :]
+        for k in range(horizon):
+            state = model.pred_batch(state, traj.ctrls[k:-(horizon-k), :])
+        if hasattr(model, "traj_to_states"):
+            state = state[:,:model.system.obs_dim]
+        actual = traj.obs[horizon:]
+        abserrs = np.abs(state - actual)
+        abserrss.append(abserrs)
+    absolute_errors = np.concatenate(abserrss)
+    rmse = np.mean(absolute_errors, axis=None)*trajs[0].system.obs_dim
+    return rmse
+
+
 def get_model_rmsmens(model, trajs, horiz=1):
     R"""
     Compute root mean squared model error, normalized step-wise (RMSMENS).
@@ -115,7 +150,7 @@ def get_model_rmsmens(model, trajs, horiz=1):
         state = traj.obs[:-horiz, :]
         for k in range(horiz):
             pstate = state
-            state = model.pred_parallel(state, traj.ctrls[k:-(horiz-k), :])
+            state = model.pred_batch(state, traj.ctrls[k:-(horiz-k), :])
         pred_deltas = state - pstate
         act_deltas = traj.obs[horiz:] - traj.obs[horiz-1:-1]
         norm_pred_deltas = normalize(dy_means, dy_std, pred_deltas)

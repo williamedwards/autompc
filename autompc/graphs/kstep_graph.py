@@ -5,7 +5,7 @@ from pdb import set_trace
 import numpy as np
 import numpy.linalg as la
 
-from ..evaluation.model_metrics import get_model_rmse, get_model_rmsmens
+from ..evaluation.model_metrics import get_model_rmse, get_model_rmsmens, get_model_abs_error
 
 class KstepPredAccGraph:
     """
@@ -35,13 +35,18 @@ class KstepPredAccGraph:
         self.logscale = logscale
         self.models = []
         self.labels = []
+        self.plot_kwargs = []
 
         if metric == "rmse":
             self.metric = get_model_rmse
         elif metric == "rmsmens":
             self.metric = get_model_rmsmens
+        elif metric == "abserror":
+            self.metric = get_model_abs_error
+        else:
+            raise ValueError("Unknown error metric")
 
-    def add_model(self, model, label):
+    def add_model(self, model, label, plot_kwargs=dict()):
         """
         Add a model for comparison
 
@@ -52,9 +57,13 @@ class KstepPredAccGraph:
 
         label : string
             Label for model
+        
+        plot_kwargs : dict
+            kwargs to pass to matplotlib plot
         """
         self.models.append(model)
         self.labels.append(label)
+        self.plot_kwargs.append(plot_kwargs)
 
             
     def __call__(self, fig, ax):
@@ -69,10 +78,10 @@ class KstepPredAccGraph:
         ax : matplotlib.axes.Axes
             Axes in which to create graph
         """
-        for model, label in zip(self.models, self.labels):
+        for model, label, kwargs in zip(self.models, self.labels, self.plot_kwargs):
             rmses = [self.metric(model, self.trajs, horizon) 
                         for horizon in range(1, self.kmax)] 
-            ax.plot(rmses, label=label)
+            ax.plot(rmses, label=label, **kwargs)
 
         ax.set_xlabel("Prediction Horizon")
         ax.set_ylabel("Prediction Error")
