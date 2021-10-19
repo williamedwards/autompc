@@ -277,7 +277,7 @@ class MLPDAD(Model):
                 print("\nObserved prediction: (We want to use [1, T-1])\n", predictedTrajectory)
 
                 # Adding feedX values
-                X = np.concatenate((X, predictedTrajectory[1:])) #Exclude xhat 0 as it is an observed value
+                # X = np.concatenate((X, predictedTrajectory[1:])) #Exclude xhat 0 as it is an observed value
                 print("\nFull X is now: \n", X)
 
                 # Predicted traj is {0,1,...,T-1}                    
@@ -287,6 +287,17 @@ class MLPDAD(Model):
                 print("Xi values from T [2,T]: \n", xi)
                 print("xhat values from T [1,T-1] \n", xhat)
                 print("dY to be appended: \n", newDY)
+
+                futureX = predictedTrajectory[1:]
+
+                for i in range(newDY.shape[0]):
+                    if(np.linalg.norm(newDY[i]) > 1):
+                        print(newDY[i], " Norm: ", np.linalg.norm(newDY[i]), " Index: ", i)
+                        np.delete(newDY,i,axis=0)
+                        np.delete(futureX,i,axis=0)
+
+
+                X = np.concatenate((X, futureX)) #Exclude xhat 0 as it is an observed value
                 
                 print("old dY: \n", dY)
                 dY = np.concatenate((dY, newDY))
