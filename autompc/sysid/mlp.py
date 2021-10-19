@@ -141,9 +141,9 @@ class MLP(Model):
             hidden_size_4=None,
             use_cuda=True, seed=100):
         Model.__init__(self, system)
-        nx, nu = system.obs_dim, system.ctrl_dim
-        n_hidden_layers = int(n_hidden_layers)
-        hidden_sizes = [hidden_size] * n_hidden_layers
+        self.n_hidden_layers = int(n_hidden_layers)
+        self.hidden_sizes = [hidden_size] * self.n_hidden_layers
+        self.nonlintype = nonlintype
         #print(f"{torch.cuda.is_available()=}")
         # if use_cuda and torch.cuda.is_available():
         #     print("MLP Using Cuda")
@@ -155,14 +155,12 @@ class MLP(Model):
         for i, size in enumerate([hidden_size_1, hidden_size_2, hidden_size_3,
                 hidden_size_4]):
             if size is not None:
-                hidden_sizes[i] = size
+                self.hidden_sizes[i] = size
         #print("hidden_sizes=", hidden_sizes)
-        torch.manual_seed(seed)
-        self.net = ForwardNet(nx + nu, nx, hidden_sizes, nonlintype)
+        self.net = None
         self._train_data = (n_train_iters, n_batch, lr)
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
                 else torch.device('cpu'))
-        self.net = self.net.double().to(self._device)
 
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()
@@ -176,6 +174,9 @@ class MLP(Model):
 
     def train(self, trajs, silent=False, seed=100):
         torch.manual_seed(seed)
+        self.net = ForwardNet(self.system.obs_dim + self.system.ctrl_dim, self.system.obs_dim, 
+            self.hidden_sizes, self.nonlintype)
+        self.net = self.net.double().to(self._device)
         n_iter, n_batch, lr = self._train_data
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
