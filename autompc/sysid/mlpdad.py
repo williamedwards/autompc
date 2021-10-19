@@ -203,15 +203,16 @@ class MLPDAD(Model):
         lossfun = torch.nn.SmoothL1Loss()
 
         for i in tqdm(range(n_iter), file=sys.stdout):
-            #cum_loss = 0.0
+            cum_loss = 0.0
             for i, (x, y) in enumerate(dataloader):
                 optim.zero_grad()
                 x = x.to(self._device)
                 predy = self.net(x)
                 loss = lossfun(predy, y.to(self._device))
                 loss.backward()
-                #cum_loss += loss.item()
+                cum_loss += loss.item()
                 optim.step()
+            print("Loss: ", cum_loss)
         self.net.eval()
         for param in self.net.parameters():
             param.requires_grad_(False)
