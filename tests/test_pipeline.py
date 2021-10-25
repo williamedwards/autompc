@@ -78,7 +78,7 @@ class PipelineTest(unittest.TestCase):
 
 
     def test_full_config_space(self):
-        pipeline = Pipeline(self.system, self.model_factory,
+        pipeline = Pipeline(self.system, self.task, self.model_factory,
                 self.cost_factory, self.controller_factory)
         pipeline_cs = pipeline.get_configuration_space()
         model_cs = self.model_factory.get_configuration_space()
@@ -99,7 +99,7 @@ class PipelineTest(unittest.TestCase):
         model = self.model_factory(model_cfg, self.trajs)
         self.assertTrue(isinstance(model, SINDy))
 
-        pipeline = Pipeline(self.system, model,
+        pipeline = Pipeline(self.system, self.task, model,
                 self.cost_factory, self.controller_factory)
         pipeline_cs = pipeline.get_configuration_space()
         model_cs = self.model_factory.get_configuration_space()
@@ -116,7 +116,7 @@ class PipelineTest(unittest.TestCase):
     def test_config_space_fixed_cost(self):
         cost = self.task.get_cost()
 
-        pipeline = Pipeline(self.system, self.model_factory,
+        pipeline = Pipeline(self.system, self.task, self.model_factory,
                 cost, self.controller_factory)
         pipeline_cs = pipeline.get_configuration_space()
         model_cs = self.model_factory.get_configuration_space()
@@ -131,12 +131,29 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(set(pipeline_hns), set(combined_hns))
 
     def test_pipeline_call(self):
-        pipeline = Pipeline(self.system, self.model_factory,
+        pipeline = Pipeline(self.system, self.task, self.model_factory,
                 self.cost_factory, self.controller_factory)
         pipeline_cs = pipeline.get_configuration_space()
-        pipeline_cfg = pipeline_cs.get_default_configuration()
-        controller, task, model = pipeline(pipeline_cfg, self.task, self.trajs)
+        pipeline_cs.seed(100)
+        pipeline_cfg = pipeline_cs.sample_configuration()
+        controller, task, model = pipeline(pipeline_cfg, self.trajs)
 
         self.assertIsInstance(controller, IterativeLQR)
         self.assertIsInstance(task, Task)
         self.assertIsInstance(model, SINDy)
+
+        self.assertEqual(controller.horizon, pipeline_cfg["_ctrlr:horizon"])
+
+        cost = task.get_cost()
+        Q, R, F = cost._Q, cost._R, cost._F
+        def str_to_bool(str):
+            return str == "true"
+        self.assertTrue(np.array_equal(Q, np.diag([pipeline_cfg["_cost:x_Q"], pipeline_cfg["_cost:y_Q"]])))
+        self.assertTrue(np.array_equal(F, np.diag([pipeline_cfg["_cost:x_F"], pipeline_cfg["_cost:y_F"]])))
+        self.assertTrue(np.array_equal(R, np.diag([pipeline_cfg["_cost:u_R"]])))
+        self.assertEqual(model.method, pipeline_cfg["_model:method"])
+        self.assertEqual(model.poly_degree, pipeline_cfg["_model:poly_degree"])
+        self.assertEqual(model.threshold, pipeline_cfg["_model:threshold"])
+        self.assertEqual(model.time_mode, pipeline_cfg["_model:time_mode"])
+        self.assertEqual(model.trig_freq, pipeline_cfg["_model:trig_freq"])
+        self.assertEqual(controller.horizon, pipeline_cfg["_ctrlr:horizon"])
