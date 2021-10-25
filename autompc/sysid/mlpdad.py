@@ -259,6 +259,9 @@ class MLPDAD(Model):
         xData = []
         dxData = []
 
+        XData = [copy.deepcopy(X)]
+        dYData = [copy.deepcopy(dY)]
+
         print("\nTraining MLP with DAD: ", end="\n")
         for n in range(n_dad_iter):
             print("DaD Iteration", n + 1, "of", n_dad_iter, end="\n")
@@ -274,42 +277,42 @@ class MLPDAD(Model):
 
                 # Generate predictions into a trajectory of 0 through T - 1
                 predictedTrajectory = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls, maxTimestep=traj.obs.shape[0] - 2)
-                print("Observed traj: \n", traj.obs)
-                print("\nObserved prediction: (We want to use [1, T-1])\n", predictedTrajectory)
+                #print("Observed traj: \n", traj.obs)
+                #print("\nObserved prediction: (We want to use [1, T-1])\n", predictedTrajectory)
 
                 # Adding feedX values
                 # X = np.concatenate((X, predictedTrajectory[1:])) #Exclude xhat 0 as it is an observed value
-                print("\nFull X is now: \n", X)
+                #print("\nFull X is now: \n", X)
 
                 # Predicted traj is {0,1,...,T-1}                    
                 xi = traj.obs[2:] # From t = 2 to t = T
                 xhat = predictedTrajectory[1:] # From t = 1 to t = T - 1
                 newDY = xi - xhat
-                print("Xi values from T [2,T]: \n", xi)
-                print("xhat values from T [1,T-1] \n", xhat)
-                print("dY to be appended: \n", newDY)
+                #print("Xi values from T [2,T]: \n", xi)
+                #print("xhat values from T [1,T-1] \n", xhat)
+                #print("dY to be appended: \n", newDY)
 
                 futureX = predictedTrajectory[1:]
 
-                for i in range(newDY.shape[0]):
-                    if(np.linalg.norm(newDY[i]) > 1):
-                        print(newDY[i], " Norm: ", np.linalg.norm(newDY[i]), " Index: ", i)
-                        np.delete(newDY,i,axis=0)
-                        np.delete(futureX,i,axis=0)
+                # for i in range(newDY.shape[0]):
+                #     if(np.linalg.norm(newDY[i]) > .1):
+                #         print(newDY[i], " Norm: ", np.linalg.norm(newDY[i]), " Index: ", i)
+                #         np.delete(newDY,i,axis=0)
+                #         np.delete(futureX,i,axis=0)
 
 
                 X = np.concatenate((X, futureX)) #Exclude xhat 0 as it is an observed value
                 
-                print("old dY: \n", dY)
+                #print("old dY: \n", dY)
                 dY = np.concatenate((dY, newDY))
-                print("dY with newDY: \n", dY)
+                #print("dY with newDY: \n", dY)
 
-                print("old U: \n", U)
+                #print("old U: \n", U)
                 U = np.concatenate((U, traj.ctrls[1:-1]))
-                print("new U: \n", U)
+                #print("new U: \n", U)
     
             XU = np.concatenate((X, U), axis=1) # stack X and U together as X | U
-            print("Combined XU: \n", XU)
+            #print("Combined XU: \n", XU)
 
 
             # Test traj
@@ -349,17 +352,21 @@ class MLPDAD(Model):
                 print("Model #", i, id(trainedModels[i]), "\tLoss: ", modelsLoss[i], "\tNorm Params: ", modelsNormParams[i])
             
 
+            dYData.append(copy.deepcopy(dY))
+            XData.append(copy.deepcopy(X))
+
+
             # if(predictionError < best_loss): 
             #     best_net = copy.deepcopy(self.net)
             #     best_loss = predictionError
 
-            # Evaluate for last model
-            predictTraj = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls, maxTimestep=traj.obs.shape[0] - 1)
+        # Evaluate for last model
+        predictTraj = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls, maxTimestep=traj.obs.shape[0] - 1)
 
-            thetaData.append(predictTraj[:,0])
-            omegaData.append(predictTraj[:,1])
-            xData.append(predictTraj[:,2])
-            dxData.append(predictTraj[:,3])
+        thetaData.append(predictTraj[:,0])
+        omegaData.append(predictTraj[:,1])
+        xData.append(predictTraj[:,2])
+        dxData.append(predictTraj[:,3])    
 
         minError = min(modelsLoss)
         min_index = modelsLoss.index(minError)
@@ -377,37 +384,86 @@ class MLPDAD(Model):
             timesteps.append(t)
 
         plt.plot(timesteps, trajs[0].obs[:,0].tolist(), label = "theta Observation")
-        for n in range(n_dad_iter):
-            plt.plot(timesteps, thetaData[n].tolist(), label = "theta Prediction: " + str(n + 1))
+        for n in range(n_dad_iter + 1):
+            plt.plot(timesteps, thetaData[n].tolist(), label = "theta Prediction: " + str(n))
 
         plt.legend()
         plt.savefig('trajectorythetadebug.png', dpi=300, bbox_inches='tight')
         plt.clf()
 
         plt.plot(timesteps, trajs[0].obs[:,1].tolist(), label = "omega Observation")
-        for n in range(n_dad_iter):
-            plt.plot(timesteps, omegaData[n].tolist(), label = "omega Prediction: " + str(n + 1))
+        for n in range(n_dad_iter + 1):
+            plt.plot(timesteps, omegaData[n].tolist(), label = "omega Prediction: " + str(n))
 
         plt.legend()
         plt.savefig('trajectoryomegadebug.png', dpi=300, bbox_inches='tight')
         plt.clf()
 
         plt.plot(timesteps, trajs[0].obs[:,2].tolist(), label = "x Observation")
-        for n in range(n_dad_iter):
-            plt.plot(timesteps, xData[n].tolist(), label = "x Prediction: " + str(n + 1))
+        for n in range(n_dad_iter + 1):
+            plt.plot(timesteps, xData[n].tolist(), label = "x Prediction: " + str(n))
 
         plt.legend()
         plt.savefig('trajectoryXdebug.png', dpi=300, bbox_inches='tight')
         plt.clf()
 
         plt.plot(timesteps, trajs[0].obs[:,3].tolist(), label = "dx Observation")
-        for n in range(n_dad_iter):
-            plt.plot(timesteps, dxData[n].tolist(), label = "dx Prediction: " + str(n + 1))
+        for n in range(n_dad_iter + 1):
+            plt.plot(timesteps, dxData[n].tolist(), label = "dx Prediction: " + str(n))
 
         plt.legend()
         plt.savefig('trajectoryDXdebug.png', dpi=300, bbox_inches='tight')
         plt.clf()
 
+
+        # Normalization Distribution Graphs
+        for i in range(len(dYData)):
+            plt.hist(dYData[i][:,0], bins=100, alpha=0.5, label="Model " + str(i))
+
+        plt.legend()
+        ax = plt.gca()  # get the current axes
+        ax.relim()      # make sure all the data fits
+        ax.autoscale()
+        plt.savefig('normalizedtrajectorythetadebug.png', dpi=300, bbox_inches='tight')
+        plt.clf()
+
+
+        for i in range(len(dYData)):
+            plt.hist(dYData[i][:,1], bins=100, alpha=0.5, label="Model " + str(i))
+
+        plt.legend()
+        ax = plt.gca()  # get the current axes
+        ax.relim()      # make sure all the data fits
+        ax.autoscale()
+        plt.savefig('normalizedtrajectoryomegadebug.png', dpi=300, bbox_inches='tight')
+        plt.clf()
+
+
+        for i in range(len(dYData)):
+            plt.hist(dYData[i][:,2], bins=100, alpha=0.5, label="Model " + str(i))
+
+        plt.legend()
+        ax = plt.gca()  # get the current axes
+        ax.relim()      # make sure all the data fits
+        ax.autoscale()
+        plt.savefig('normalizedtrajectoryXdebug.png', dpi=300, bbox_inches='tight')
+        plt.clf()
+
+
+        for i in range(len(dYData)):
+            plt.hist(dYData[i][:,3], bins=100, alpha=0.5, label="Model " + str(i))
+
+        plt.legend()
+        ax = plt.gca()  # get the current axes
+        ax.relim()      # make sure all the data fits
+        ax.autoscale()
+        plt.savefig('normalizedtrajectoryDXdebug.png', dpi=300, bbox_inches='tight')
+        plt.clf()
+
+        for n in range(n_dad_iter + 1):
+            np.savez('dadIter_' + str(n), X=XData[n], dY=dYData[n], loss=np.array(modelsLoss))
+
+        
         
 
     def evaluateAccuracy(self, trajs, lossfun):
