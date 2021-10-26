@@ -15,6 +15,7 @@ import ConfigSpace.conditions as CSC
 import copy
 
 import matplotlib.pyplot as plt
+import pickle
 
 from pdb import set_trace
 
@@ -443,8 +444,30 @@ class MLPDAD(Model):
         plt.savefig('dYdXDistribution.png', dpi=300, bbox_inches='tight')
         plt.clf()
 
+        # for n in range(n_dad_iter + 1):
+        #     np.savez('dadIter_' + str(n), X=XData[n], dY=dYData[n], loss=np.array(modelsLoss))
+
         for n in range(n_dad_iter + 1):
-            np.savez('dadIter_' + str(n), X=XData[n], dY=dYData[n], loss=np.array(modelsLoss))
+            outfile = open('dadIter' + str(n) + '.data','wb')
+            out = [trainedModels[n], modelsLoss[n], modelsNormParams[n], XData[n], dYData[n], thetaData[n], omegaData[n], xData[n], dxData[n]]
+            pickle.dump(out,outfile)
+            outfile.close()
+
+        # Output Data
+        # trainedModels = [self.net]
+
+        # modelsLoss = [self.evaluateAccuracy(trajs, lossfun)]
+
+        # modelsNormParams = [normalizationParams]
+
+        # # Debug for comparing trajectories on DaD iteration
+        # XData = [copy.deepcopy(X)]
+        # dYData = [copy.deepcopy(dY)]
+
+        # thetaData = [predictTraj[:,0]]
+        # omegaData = [predictTraj[:,1]]
+        # xData = [predictTraj[:,2]]
+        # dxData = [predictTraj[:,3]]
 
         
         
