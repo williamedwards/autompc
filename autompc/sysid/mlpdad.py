@@ -470,24 +470,14 @@ class MLPDAD(Model):
         cum_loss = 0
         for traj in trajs:
             predTraj = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls[:-1]) # Exclude T + 1
-            difference = predTraj[1:] - traj.obs[1:] # Exclude initial observation
+            #difference = predTraj[1:] - traj.obs[1:] # Exclude initial observation # For debug
             for t in range(1, traj.obs.shape[0]):
-                # for i in range
                 predY = predTraj[t]
                 y = traj[t].obs
-                loss = np.sum(np.absolute(predY - y)) # Until I can get the loss function parameter working
-                cum_loss += loss
-                # loss = lossfun(predTraj[t], traj[t].obs)
-                # #loss = lossfun(1, 3)
-                # cum_loss += loss.item()
+                loss = lossfun(torch.from_numpy(predTraj[t]), torch.from_numpy(traj[t].obs))
+                cum_loss += loss.item()
         
         return cum_loss
-            
-        #     x = x.to(self._device)
-        #     predy = self.net(x)
-        #     loss = lossfun(predy, y.to(self._device))
-        #     loss.backward()
-        #     cum_loss += loss.item()
 
     # self.net and the correct xu and dy means need to be set before running this method
     def generatePredictedTrajectoryObservations(self, initialState, ctrls, maxTimestep=-1):
