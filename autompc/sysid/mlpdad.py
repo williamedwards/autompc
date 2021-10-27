@@ -290,14 +290,29 @@ class MLPDAD(Model):
                 #print("xhat values from T [1,T-1] \n", xhat)
                 #print("dY to be appended: \n", newDY)
 
-                futureX = predictedTrajectory[1:]
+                newU = traj.ctrls[1:-1]
 
-                # for i in range(newDY.shape[0]):
-                #     if(np.linalg.norm(newDY[i]) > .1):
-                #     #if(np.max(newDY[i]) > .1):    
-                #         print(newDY[i], " Norm: ", np.linalg.norm(newDY[i]), " Index: ", i)
-                #         np.delete(newDY,i,axis=0)
-                #         np.delete(futureX,i,axis=0)
+                # tempX = np.empty(shape=[0, newDY.shape[1]])
+                # tempU = np.empty(shape=[0, traj.ctrls.shape[1]])
+                # tempNewDY = np.empty(shape=[0, newDY.shape[1]])
+                tempX = np.array([np.zeros(newDY.shape[1])])
+                tempU = np.array([np.zeros(traj.ctrls.shape[1])])
+                tempNewDY = np.array([np.zeros(newDY.shape[1])])
+
+                keepIndices = []
+
+                for i in range(newDY.shape[0]):
+                    if(np.linalg.norm(newDY[i]) <= .1):
+                    #if(np.max(newDY[i]) <= .1):    
+                        print(newDY[i], " Norm: ", np.linalg.norm(newDY[i]), " Index: ", i)
+                        tempX = np.vstack((tempX, xhat[i]))
+                        tempNewDY = np.vstack((tempNewDY,newDY[i]))
+                        tempU = np.vstack((tempU, newU[i]))
+                        keepIndices.append(i)
+
+                futureX = np.delete(tempX, 0, 0)
+                newDY = np.delete(tempNewDY, 0, 0)
+                newU = np.delete(tempU, 0, 0)
 
 
                 X = np.concatenate((X, futureX)) #Exclude xhat 0 as it is an observed value
@@ -307,7 +322,8 @@ class MLPDAD(Model):
                 #print("dY with newDY: \n", dY)
 
                 #print("old U: \n", U)
-                U = np.concatenate((U, traj.ctrls[1:-1]))
+                #U = np.concatenate((U, traj.ctrls[1:-1]))
+                U = np.concatenate((U, newU))
                 #print("new U: \n", U)
     
             XU = np.concatenate((X, U), axis=1) # stack X and U together as X | U
@@ -349,7 +365,7 @@ class MLPDAD(Model):
 
             print("\n\t\t\t\t\t\t\t xu_means, xu_std, dy_means, dy_std")
             for i in range(0, len(trainedModels)):
-                print("Model #", i, id(trainedModels[i]), "\tLoss: ", modelsLoss[i], "\tNorm Params: ", modelsNormParams[i])
+                print("Model #", i, id(trainedModels[i]), "\tLoss: ", modelsLoss[i])#, "\tNorm Params: ", modelsNormParams[i])
 
 
         minError = min(modelsLoss)
@@ -449,7 +465,7 @@ class MLPDAD(Model):
 
         for n in range(n_dad_iter + 1):
             outfile = open('dadIter' + str(n) + '.data','wb')
-            out = [trainedModels[n], modelsLoss[n], modelsNormParams[n], XData[n], dYData[n], thetaData[n], omegaData[n], xData[n], dxData[n]]
+            out = [trainedModels[n], modelsLoss[n], modelsNormParams[n], XData[n], dYData[n], thetaData[n], omegaData[n], xData[n], dxData[n], testTrajectory]
             pickle.dump(out,outfile)
             outfile.close()
 
@@ -483,7 +499,7 @@ class MLPDAD(Model):
                 loss = lossfun(torch.from_numpy(predTraj[t]), torch.from_numpy(traj[t].obs))
                 cum_loss += loss.item()
         
-        return cum_loss
+        return cum_loss/len(trajs)
 
     # self.net and the correct xu and dy means need to be set before running this method
     def generatePredictedTrajectoryObservations(self, initialState, ctrls, maxTimestep=-1):
