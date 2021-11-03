@@ -143,7 +143,7 @@ class MLPDAD(Model):
     def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
             nonlintype='relu', n_train_iters=50, n_batch=64, lr=1e-3,
             hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
-            hidden_size_4=None, seed=100,
+            hidden_size_4=None, seed=200,
             use_cuda=True,
             n_dad_iters=2): # TODO: Find good default
         Model.__init__(self, system)
@@ -169,6 +169,7 @@ class MLPDAD(Model):
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
                 else torch.device('cpu'))
         self.net = self.net.double().to(self._device)
+        self.torchseed = seed
 
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()
@@ -181,7 +182,7 @@ class MLPDAD(Model):
         return self.system.obs_dim
 
     def trainMLP(self, XU, dY): #Set self.net to the net you want to train before
-        torch.manual_seed(100)
+        torch.manual_seed(self.torchseed)
         n_iter, n_batch, lr, n_dad_iter = self._train_data
 
         print("Training MLP with \nXU:", str(XU.shape),"\n", XU, "\ndY:", str(dY.shape),"\n", dY)
@@ -222,7 +223,7 @@ class MLPDAD(Model):
 
         return (self.xu_means, self.xu_std, self.dy_means, self.dy_std)
 
-    def train(self, trajs, silent=False, seed=100):
+    def train(self, trajs, silent=False, seed=200):
         torch.manual_seed(seed)
         n_iter, n_batch, lr, n_dad_iter = self._train_data
 
@@ -305,7 +306,7 @@ class MLPDAD(Model):
                 keepIndices = []
 
                 for i in range(newDY.shape[0]):
-                    if(np.linalg.norm(newDY[i]) < 2):
+                    if(np.linalg.norm(newDY[i]) < .1):
                     #if(np.max(newDY[i]) <= .1):    
                         #print(newDY[i], " Norm: ", np.linalg.norm(newDY[i]), " Index: ", i)
                         tempX = np.vstack((tempX, xhat[i]))
@@ -491,7 +492,17 @@ class MLPDAD(Model):
         
         
 
-    def evaluateAccuracy(self, trajs, lossfun):
+    def evaluateAccuracy(self, trajss, lossfun):
+        #observations = trajss.obs[:,0]
+        #trajs = trajss.obs[np.where(observations >= 0, observations <= np.pi * 2)]
+        trajs = []
+        for traj in trajss:
+            if(np.max(traj.obs[:,0]) <= (np.pi * 2) and np.min(traj.obs[:,0]) >= 0):
+                trajs.append(traj)
+            else:
+                print("Bad Traj: ", np.max(traj.obs[:,0]), " ", np.min(traj.obs[:,0]))
+
+
         debug = [0]
         cum_loss = 0
         for traj in trajs:
@@ -503,7 +514,10 @@ class MLPDAD(Model):
                 loss = lossfun(torch.from_numpy(predTraj[t]), torch.from_numpy(traj[t].obs))
                 cum_loss += loss.item()
                 debug.append(loss.item())
-                #print(loss.item())
+                if(loss.item() > 1000000):
+                    print(loss.item())
+                    breakpoint()
+                
         #breakpoint()
         return cum_loss/len(trajs)
 
