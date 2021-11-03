@@ -259,7 +259,7 @@ class MLPDAD(Model):
         dYData = [copy.deepcopy(dY)]
 
         # Evaluate for first model
-        testTrajectory = trajs[0]
+        testTrajectory = trajs[1]
         predictTraj = self.generatePredictedTrajectoryObservations(testTrajectory[0].obs, testTrajectory.ctrls, maxTimestep=testTrajectory.obs.shape[0] - 1)
 
         thetaData = [predictTraj[:,0]]
@@ -387,7 +387,7 @@ class MLPDAD(Model):
         for t in range(1, trajs[0].obs.shape[0]):
             xAxisTimesteps.append(t)
 
-        plt.plot(xAxisTimesteps, trajs[0].obs[:,0].tolist(), label = "Theta Observation")
+        plt.plot(xAxisTimesteps, testTrajectory.obs[:,0].tolist(), label = "Theta Observation")
         for n in range(n_dad_iter + 1):
             plt.plot(xAxisTimesteps, thetaData[n].tolist(), label = "Theta Prediction: " + str(n))
 
