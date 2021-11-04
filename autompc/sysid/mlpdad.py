@@ -259,7 +259,7 @@ class MLPDAD(Model):
         dYData = [copy.deepcopy(dY)]
 
         # Evaluate for first model
-        testTrajectory = trajs[1]
+        testTrajectory = trajs[0]
         predictTraj = self.generatePredictedTrajectoryObservations(testTrajectory[0].obs, testTrajectory.ctrls, maxTimestep=testTrajectory.obs.shape[0] - 1)
 
         thetaData = [predictTraj[:,0]]
@@ -395,7 +395,7 @@ class MLPDAD(Model):
         plt.savefig('trajTheta.png', dpi=600, bbox_inches='tight')
         plt.clf()
 
-        plt.plot(xAxisTimesteps, trajs[0].obs[:,1].tolist(), label = "Omega Observation")
+        plt.plot(xAxisTimesteps, testTrajectory.obs[:,1].tolist(), label = "Omega Observation")
         for n in range(n_dad_iter + 1):
             plt.plot(xAxisTimesteps, omegaData[n].tolist(), label = "Omega Prediction: " + str(n))
 
@@ -403,7 +403,7 @@ class MLPDAD(Model):
         plt.savefig('trajOmega.png', dpi=600, bbox_inches='tight')
         plt.clf()
 
-        plt.plot(xAxisTimesteps, trajs[0].obs[:,2].tolist(), label = "X Observation")
+        plt.plot(xAxisTimesteps, testTrajectory.obs[:,2].tolist(), label = "X Observation")
         for n in range(n_dad_iter + 1):
             plt.plot(xAxisTimesteps, xData[n].tolist(), label = "X Prediction: " + str(n))
 
@@ -411,7 +411,7 @@ class MLPDAD(Model):
         plt.savefig('trajX.png', dpi=600, bbox_inches='tight')
         plt.clf()
 
-        plt.plot(xAxisTimesteps, trajs[0].obs[:,3].tolist(), label = "dX Observation")
+        plt.plot(xAxisTimesteps, testTrajectory.obs[:,3].tolist(), label = "dX Observation")
         for n in range(n_dad_iter + 1):
             plt.plot(xAxisTimesteps, dxData[n].tolist(), label = "dX Prediction: " + str(n))
 
@@ -497,28 +497,37 @@ class MLPDAD(Model):
         #trajs = trajss.obs[np.where(observations >= 0, observations <= np.pi * 2)]
         trajs = []
         for traj in trajss:
-            if(np.max(traj.obs[:,0]) <= (np.pi * 2) and np.min(traj.obs[:,0]) >= 0):
+            if(abs(np.max(traj.obs[:,0])) <= (np.pi * 2) and abs(np.min(traj.obs[:,0])) >= 0):
                 trajs.append(traj)
             else:
                 print("Bad Traj: ", np.max(traj.obs[:,0]), " ", np.min(traj.obs[:,0]))
 
+        trajs = trajss[50:80]
 
         debug = [0]
         cum_loss = 0
+
+        badpredictCount = 0
         for traj in trajs:
             predTraj = self.generatePredictedTrajectoryObservations(traj[0].obs, traj.ctrls[:-1]) # Exclude T + 1
             #difference = predTraj[1:] - traj.obs[1:] # Exclude initial observation # For debug
+            temploss = 0
             for t in range(1, traj.obs.shape[0]):
                 predY = predTraj[t]
                 y = traj[t].obs
                 loss = lossfun(torch.from_numpy(predTraj[t]), torch.from_numpy(traj[t].obs))
                 cum_loss += loss.item()
+                temploss += loss.item()
                 debug.append(loss.item())
-                if(loss.item() > 1000000):
-                    print(loss.item())
-                    breakpoint()
+                #if(loss.item() > 1000000):
+                    #print(loss.item())
+                    #breakpoint()
+            
+            if(temploss > 100000000):
+                badpredictCount += 1
                 
         #breakpoint()
+        print(badpredictCount)
         return cum_loss/len(trajs)
 
     # self.net and the correct xu and dy means need to be set before running this method
