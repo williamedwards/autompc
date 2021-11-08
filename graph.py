@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import pickle
 import numpy as np
 
-infile = open('dadIter7.data','rb')
+infile = open('dadIter0.data','rb')
 inputData = pickle.load(infile)
-x = inputData[7]
+x = inputData[5]
 testTraj = inputData[9]
 
 xAxisTimesteps = [0]
@@ -12,8 +12,16 @@ for t in range(1, testTraj.obs.shape[0]):
     xAxisTimesteps.append(t)
 
 
-plt.plot(xAxisTimesteps, testTraj.obs[:,2].tolist(), label = "X Observation")
-plt.plot(xAxisTimesteps, x.tolist(), label = "X Prediction: ")
+plt.plot(xAxisTimesteps, testTraj.obs[:,0].tolist(), label = "X Observation")
+
+for n in [0,1,2,3,4]:
+    infile = open('dadIter' + str(n) + '.data','rb')
+    inputData = pickle.load(infile)
+    x = inputData[5]
+
+    plt.plot(xAxisTimesteps, x.tolist(), label = "X Prediction:  "+ str(n))
+
+#plt.plot(xAxisTimesteps, x.tolist(), label = "X Prediction: 25")
 
 plt.legend()
 plt.savefig('trajXIndividual.png', dpi=600, bbox_inches='tight')
@@ -22,9 +30,9 @@ plt.clf()
 # for i in range(8):
 #     infile = open('dadIter'+ str(i) + '.data','rb')
 #     inputData = pickle.load(infile)
-#     print(inputData[2], "\n")
+#     print(inputData[3].shape, "\n")
 
-model = 0
+model = 1
 infile = open('dadIter'+ str(model) + '.data','rb')
 inputData = pickle.load(infile)
 dYData = inputData[4]
@@ -45,3 +53,10 @@ ax.relim()      # make sure all the data fits
 ax.autoscale()
 plt.savefig('dYXDistributionIndividual.png', dpi=300, bbox_inches='tight')
 plt.clf()
+
+
+
+
+
+
+# Useful methods
