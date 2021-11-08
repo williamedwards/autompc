@@ -195,6 +195,30 @@ class MLPDAD(Model):
         self.dy_std = np.std(dY, axis=0)
         dYt = transform_input(self.dy_means, self.dy_std, dY)
 
+        if(XU.shape[0] != 39800):
+            goodIndices = np.arange(0, 39801).tolist()
+
+            for i in range(39800, XUt.shape[0]):
+                if(np.linalg.norm(XUt[i,:-1]) < .25):
+                    goodIndices.append(i)
+                    # XUt = np.delete(XUt, i, 0)
+                    # dYt = np.delete(dYt, i, 0)
+
+            XUt = XUt[goodIndices, :]
+            dYt = dYt[goodIndices, :]
+
+            XUtemp = transform_output(self.xu_means, self.xu_std, XUt)
+            dYtemp = transform_output(self.dy_means, self.dy_std, dYt)
+
+            self.xu_means = np.mean(XUtemp, axis=0)
+            self.xu_std = np.std(XUtemp, axis=0)
+            XUt = transform_input(self.xu_means, self.xu_std, XUtemp)
+
+            self.dy_means = np.mean(dYtemp, axis=0)
+            self.dy_std = np.std(dYtemp, axis=0)
+            dYt = transform_input(self.dy_means, self.dy_std, dYtemp)
+
+
         feedX = XUt
         predY = dYt
         dataset = SimpleDataset(feedX, predY)
@@ -306,7 +330,7 @@ class MLPDAD(Model):
                 keepIndices = []
 
                 for i in range(newDY.shape[0]):
-                    if(np.linalg.norm(newDY[i]) < .1):
+                    if(np.linalg.norm(newDY[i]) >= 0):
                     #if(np.max(newDY[i]) <= .1):    
                         #print(newDY[i], " Norm: ", np.linalg.norm(newDY[i]), " Index: ", i)
                         tempX = np.vstack((tempX, xhat[i]))
