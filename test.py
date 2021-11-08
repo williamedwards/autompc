@@ -8,27 +8,36 @@ from autompc.benchmarks import CartpoleSwingupBenchmark
 benchmark = CartpoleSwingupBenchmark()
 
 system = benchmark.system
-trajs = benchmark.gen_trajs(seed=100, n_trajs=500, traj_len=500)
+trajs = benchmark.gen_trajs(seed=100, n_trajs=200, traj_len=200)
+
 
 from autompc.sysid import MLPDAD
-modeldad = MLPDAD(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=150,
-               nonlintype="relu", n_dad_iters=5)
+modeldad = MLPDAD(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=500, #100 is problematic
+               nonlintype="relu", n_dad_iters=10)
 
 modeldad.train(trajs)
+
+
+from autompc.sysid import MLP
+
+model = MLP(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=200,
+               nonlintype="relu")
+
+model.train(trajs)
 
 import matplotlib.pyplot as plt
 from autompc.graphs.kstep_graph import KstepPredAccGraph
 
 graph = KstepPredAccGraph(system, trajs, kmax=100, metric="rmse")
 graph.add_model(modeldad, "DaD MLP")
-#graph.add_model(modeldad, "DaD2 MLP")
+graph.add_model(model, "MLP")
 
 fig = plt.figure()
 ax = fig.gca()
 graph(fig, ax)
 ax.set_title("Comparison of MLP models")
 plt.show()
-plt.savefig('plot.png', dpi=300, bbox_inches='tight')
+plt.savefig('Best MLP DaD Prediction Error.png', dpi=600, bbox_inches='tight')
 
 # from autompc.benchmarks import CartpoleSwingupBenchmark
 
