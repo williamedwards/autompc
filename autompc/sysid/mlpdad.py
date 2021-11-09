@@ -145,7 +145,10 @@ class MLPDAD(Model):
             hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
             hidden_size_4=None, seed=200,
             use_cuda=True,
-            n_dad_iters=2): # TODO: Find good default
+            n_dad_iters=2, # TODO: Find good default
+            traj_pwr_filter = 1.0, rollout_err_filter = 1.5,
+            max_train_data_size = 200000,
+            test_trajs = None): 
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
         n_hidden_layers = int(n_hidden_layers)
@@ -171,6 +174,10 @@ class MLPDAD(Model):
         self.net = self.net.double().to(self._device)
         self.torchseed = seed
 
+        self.TRAJ_PWR_CUTOFF = traj_pwr_filter
+        self.TRAIN_ROLLOUT_ERR_SCALE = rollout_err_filter
+        self.MAX_TRAIN_DATA_SIZE = max_train_data_size
+
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()
     
@@ -195,11 +202,11 @@ class MLPDAD(Model):
         self.dy_std = np.std(dY, axis=0)
         dYt = transform_input(self.dy_means, self.dy_std, dY)
 
-        if(XU.shape[0] != 39800):
-            goodIndices = np.arange(0, 39801).tolist()
+        if(XU.shape[0] != 49950):
+            goodIndices = np.arange(0, 49951).tolist()
 
-            for i in range(39800, XUt.shape[0]):
-                if(np.linalg.norm(XUt[i,:-1]) < .2):
+            for i in range(49950, XUt.shape[0]):
+                if(np.linalg.norm(XUt[i,:-1]) < .1):
                     goodIndices.append(i)
                     # XUt = np.delete(XUt, i, 0)
                     # dYt = np.delete(dYt, i, 0)
@@ -553,6 +560,21 @@ class MLPDAD(Model):
         #breakpoint()
         print(badpredictCount)
         return cum_loss/len(trajs)
+
+
+    def rmsError(obss_a, obss_b):
+        def rms_traj(obs1, obs2):
+            err = (obs1 - obs2)
+            sqErr = err * err
+            rmsErr = np.sqrt(np.mean(np.sum(sqErr, axis = 0)))
+            return rmsErr
+        
+        rms = np.empty((0, 1), float)
+        for n in range(obss_a.shape[0]):
+            rms = np.vstack((rms, rms_traj(obss_a[n], obss_b[n])))
+
+        return rms
+        
 
     # self.net and the correct xu and dy means need to be set before running this method
     def generatePredictedTrajectoryObservations(self, initialState, ctrls, maxTimestep=-1):
