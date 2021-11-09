@@ -12,15 +12,15 @@ trajs = benchmark.gen_trajs(seed=100, n_trajs=200, traj_len=200)
 
 
 from autompc.sysid import MLPDAD
-modeldad = MLPDAD(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=500, #100 is problematic
-               nonlintype="relu", n_dad_iters=10)
+modeldad = MLPDAD(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=25, #100 is problematic
+               nonlintype="relu", n_dad_iters=7)
 
 modeldad.train(trajs)
 
 
 from autompc.sysid import MLP
 
-model = MLP(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=200,
+model = MLP(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=50,
                nonlintype="relu")
 
 model.train(trajs)

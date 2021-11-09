@@ -199,7 +199,7 @@ class MLPDAD(Model):
             goodIndices = np.arange(0, 39801).tolist()
 
             for i in range(39800, XUt.shape[0]):
-                if(np.linalg.norm(XUt[i,:-1]) < .25):
+                if(np.linalg.norm(XUt[i,:-1]) < .2):
                     goodIndices.append(i)
                     # XUt = np.delete(XUt, i, 0)
                     # dYt = np.delete(dYt, i, 0)
@@ -493,7 +493,7 @@ class MLPDAD(Model):
 
         for n in range(n_dad_iter + 1):
             outfile = open('dadIter' + str(n) + '.data','wb')
-            out = [trainedModels[n], modelsLoss[n], modelsNormParams[n], XData[n], dYData[n], thetaData[n], omegaData[n], xData[n], dxData[n], testTrajectory]
+            out = [trainedModels[n], modelsLoss[n], modelsNormParams[n], XData[n], dYData[n], thetaData[n], omegaData[n], xData[n], dxData[n], testTrajectory, trajs]
             pickle.dump(out,outfile)
             outfile.close()
 
@@ -526,7 +526,7 @@ class MLPDAD(Model):
             else:
                 print("Bad Traj: ", np.max(traj.obs[:,0]), " ", np.min(traj.obs[:,0]))
 
-        trajs = trajss[50:80]
+        #trajs = trajss[50:80]
 
         debug = [0]
         cum_loss = 0
