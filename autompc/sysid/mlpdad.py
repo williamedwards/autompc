@@ -202,14 +202,20 @@ class MLPDAD(Model):
         self.dy_std = np.std(dY, axis=0)
         dYt = transform_input(self.dy_means, self.dy_std, dY)
 
-        if(XU.shape[0] != 49950):
-            goodIndices = np.arange(0, 49951).tolist()
+        if(XU.shape[0] != 39800):
+            goodIndices = np.arange(0, 39801).tolist()
 
-            for i in range(49950, XUt.shape[0]):
-                if(np.linalg.norm(XUt[i,:-1]) < .1):
+            norms = []
+            for i in range(39801, XUt.shape[0]):
+                norms.append(np.linalg.norm(dYt[i]))
+                if(np.linalg.norm(dYt[i]) < 1):
                     goodIndices.append(i)
                     # XUt = np.delete(XUt, i, 0)
                     # dYt = np.delete(dYt, i, 0)
+
+            print("Norm mean: ", np.mean(norms), "\nNorm std: ", np.std(norms))
+            print("Norm minn: ", np.min(norms), "\nNorm max: ", np.max(norms))
+            print("Kept ", len(goodIndices) / (dYt.shape[0]), "% of datasamples")
 
             XUt = XUt[goodIndices, :]
             dYt = dYt[goodIndices, :]
@@ -225,6 +231,7 @@ class MLPDAD(Model):
             self.dy_std = np.std(dYtemp, axis=0)
             dYt = transform_input(self.dy_means, self.dy_std, dYtemp)
 
+        print("Training MLP with \nXU:", str(XUt.shape), "\ndY:", str(dYt.shape))
 
         feedX = XUt
         predY = dYt
