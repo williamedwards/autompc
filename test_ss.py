@@ -8,7 +8,7 @@ trajs = benchmark.gen_trajs(seed=100, n_trajs=200, traj_len=200)
 
 #Params for testing
 iters = 1000
-batch = 64
+batch = 128
 samplings = 5
 
 from autompc.sysid import MLPSS
