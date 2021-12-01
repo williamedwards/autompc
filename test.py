@@ -8,27 +8,29 @@ from autompc.benchmarks import CartpoleSwingupBenchmark
 benchmark = CartpoleSwingupBenchmark()
 
 system = benchmark.system
-trajs = benchmark.gen_trajs(seed=100, n_trajs=200, traj_len=200)
+#trainTrajs = benchmark.gen_trajs(seed=100, n_trajs=2, traj_len=4)
+trainTrajs = benchmark.gen_trajs(seed=100, n_trajs=200, traj_len=200)
+testTrajs = benchmark.gen_trajs(seed=200, n_trajs=30, traj_len=300)
 
 
 from autompc.sysid import MLPDAD
-modeldad = MLPDAD(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=25, #100 is problematic
-               nonlintype="relu", n_dad_iters=7)
+modeldad = MLPDAD(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=50, #100 is problematic
+               nonlintype="relu", n_dad_iters=7, test_trajs=testTrajs)
 
-modeldad.train(trajs)
+modeldad.train(trainTrajs)
 
 
 from autompc.sysid import MLP
 
-model = MLP(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=50,
+model = MLP(system, n_hidden_layers=2, hidden_size_1=128, hidden_size_2=128, n_train_iters=25,
                nonlintype="relu")
 
-model.train(trajs)
+model.train(trainTrajs)
 
 import matplotlib.pyplot as plt
 from autompc.graphs.kstep_graph import KstepPredAccGraph
 
-graph = KstepPredAccGraph(system, trajs, kmax=100, metric="rmse")
+graph = KstepPredAccGraph(system, testTrajs, kmax=40, metric="rmse")
 graph.add_model(modeldad, "DaD MLP")
 graph.add_model(model, "MLP")
 
