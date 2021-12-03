@@ -77,6 +77,68 @@ class QuadCostFactoryTest(unittest.TestCase):
         target_hyper_names = ["x_Q", "y_Q", "x_F", "y_F", "u_R"]
         self.assertEqual(set(hyper_names), set(target_hyper_names))
 
+    def test_fixed_hyperparameters(self):
+        factory = QuadCostFactory(self.system)
+        factory.fix_Q_value("x", 0.0)
+        factory.fix_F_value("y", 1.5)
+        factory.fix_R_value("u", 2.0)
+        cs = factory.get_configuration_space()
+        self.assertIsInstance(cs, CS.ConfigurationSpace)
+
+        hyper_names = cs.get_hyperparameter_names()
+        target_hyper_names = ["y_Q", "x_F"]
+        self.assertEqual(set(hyper_names), set(target_hyper_names))
+
+        cfg = cs.get_default_configuration()
+
+        cost = factory(cfg, self.task, None)
+
+        self.assertIsInstance(cost, QuadCost)
+        Q, R, F = cost.get_cost_matrices()
+        
+        self.assertTrue((Q == np.diag([0.0, 1.0])).all())
+        self.assertTrue((F == np.diag([1.0, 1.5])).all())
+        self.assertTrue((R == np.diag([2.0])).all())
+
+    def test_adjust_bounds(self):
+        factory = QuadCostFactory(self.system)
+        factory.set_Q_bounds("x", 0.01, 50.0, 2.0, False)
+        factory.set_F_bounds("y", 0.05, 25.0, 0.5, True)
+        factory.set_R_bounds("u", 10.0, 20.0, 15.0, False)
+        cs = factory.get_configuration_space()
+        self.assertIsInstance(cs, CS.ConfigurationSpace)
+        self.assertEqual(cs.get_hyperparameter("x_Q").lower, 0.01)
+        self.assertEqual(cs.get_hyperparameter("x_Q").upper, 50.0)
+        self.assertEqual(cs.get_hyperparameter("x_Q").default_value, 2.0)
+        self.assertEqual(cs.get_hyperparameter("x_Q").log, False)
+        self.assertEqual(cs.get_hyperparameter("y_F").lower, 0.05)
+        self.assertEqual(cs.get_hyperparameter("y_F").upper, 25.0)
+        self.assertEqual(cs.get_hyperparameter("y_F").default_value, 0.5)
+        self.assertEqual(cs.get_hyperparameter("y_F").log, True)
+        self.assertEqual(cs.get_hyperparameter("u_R").lower, 10.0)
+        self.assertEqual(cs.get_hyperparameter("u_R").upper, 20.0)
+        self.assertEqual(cs.get_hyperparameter("u_R").default_value, 15.0)
+        self.assertEqual(cs.get_hyperparameter("u_R").log, False)
+        self.assertEqual(cs.get_hyperparameter("x_F").lower, 1e-3)
+        self.assertEqual(cs.get_hyperparameter("x_F").upper, 1e4)
+        self.assertEqual(cs.get_hyperparameter("x_F").default_value, 1.0)
+        self.assertEqual(cs.get_hyperparameter("x_F").log, True)
+
+    def test_tunable_goal(self):
+        factory = QuadCostFactory(self.system, goal=np.zeros(self.system.obs_dim))
+        factory.set_tunable_goal("x", -10.0, 20.0, 10.0, False)
+        cs = factory.get_configuration_space()
+        self.assertIsInstance(cs, CS.ConfigurationSpace)
+        self.assertEqual(cs.get_hyperparameter("x_Goal").lower, -10.0)
+        self.assertEqual(cs.get_hyperparameter("x_Goal").upper, 20.0)
+        self.assertEqual(cs.get_hyperparameter("x_Goal").default_value, 10.0)
+        self.assertEqual(cs.get_hyperparameter("x_Goal").log, False)
+
+        cfg = cs.get_default_configuration()
+        cfg["x_Goal"] = 5.0
+        cost = factory(cfg, self.task, None)
+        self.assertTrue(np.allclose(cost._goal, np.array([5.0, 0.0])))
+
     def test_call_factory(self):
         factory = QuadCostFactory(self.system)
         cs = factory.get_configuration_space()
