@@ -77,6 +77,14 @@ class SimpleDataset(Dataset):
             idx = idx.tolist()
         return self.x[idx], self.y[idx]
 
+#class LinearDecay:
+#    def __init__(self, k, c):
+#        self.k = k
+#        self.c = c
+#
+#    def __call__(self, i):
+#        return i * k + c
+
 
 class MLPSSFactory(ModelFactory):
     """
@@ -251,18 +259,18 @@ class MLPSS(Model):
             print("Generation Sampling Trajectories with epsilon of: ", epsilon)
             for traj in tqdm(trajs, file=sys.stdout):
                 newTraj = np.copy(traj.obs)
-                rollout_states = traj.obs
-                for t in range(1, len(traj.ctrls) - 1):
-                    rollout_states = np.vstack((rollout_states,self.pred(rollout_states[t - 1,:],traj.ctrls[t - 1,:])))
+                #rollout_states = traj[0].obs
+                #for t in range(1, len(traj.ctrls) - 1):
+                    #rollout_states = np.vstack((rollout_states,self.pred(rollout_states[t - 1,:],traj.ctrls[t - 1,:])))
                 # Perform Sampling
                 for t in range(1,len(traj)):
                     totalData = totalData + 1
-                    if(np.random.rand(1)[0] <= epsilon):
+                    if(np.random.rand(1)[0] >= epsilon):
                         sampled = sampled + 1
-                        newTraj[t] = rollout_states[t]
+                        newTraj[t] = self.pred(newTraj[t - 1,:],traj.ctrls[t - 1,:])
 
                 X = np.vstack((X, newTraj[:-1,:]))
-                dY = np.vstack((dY, traj.obs[1:,:] - traj.obs[:-1,:]))
+                dY = np.vstack((dY, newTraj[1:,:] - newTraj[:-1,:]))
                 U = np.vstack((U, traj.ctrls[:-1,:]))
 
             print("Percentage of Sampled Data: ", sampled / totalData)
