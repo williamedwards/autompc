@@ -11,14 +11,17 @@ from .largegp import ApproximateGPModelFactory
 from ..utils.cs_utils import *
 
 class AutoModelFactory(ModelFactory):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, drop_sindy=False, **kwargs):
         super().__init__(*args, **kwargs)
+
         self.factories = [MLPFactory(self.system), 
                 ARXFactory(self.system),
                 KoopmanFactory(self.system),
-                SINDyFactory(self.system),
                 ApproximateGPModelFactory(self.system)
                 ]
+        if not drop_sindy:
+            self.factories.append(SINDyFactory(self.system))
+        self.name = "AutoFactory"
 
     def get_configuration_space(self):
         cs_combined = CS.ConfigurationSpace()

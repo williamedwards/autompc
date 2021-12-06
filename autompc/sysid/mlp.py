@@ -172,6 +172,10 @@ class MLP(Model):
     def state_dim(self):
         return self.system.obs_dim
 
+    def set_device(self, device):
+        self._device = device
+        self.net = self.net.to(device)
+
     def train(self, trajs, silent=False, seed=100):
         torch.manual_seed(seed)
         self.net = ForwardNet(self.system.obs_dim + self.system.ctrl_dim, self.system.obs_dim, 

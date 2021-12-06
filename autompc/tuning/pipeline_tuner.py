@@ -28,6 +28,7 @@ from smac.initial_design.random_configuration_design import RandomConfigurations
 from smac.runhistory.runhistory import RunHistory
 from smac.stats.stats import Stats
 from smac.utils.io.traj_logging import TrajLogger
+from joblib import Parallel, delayed
 
 
 PipelineTuneResult = namedtuple("PipelineTuneResult", ["inc_cfg", "cfgs", 
@@ -92,7 +93,7 @@ autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
 
 class CfgRunner:
     def __init__(self, evaluation_quantile, tuning_data=None, run_dir=None, timeout=None, log_file_name=None,
-                    controller_save_dir=None, eval_result_dir=None):
+                    controller_save_dir=None, eval_result_dir=None, max_eval_jobs=1):
         self.evaluation_quantile = evaluation_quantile
         if tuning_data is None and run_dir is None:
             raise ValueError("Either tuning_data or run_dir must be passed")
@@ -105,6 +106,7 @@ class CfgRunner:
         self.eval_number = 0
         self.controller_save_dir = controller_save_dir
         self.eval_result_dir = eval_result_dir
+        self.max_eval_jobs = max_eval_jobs
 
     def get_tuning_data(self):
         if not self.tuning_data is None:
@@ -123,16 +125,18 @@ class CfgRunner:
         p = ctx.Process(target=self.run_mp, args=(cfg, q))
         start_time = time.time()
         p.start()
+        timeout = False
         while p.is_alive():
             if time.time() - start_time > self.timeout:
+                timeout = True
                 break
             try:
                 result = q.get(block=True, timeout=10.0)
                 break
             except queue.Empty:
                 continue
-        p.join(timeout=self.timeout)
-        if p.exitcode is None:
+        p.join(timeout=1)
+        if timeout:
             print("CfgRunner: Evaluation timed out")
             p.terminate()
             return np.inf, dict()
@@ -141,7 +145,6 @@ class CfgRunner:
             print("Exit code: ", p.exitcode)
             return np.inf, dict()
         else:
-            #result = q.get()
             return result
 
     def run_mp(self, cfg, q):
@@ -160,6 +163,14 @@ class CfgRunner:
             result = self.run(cfg)
             q.put(result)
 
+    # def dispatch_eval_jobs(self, controller, evaluator):
+    #     ctx = multiprocessing.get_context("spawn")
+    #     active_qs = []
+    #     active_ps = []
+    #     job_idx = 0
+    #     for _ in range(self.max_eval_jobs):
+    #     with open 
+
     def run(self, cfg):
         print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
         tuning_data = self.get_tuning_data()
@@ -172,7 +183,16 @@ class CfgRunner:
 
         try:
             controller, _, _ = pipeline(cfg, sysid_trajs)
-            surr_dist, surr_eval_info = control_evaluator(controller)
+            if self.max_eval_jobs > 1 and control_evaluator.is_parallelizable:
+                print("Entering Parallel Evaluation")
+                controller.model.set_device("cpu")
+                control_evaluator.set_device("cpu")
+                results = Parallel(n_jobs=self.max_eval_jobs)(delayed(control_evaluator.run_job)(controller, i) 
+                    for i in range(control_evaluator.num_jobs()))
+                surr_dist, surr_eval_info = control_evaluator.aggregate_results(results)
+            else:
+                print("Entering Serial Evaluation")
+                surr_dist, surr_eval_info = control_evaluator(controller)
             surr_cost = surr_dist(self.evaluation_quantile)
             info["surr_cost"] = surr_cost
             info["surr_dist"] = str(surr_dist)
@@ -266,8 +286,9 @@ class PipelineTuner:
                         surr_trajs, rng=control_eval_rng, **self.control_evaluator_kwargs)
         else:
             sysid_trajs = trajs
-            control_evaluator = SurrogateEvaluator(pipeline.system, task, surr_trajs=None,
-                    surrogate_factory=None, rng=control_eval_rng, surrogate=self.surrogate)
+            surr_trajs = None
+            control_evaluator = SurrogateEvaluator(pipeline.system, task, trajs=None,
+                    surrogate_factory=None, surrogate=surrogate)
 
         if not truedyn is None:
             truedyn_evaluator = TrueDynamicsEvaluator(pipeline.system, task, trajs=None,
@@ -373,7 +394,7 @@ class PipelineTuner:
     def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
             surrogate_tune_iters=100, eval_timeout=600, output_dir=None, restore_dir=None,
             save_all_controllers=False, use_default_initial_design=True,
-            debug_return_evaluator=False): #TODO update docstring
+            debug_return_evaluator=False, max_eval_jobs=1): #TODO update docstring
         """
         Run tuning.
 
@@ -469,7 +490,8 @@ class PipelineTuner:
             #surrogate_tune_result = tuning_data["surr_tune_result"]
 
         eval_cfg = CfgRunner(self.evaluation_quantile, run_dir=run_dir, timeout=eval_timeout,
-            controller_save_dir=controller_save_dir, eval_result_dir=eval_result_dir)
+            controller_save_dir=controller_save_dir, eval_result_dir=eval_result_dir,
+            max_eval_jobs=max_eval_jobs)
 
         if debug_return_evaluator:
             return eval_cfg

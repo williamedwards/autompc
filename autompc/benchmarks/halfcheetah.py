@@ -5,13 +5,14 @@ import sys, time
 
 # External library includes
 import numpy as np
+import mujoco_py
 
 # Project includes
 from .benchmark import Benchmark
 from ..utils.data_generation import *
 from .. import System
 from ..tasks import Task
-from ..costs import Cost
+from ..costs import Cost, QuadCostFactory
 
 def viz_halfcheetah_traj(env, traj, repeat):
     for _ in range(repeat):
@@ -82,7 +83,7 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
             action = env.action_space.sample()
             traj[j-1].ctrl[:] = action
             #obs, reward, done, info = env.step(action)
-            obs = halfcheetah_dynamics(traj[j-1].obs[:], action)
+            obs = halfcheetah_dynamics(env, traj[j-1].obs[:], action)
             traj[j].obs[:] = obs
         trajs.append(traj)
     return trajs
@@ -111,6 +112,15 @@ class HalfcheetahBenchmark(Benchmark):
         init_obs = np.concatenate([env.init_qpos, env.init_qvel])
         task.set_init_obs(init_obs)
         task.set_num_steps(200)
+
+        factory = QuadCostFactory(system, goal = np.zeros(system.obs_dim))
+        for obs in system.observations:
+            if not obs in ["x1", "x6", "x7", "x8", "x9"]:
+                factory.fix_Q_value(obs, 0.0)
+            if not obs in ["x1", "x9"]:
+                factory.fix_F_value(obs, 0.0)
+        factory.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
+        self.cost_factory = factory
 
 
         super().__init__(name, system, task, data_gen_method)

@@ -48,23 +48,25 @@ class SINDyFactory(ModelFactory):
       (Conditioned on trig_basis="true")
     - *trig_interaction* (Type: bool): Whether to include cross-multiplication terms between trig functions
       and other state variables.
-    """
-    def __init__(self, *args, **kwargs):
+    """ #TODO Consider whether to remove Lasso
+    def __init__(self, *args, allow_cross_terms=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.Model = SINDy
         self.name = "SINDy"
+        self.allow_cross_terms = allow_cross_terms
 
-    def get_configuration_space(system):
+    def get_configuration_space(self):
         cs = CS.ConfigurationSpace()
         time_mode = CSH.CategoricalHyperparameter("time_mode", 
                 choices=["discrete", "continuous"])
-        method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
+        #method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
+        method = CSH.CategoricalHyperparameter("method", choices=["lstsq"])
         threshold = CSH.UniformFloatHyperparameter("threshold",
                 lower=1e-5, upper=1e1, default_value=1e-2, log=True)
-        lasso_alpha = CSH.UniformFloatHyperparameter("lasso_alpha", 
-                lower=1e-5, upper=1e2, default_value=1.0, log=True)
-        use_lasso_alpha = CSC.InCondition(child=lasso_alpha, parent=method, 
-                values=["lasso"])
+        #lasso_alpha = CSH.UniformFloatHyperparameter("lasso_alpha", 
+        #        lower=1e-5, upper=1e2, default_value=1.0, log=True)
+        #use_lasso_alpha = CSC.InCondition(child=lasso_alpha, parent=method, 
+        #        values=["lasso"])
 
         poly_basis = CSH.CategoricalHyperparameter("poly_basis", 
                 choices=["true", "false"], default_value="false")
@@ -72,24 +74,36 @@ class SINDyFactory(ModelFactory):
                 default_value=3)
         use_poly_degree = CSC.InCondition(child=poly_degree, parent=poly_basis,
                 values=["true"])
-        poly_cross_terms = CSH.CategoricalHyperparameter("poly_cross_terms",
-                choices=["true", "false"], default_value="false")
+        if self.allow_cross_terms:
+            poly_cross_terms = CSH.CategoricalHyperparameter("poly_cross_terms",
+                    choices=["true", "false"], default_value="false")
+        else:
+            poly_cross_terms = CSH.CategoricalHyperparameter("poly_cross_terms",
+                    choices=["false"], default_value="false")
 
         trig_basis = CSH.CategoricalHyperparameter("trig_basis", 
                 choices=["true", "false"], default_value="false")
         trig_freq = CSH.UniformIntegerHyperparameter("trig_freq", lower=1, upper=8,
                 default_value=1)
-        trig_interaction = CSH.CategoricalHyperparameter("trig_interaction", 
-                choices=["true", "false"], default_value="false")
+        if self.allow_cross_terms:
+            trig_interaction = CSH.CategoricalHyperparameter("trig_interaction", 
+                    choices=["true", "false"], default_value="false")
+        else:
+            trig_interaction = CSH.CategoricalHyperparameter("trig_interaction", 
+                    choices=["false"], default_value="false")
         use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
                 values=["true"])
         use_trig_interaction = CSC.InCondition(child=trig_interaction, parent=trig_basis,
                 values=["true"])
 
-        cs.add_hyperparameters([method, lasso_alpha, threshold,
+        #cs.add_hyperparameters([method, lasso_alpha, threshold,
+        #    poly_basis, poly_degree, trig_basis, trig_freq, trig_interaction, 
+        #    poly_cross_terms, time_mode])
+        #cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq, use_trig_interaction])
+        cs.add_hyperparameters([method, threshold,
             poly_basis, poly_degree, trig_basis, trig_freq, trig_interaction, 
             poly_cross_terms, time_mode])
-        cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq, use_trig_interaction])
+        cs.add_conditions([use_poly_degree, use_trig_freq, use_trig_interaction])
 
         return cs
 

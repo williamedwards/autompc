@@ -109,7 +109,7 @@ class ModelTuner:
             prefix = "_" + model_factory.name + ":"
             for key, val in cfg_combined.get_dictionary().items():
                 if key[:len(prefix)] == prefix:
-                    cfg[key.split(":")[1]] = val
+                    cfg[key.split(":", 1)[1]] = val
             return model_factory, cfg
 
     def _evaluate(self, cfg_combined):

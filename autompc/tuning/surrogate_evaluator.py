@@ -85,5 +85,5 @@ class SurrogateEvaluator(ControlEvaluator):
         # Return constant distribution
         distribution = ConstantDistribution(surr_cost)
 
-        return distribution, surr_cost
+        return distribution, info
         

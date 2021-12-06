@@ -25,7 +25,7 @@ class Pipeline:
     the joint configuration space over its constituent components, and
     can instantiate an MPC given a configuration.
     """
-    def __init__(self, system, task, *components):
+    def __init__(self, system, task, *components, check_compatibility_in_cs=True):
         """
         Parameters
         ----------
@@ -51,6 +51,7 @@ class Pipeline:
         self.controller_factory = None
         self.cost = None
         self.cost_factory = None
+        self.check_compatibility_in_cs = check_compatibility_in_cs
 
         for component in components:
             if isinstance(component, Model):
@@ -95,7 +96,10 @@ class Pipeline:
         """
         Return the pipeline configuration space.
         """
-        cs = PipelineConfigurationSpace(self)
+        if self.check_compatibility_in_cs:
+            cs = PipelineConfigurationSpace(self)
+        else:
+            cs = CS.ConfigurationSpace()
         if self.model_factory:
             model_cs = self.model_factory.get_configuration_space()
             add_configuration_space(cs, "_model", model_cs)

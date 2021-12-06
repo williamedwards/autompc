@@ -23,6 +23,13 @@ class BootstrapSurrogateEvaluator(SurrogateEvaluator):
 
         self.bootstrap_models = self._get_bootstrap_models(rng, n_bootstraps)
 
+    @property
+    def is_parallelizable(self):
+        return True
+
+    def num_jobs(self):
+        return len(self.bootstrap_models)
+
     def _get_bootstrap_models(self, rng, n_bootstraps):
         population = np.empty(len(self.surr_trajs), dtype=object)
         for i, traj in enumerate(self.surr_trajs):
@@ -54,15 +61,24 @@ class BootstrapSurrogateEvaluator(SurrogateEvaluator):
         except np.linalg.LinAlgError:
             return np.inf, None
 
-    def __call__(self, controller):
+    def set_device(self, device):
+        for model in self.bootstrap_models:
+            model.set_device(device)
+
+    def run_job(self, controller, job_idx):
+        surrogate = self.bootstrap_models[job_idx]
+        print("Simulating Surrogate Trajectory for Model {}: ".format(job_idx))
+        surr_cost, surr_traj = self._run_surrogate(surrogate, controller)
+        result = {"surr_cost" : surr_cost, "surr_traj" : surr_traj}
+        return result
+
+    def aggregate_results(self, results):
         info = dict()
         info["surr_costs"] = []
         info["surr_trajs"] = []
-        for i, surrogate in enumerate(self.bootstrap_models):
-            print("Simulating Surrogate Trajectory for Model {}: ".format(i))
-            surr_cost, surr_traj = self._run_surrogate(surrogate, controller)
-            info["surr_costs"].append(surr_cost)
-            info["surr_trajs"].append(surr_traj)
+        for result in results:
+            info["surr_costs"].append(result["surr_cost"])
+            info["surr_trajs"].append(result["surr_traj"])
 
         mean = np.mean(info["surr_costs"])
         std = np.std(info["surr_costs"])
@@ -74,3 +90,8 @@ class BootstrapSurrogateEvaluator(SurrogateEvaluator):
         print("Surrogate Distribution: Mean {:.2f} Stddev {:.2f}".format(mean, std))
 
         return distribution, info
+
+    def __call__(self, controller):
+        results = [self.run_job(controller, i) for i in range(self.num_jobs())]
+
+        return self.aggregate_results(results)
