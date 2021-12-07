@@ -17,6 +17,7 @@ import ConfigSpace.conditions as CSC
 import math
 import matplotlib.pyplot as plt
 #from autompc.benchmarks.cartpole import CartpoleSwingupBenchmark
+from ..evaluation.model_metrics import get_model_rmse
 
 from pdb import set_trace
 
@@ -142,20 +143,26 @@ class MLPSSFactory(ModelFactory):
                 values=["4"])
         lr = CSH.UniformFloatHyperparameter("lr",
                 lower = 1e-5, upper = 1, default_value=1e-3, log=True)
+        end_epsilon = CSH.UniformFloatHyperparameter("endepsilon",
+                lower = 0, upper = 1, default_value=0, log=False)
+        start_epsilon = CSH.UniformFloatHyperparameter("startepsilon",
+                lower = 0, upper = 1, default_value=1, log=False)
         cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size_1,
             hidden_size_2, hidden_size_3, hidden_size_4,
-            lr])
+            lr, end_epsilon, start_epsilon])
         cs.add_conditions([hidden_cond_2, hidden_cond_3, hidden_cond_4])
         return cs
 
 class MLPSS(Model):
     def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
-            nonlintype='relu', n_train_iters=50, n_batch=64, lr=1e-3,
+            nonlintype='relu', n_train_iters=100, n_batch=64, lr=1e-3,
             hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
             hidden_size_4=None, seed=100,
             use_cuda=True,
-            n_sampling_iters=2,
-            test_trajectory=None):
+            n_sampling_iters=100,
+            endepsilon=0,
+            startepsilon=1,
+            test_trajectories=None):
         Model.__init__(self, system)
         nx, nu = system.obs_dim, system.ctrl_dim
         n_hidden_layers = int(n_hidden_layers)
@@ -182,7 +189,11 @@ class MLPSS(Model):
 
         self.batchTrain = math.ceil(n_train_iters / (n_sampling_iters + 1))
         self.sampling_iters = n_sampling_iters
-        self.testTrajectory = test_trajectory
+        self.testTrajectories = test_trajectories
+        self.endEpsilon = endepsilon
+        self.startEpsilon = startepsilon
+
+        self.debug = False
 
 
     def traj_to_state(self, traj):
@@ -240,6 +251,9 @@ class MLPSS(Model):
         dataset = SimpleDataset(feedX, predY)
         dataloader = DataLoader(dataset, batch_size=n_batch, shuffle=True)
 
+        # RMSE Dataset evaluation
+        rmseTrainingError = []
+
         for i in range(self.sampling_iters + 1):
             X = np.empty((0,4))
             dY = np.empty((0,4))
@@ -249,29 +263,47 @@ class MLPSS(Model):
             print("Dataset Size: ", XU.shape[0])
             self.trainScheduledIteration(dataloader)
 
-            # Sampling Function
-            m = -1 / n_iter
-            epsilon = 1 + m * (iteration + self.batchTrain)
+            if(self.debug):
+                rmseTrainingError.append(get_model_rmse(self, self.testTrajectories, horizon=70))
+
+            # Linear Sampling Function
+            m = (self.startEpsilon - self.endEpsilon) / -n_iter
+            epsilon = m * (iteration + self.batchTrain) + self.startEpsilon
 
             sampled = 0
             totalData = 0
 
-            print("Generation Sampling Trajectories with epsilon of: ", epsilon)
+            print("Generating Sampling Trajectories with epsilon of: ", epsilon)
             for traj in tqdm(trajs, file=sys.stdout):
                 newTraj = np.copy(traj.obs)
                 #rollout_states = traj[0].obs
                 #for t in range(1, len(traj.ctrls) - 1):
                     #rollout_states = np.vstack((rollout_states,self.pred(rollout_states[t - 1,:],traj.ctrls[t - 1,:])))
                 # Perform Sampling
-                for t in range(1,len(traj)):
+                for t in range(1,len(newTraj)):
                     totalData = totalData + 1
-                    if(np.random.rand(1)[0] >= epsilon):
+                    rand = np.random.rand(1)[0]
+                    if(rand >= epsilon):
                         sampled = sampled + 1
                         newTraj[t] = self.pred(newTraj[t - 1,:],traj.ctrls[t - 1,:])
 
                 X = np.vstack((X, newTraj[:-1,:]))
                 dY = np.vstack((dY, newTraj[1:,:] - newTraj[:-1,:]))
                 U = np.vstack((U, traj.ctrls[:-1,:]))
+
+                # Debug
+                if(i == 1 and len(X) < 10000 and self.debug):
+                    xAxisTimesteps = np.arange(len(newTraj))
+                    variable = "Norm of Difference"
+                    # plt.plot(xAxisTimesteps, newTraj[:,2].tolist(), label = variable + " Sampled at iter: " + str(iteration))
+                    # plt.plot(xAxisTimesteps, traj.obs[:,2].tolist(), label = variable + " Observation at iter: " + str(iteration))
+                    trajObs = traj.obs
+                    plt.plot(xAxisTimesteps, np.linalg.norm(newTraj - traj.obs, axis=1).tolist(), label = variable + " Sampled at iter: " + str(iteration) + " e: " + str(epsilon))
+                    #plt.plot(xAxisTimesteps, traj.obs[:,2].tolist(), label = variable + " Observation at iter: " + str(iteration))
+                    plt.legend()
+                    plt.savefig("Sampled Traj " + variable, dpi=600, bbox_inches='tight')
+                    plt.clf()
+
 
             print("Percentage of Sampled Data: ", sampled / totalData)
 
@@ -290,7 +322,29 @@ class MLPSS(Model):
             dataset = SimpleDataset(feedX, predY)
             dataloader = DataLoader(dataset, batch_size=n_batch, shuffle=True)
 
+        if(self.debug):
+            iterationsAxis = np.arange(n_iter + 1)
+            plt.plot(iterationsAxis, rmseTrainingError, label = "RMSE Errors During Training")
+            plt.legend()
+            plt.savefig('RMSE Error During Training', dpi=600, bbox_inches='tight')
+            plt.clf()
 
+            testTraj = self.testTrajectories[0]
+            xAxisTimesteps = np.arange(len(self.testTrajectories[0].obs))
+
+            newTraj = np.copy(testTraj.obs)
+            for t in range(1,len(newTraj)):
+                totalData = totalData + 1
+                if(np.random.rand(1)[0] >= epsilon):
+                    sampled = sampled + 1
+                    newTraj[t] = self.pred(newTraj[t - 1,:],testTraj.ctrls[t - 1,:])
+
+            variable = "Theta"
+            plt.plot(xAxisTimesteps, testTraj.obs[:,0].tolist(), label = variable + " Observation")
+            plt.plot(xAxisTimesteps, newTraj[:,0].tolist(), label = variable + " Prediction: ")
+            plt.legend()
+            plt.savefig("TestTrajectory " + variable, dpi=600, bbox_inches='tight')
+            plt.clf()
         #benchmark = CartpoleSwingupBenchmark()
 
         #testTraj = benchmark.gen_trajs(seed=300, n_trajs=1, traj_len=1000)[0]
