@@ -533,7 +533,7 @@ class PipelineTuner:
 
 
         # Generate final model and controller
-        controller, cost, model = pipeline(inc_cfg, task, tuning_data["sysid_trajs"])
+        controller, cost, model = pipeline(inc_cfg, tuning_data["sysid_trajs"])
 
         tune_result = self._get_tune_result(tuning_data, smac.runhistory)
 
