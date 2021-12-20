@@ -45,6 +45,7 @@ class Task:
         self._init_obs = None
         self._term_cond = None
         self._num_steps = None
+        self._subtasks = None
 
     def set_num_steps(self, num_steps):
         """
@@ -250,6 +251,17 @@ class Task:
                     or self._ctrl_bounds[i, 1] != np.inf):
                 return True
         return False
+
+    @property
+    def has_subtasks(self):
+        """
+        Check whether the task has sub-tasks.
+        Returns
+        -------
+        : bool
+            True if the task has subtasks.
+        """
+        return bool(self._subtasks)
 
     def get_obs_bounds(self):
         """
