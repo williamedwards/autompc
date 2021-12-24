@@ -78,15 +78,6 @@ class SimpleDataset(Dataset):
             idx = idx.tolist()
         return self.x[idx], self.y[idx]
 
-#class LinearDecay:
-#    def __init__(self, k, c):
-#        self.k = k
-#        self.c = c
-#
-#    def __call__(self, i):
-#        return i * k + c
-
-
 class MLPSSFactory(ModelFactory):
     """
     Edited with Scheduled Sampling
