@@ -10,10 +10,10 @@ from pdb import set_trace
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
-from .controller import Controller, ControllerFactory
+from .optimizer import Optimizer, OptimizerFactory
 
 
-class IterativeLQRFactory(ControllerFactory):
+class IterativeLQRFactory(OptimizerFactory):
     """
     Iterative Linear Quadratic Regulator (ILQR) can be considered as a Dynamic Programming (DP) method to solve trajectory optimization problems.
     Usually DP requires discretization and scales exponentially to the dimensionality of state and control so it is not practical beyond simple problems.
@@ -30,7 +30,7 @@ class IterativeLQRFactory(ControllerFactory):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.Controller = IterativeLQR
+        self.Optimizer = IterativeLQR
         self.name = "IterativeLQR"
 
     def get_configuration_space(self):
@@ -40,14 +40,14 @@ class IterativeLQRFactory(ControllerFactory):
         cs.add_hyperparameter(horizon)
         return cs
 
-class IterativeLQR(Controller):
-    def __init__(self, system, task, model, horizon, reuse_feedback=-1, 
+class IterativeLQR(Optimizer):
+    def __init__(self, system, model, ocp horizon, reuse_feedback=-1, 
             ubounds=None, mode=None, verbose=False):
         """Reuse_feedback determines how many steps of K are used as feedback.
         ubounds is a tuple of minimum and maximum control bounds
         mode specifies mode, 'barrier' use barrier method for control bounds; 'auglag' use augmented Lagrangian; None use default one, clip
         """
-        super().__init__(system, task, model)
+        super().__init__(system, model, ocp)
         self.horizon = horizon
         self.dt = system.dt
         self._need_recompute = True  # this indicates a new iteration is required...
@@ -81,19 +81,21 @@ class IterativeLQR(Controller):
         self._states = None
         self._guess = None
 
-    @property
-    def state_dim(self):
-        return np.concatenate([self.model.traj_to_state(traj),
-                traj[-1].ctrl])
+    def get_state(self):
+        return {"guess" : copy.deepcopy(self._guess),
+            "need_recompute" : self._need_recompute,
+            "step_count" : self._step_count }
 
-    def is_compatible(self, system, task, model):
-        return (model.is_diff
-                and task.get_cost().is_twice_diff
-                and not task.are_obs_bounded)
+    def set_state(self, state):
+        self._guess = copy.deepcopy(state["guess"])
+        self._need_recompute = state["need_recompute"]
+        self._step_count = state["step_count"]
+
+    #def is_compatible(self, system, task, model):
+    #    return (model.is_diff
+    #            and task.get_cost().is_twice_diff
+    #            and not task.are_obs_bounded)
  
-    def traj_to_state(self, traj):
-        return self.model.traj_to_state(traj)
-
     def compute_ilqr_default(self, state, uguess, u_threshold=1e-3, max_iter=50, 
             ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=False):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
@@ -261,12 +263,11 @@ class IterativeLQR(Controller):
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks, ks
 
-    def run(self, constate, new_obs, silent=True):
+    def run(self, state, silent=False):
         """Here I am assuming I reuse the controller for half horizon"""
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
-        converged, states, ctrls, Ks, ks = self.compute_ilqr(new_obs, self._guess,
+        converged, states, ctrls, Ks, ks = self.compute_ilqr(state, self._guess,
                 silent=silent)
-        self._states = states
         self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
         return ctrls[0], None

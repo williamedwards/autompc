@@ -1,5 +1,6 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+import copy
 import numpy as np
 
 class NumStepsTermCond:
@@ -42,10 +43,11 @@ class Task:
         self._init_eq_cons = []
         self._init_ineq_cons = []
         
-        self._init_obs = None
         self._term_cond = None
         self._num_steps = None
-        self._subtasks = None
+
+        self._parameter_names = ["init_obs"]
+        self._parameters = dict()
 
     def set_num_steps(self, num_steps):
         """
@@ -77,6 +79,37 @@ class Task:
         Returns the maxium number steps if available. None otherwise.
         """
         return self._num_steps
+
+    def get_parameter_names(self):
+        """
+        Returns a list of task parameter names.
+        """
+        return self._parameter_names[:]
+
+    def get_parameters(self):
+        """
+        Returns a dict of task parameters.
+        """
+        return copy.deepcopy(self._parameters)
+
+    def get_parameter(self, name):
+        """
+        Return the parameter of the given name.
+        """
+        if not name in self._parameter_names:
+            raise ValueError("Unknown parameter name.")
+        if name in self._parameters:
+            return copy.deepcopy(self._parameters[name])
+        else:
+            return None
+
+    def set_parameter(self, name, value):
+        """
+        Set the parameter of given name to value.
+        """
+        if not name in self._parameter_names:
+            raise ValueError("Unknown parameter name.")
+        self._parameters[name] = copy.deepcopy(value)
 
     def term_cond(self, traj):
         """
@@ -139,7 +172,10 @@ class Task:
         init_obs : numpy array of size self.system.obs_dim
             Initial observation
         """
-        self._init_obs = init_obs[:]
+        init_obs = np.array(init_obs)
+        if not init_obs.shape == (self.system.obs_dim,):
+            raise ValueError("init_obs has wrong shape")
+        self.set_parameter("init_obs", init_obs)
 
     def get_init_obs(self):
         """
@@ -148,10 +184,7 @@ class Task:
         Returns : numpy array of size self.system.obs_dim
             Initial observation
         """
-        if self._init_obs is not None:
-            return self._init_obs[:]
-        else:
-            return None
+        return self.get_parameter("init_obs")
 
     # Handle bounds
     def set_obs_bound(self, obs_label, lower, upper):

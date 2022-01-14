@@ -2,7 +2,7 @@
 import sys
 
 # Internal library includes
-from .. import zeros, extend
+from ..trajectory import zeros, extend
 
 # External library includes
 import numpy as np

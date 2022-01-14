@@ -8,7 +8,7 @@ import copy
 import autompc as ampc
 from autompc.tasks import Task, StaticGoalTask
 from autompc.sysid import SINDyFactory
-from autompc.costs import QuadCostFactory
+from autompc.costs import QuadCostFactory, QuadCost
 from autompc.control import IterativeLQRFactory
 
 # External library includes
@@ -92,7 +92,7 @@ class StaticGoalTaskTest(unittest.TestCase):
 
         task.add_subtask(goal = np.array([4.0, 4.0]))
         task.add_subtask(goal = np.array([5.0, 6.0], 
-            init_obs = np.array([1.0, 1.0]))})
+            init_obs = np.array([1.0, 1.0])))
         
         params = list(task.get_subtask_parameters())
         self.assertTrue((params[0]["goal"] == np.array([4.0, 4.0])).all())
@@ -124,7 +124,7 @@ class UpdateTaskParametersTest(unittest.TestCase):
         self.task = StaticGoalTask(self.system)
         self.task.set_cost(cost)
         self.task.set_ctrl_bound("u", -20.0, 20.0)
-        task.set_goal([-1.0, 0.0])
+        self.task.set_goal([-1.0, 0.0])
 
         rng = np.random.default_rng(42)
         dynamics = lambda x, u: dt_doubleint_dynamics(x, u, dt=0.05)
@@ -132,12 +132,12 @@ class UpdateTaskParametersTest(unittest.TestCase):
                 dynamics, rng, init_min=-np.ones(2), 
                 init_max=np.ones(2), traj_len=100, n_trajs=100)
             
-        self.pipeline = Pipeline(self.system, self.task, self.model_factory,
+        self.pipeline = ampc.Pipeline(self.system, self.task, self.model_factory,
                 self.cost_factory, self.controller_factory)
-        pipeline_cs = pipeline.get_configuration_space()
+        pipeline_cs = self.pipeline.get_configuration_space()
         pipeline_cs.seed(100)
         pipeline_cfg = pipeline_cs.sample_configuration()
-        self.controller, self.derived_task, self.model = pipeline(pipeline_cfg, self.trajs)
+        self.controller, self.derived_task, self.model = self.pipeline(pipeline_cfg, self.trajs)
     
     def test_update_cost(self):
         cost = copy.deepcopy(self.derived_task.get_cost())

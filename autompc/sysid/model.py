@@ -5,6 +5,8 @@ import numpy as np
 from abc import ABC, abstractmethod
 from pdb import set_trace
 
+from ..utils import apply_partial
+
 class ModelFactory(ABC):
     """
     The ModelFactory creates and trains a System ID model and provides
@@ -20,7 +22,10 @@ class ModelFactory(ABC):
         self.system = system
         self.kwargs = kwargs
 
-    def __call__(self, cfg, train_trajs, silent=False, skip_train_model=False):
+    def __call__(self, *args, **kwargs):
+        return apply_partial(self, self.Model, 2, args, kwargs)
+
+    def create(self, cfg, trajs, silent=False, skip_train_model=False):
         """
         Returns a model trained for the given 
         system and configuration.
@@ -29,7 +34,7 @@ class ModelFactory(ABC):
         ----------
             cfg : Configuration
                 Configuration of model hyperparameters
-            train_trajs : List of Trajectory objects
+            trajs : List of Trajectory objects
                 Model training data set
             silent : bool
                 Whether to produce output during training
@@ -41,7 +46,7 @@ class ModelFactory(ABC):
         model = self.Model(self.system, **model_args)
         model.factory = self
         if not skip_train_model:
-            model.train(train_trajs, silent=silent)
+            model.train(trajs, silent=silent)
 
         return model
 
@@ -69,6 +74,15 @@ class Model(ABC):
                Corresponding model state
         """
         raise NotImplementedError
+
+    def init_state(self, obs):
+        """
+        Parameters
+        ----------
+        """
+        traj = ampc.zeros(self.system, 1)
+        traj[0].obs = obs
+        return self.traj_to_state(traj)
 
     @abstractmethod
     def update_state(self, state, new_ctrl, new_obs):
