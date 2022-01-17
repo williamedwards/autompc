@@ -7,59 +7,24 @@ from pdb import set_trace
 
 from ..utils import apply_partial
 
-class ModelFactory(ABC):
-    """
-    The ModelFactory creates and trains a System ID model and provides
-    information about the model hyperparameters.
-    """
-    def __init__(self, system, **kwargs):
-        """
-        Parameters
-        ----------
-            system : System
-                System for which system ID model will be produced.
-        """
-        self.system = system
-        self.kwargs = kwargs
-
-    def __call__(self, *args, **kwargs):
-        return apply_partial(self, self.Model, 2, args, kwargs)
-
-    def create(self, cfg, trajs, silent=False, skip_train_model=False):
-        """
-        Returns a model trained for the given 
-        system and configuration.
-
-        Parameters
-        ----------
-            cfg : Configuration
-                Configuration of model hyperparameters
-            trajs : List of Trajectory objects
-                Model training data set
-            silent : bool
-                Whether to produce output during training
-            skip_train_model : bool
-                Skip model training when True.
-        """
-        model_args = cfg.get_dictionary()
-        model_args.update(self.kwargs)
-        model = self.Model(self.system, **model_args)
-        model.factory = self
-        if not skip_train_model:
-            model.train(trajs, silent=silent)
-
-        return model
-
-    @abstractmethod
-    def get_configuration_space(self):
-        """
-        Returns the model configuration space.
-        """
-        raise NotImplementedError
-
 class Model(ABC):
     def __init__(self, system):
         self.system = system
+
+    def get_config_space(self):
+        return self.get_default_config_space()
+
+    @abstractmethod
+    def get_default_config_space(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def clear_model(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_config(self):
+        raise NotImplementedError
 
     @abstractmethod
     def traj_to_state(self, traj):
@@ -256,3 +221,10 @@ class Model(ABC):
         Returns true for differentiable models.
         """
         return not self.pred_diff.__func__ is Model.pred_diff
+
+    @property
+    def trainable(self):
+        """
+        Returns true for trainable models.
+        """
+        return not self.train.__func__ is Model.train
