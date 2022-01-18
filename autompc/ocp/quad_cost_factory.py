@@ -39,7 +39,6 @@ class QuadCostFactory(OCPFactory):
         corresponding to ovservation dimension with label **x**
     """ # TODO Fix math notation to include goal
     def __init__(self, system, goal=None):
-        super().__init__(system, "QuadCostFactory")
         if goal is None:
             self.goal = None
         else:
@@ -52,6 +51,7 @@ class QuadCostFactory(OCPFactory):
         self._R_fixed = dict() # Key: obsname, Value: fixed_value
         self._F_fixed = dict() # Key: obsname, Value: fixed_value
         self._goal_tunable = dict() # Key: obsname, Value: (lower, upper, default, log_scale)
+        super().__init__(system, "QuadCostFactory")
 
     def set_tunable_goal(self, obsname, lower_bound, upper_bound, default, log=False):
         """

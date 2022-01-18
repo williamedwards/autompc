@@ -115,11 +115,17 @@ class Controller:
     def set_config(self, config):
         self.config = copy.deepcopy(config)
 
-    def clear_trajs(self, trajs):
+    def clear_trajs(self):
         self.trajs = None
 
     def clear_model(self):
         self.model.clear()
+
+    def clear(self):
+        self.reset()
+        self.clear_trajs()
+        self.clear_model()
+        self.mode, self.optimizer, self.ocp_factory = None, None, None
 
     def clone(self):
         return copy.deepcopy(self)
@@ -191,6 +197,8 @@ class Controller:
 
     def run(self, obs):
         # Returns control, handles model state updates
+        if not self.model or not self.optimizer or not self.transformed_ocp:
+            raise ControllerStateError("Must call build() before run()")
         if self.model_state is None:
             self.model_state = self.model.init_state(obs)
         elif not self.last_control is None:

@@ -45,4 +45,11 @@ controller.build()
 
 u = controller.run(np.ones(4))
 
+# Tuning test
+from autompc.tuning import ControlTuner
+tuner = ControlTuner(surrogate=MLP(system), surrogate_split=0.5)
+tuned_controller, tune_result = tuner.run(controller, [task], trajs,
+        n_iters=100, rng=np.random.default_rng(100),
+        truedyn=benchmark.dynamics)
+
 breakpoint()

@@ -7,6 +7,7 @@ class Optimizer(ABC):
     def __init__(self, system, name):
         self.system = system
         self.name = name
+        self.set_config(self.get_default_config())
 
     def get_config_space(self):
         return self.get_default_config_space()
@@ -14,6 +15,9 @@ class Optimizer(ABC):
     @abstractmethod
     def get_default_config_space(self):
         raise NotImplementedError
+
+    def get_default_config(self):
+        return self.get_config_space().get_default_configuration()
 
     @abstractmethod
     def run(self, state):

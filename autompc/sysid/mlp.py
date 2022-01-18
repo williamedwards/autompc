@@ -118,7 +118,7 @@ class MLP(Model):
                              for i in range(1,self.n_hidden_layers+1)]
         self.lr = config["lr"]
 
-    def clear_model(self):
+    def clear(self):
         self.net = None
 
     def traj_to_state(self, traj):

@@ -138,7 +138,7 @@ class ARX(Model):
 
         self.A, self.B = A, B
 
-    def clear_model(self):
+    def clear(self):
         self.A, self.B = None, None
 
     def pred(self, state, ctrl):

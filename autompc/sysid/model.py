@@ -11,6 +11,7 @@ class Model(ABC):
     def __init__(self, system, name):
         self.system = system
         self.name = name
+        self.set_config(self.get_default_config())
 
     def get_config_space(self):
         return self.get_default_config_space()
@@ -19,8 +20,11 @@ class Model(ABC):
     def get_default_config_space(self):
         raise NotImplementedError
 
+    def get_default_config(self):
+        return self.get_config_space().get_default_configuration()
+
     @abstractmethod
-    def clear_model(self):
+    def clear(self):
         raise NotImplementedError
 
     @abstractmethod
