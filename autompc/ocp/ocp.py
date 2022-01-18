@@ -1,23 +1,11 @@
 # Created by William Edwards (wre2@illinois.edu)
 
-class ControlProblemFactory(ABC):
-    """
-    Factory to create control problems.
-    """
-    def __init__(self, system):
-        self.system = system
+# Standard libary includes
 
-    def __call__(self, *args, **kwargs):
-        return apply_partial(self, ControlProblem, 3, args, kwargs) # TODO Right way to do this?
+# External libary includes
+import numpy as np
 
-    @abstractmethod
-    def create(self, cfg, trajs, ocp):
-        """
-        Create a new OCP from the configuration.
-        """
-        raise NotImplementedError
-
-class ControlProblem:
+class OCP:
     """
     Defines an optimal control problem to be solved.
     """
@@ -163,3 +151,25 @@ class ControlProblem:
                     or self._ctrl_bounds[i, 1] != np.inf):
                 return True
         return False
+
+    def get_obs_bounds(self):
+        """
+        Get observation bounds. If unbounded, lower and upper bound
+        are -np.inf and +np.inf respectively.
+        Returns
+        -------
+        : numpy array of shape (self.system.obs_dim, 2)
+            Observation bounds
+        """
+        return self._obs_bounds.copy()
+
+    def get_ctrl_bounds(self):
+        """
+        Get control bounds. If unbounded, lower and upper bound
+        are -np.inf and +np.inf respectively.
+        Returns
+        -------
+        : numpy array of shape (self.system.ctrl_dim, 2)
+            Control bounds
+        """
+        return self._ctrl_bounds.copy()

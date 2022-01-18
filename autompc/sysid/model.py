@@ -5,11 +5,12 @@ import numpy as np
 from abc import ABC, abstractmethod
 from pdb import set_trace
 
-from ..utils import apply_partial
+from ..trajectory import zeros
 
 class Model(ABC):
-    def __init__(self, system):
+    def __init__(self, system, name):
         self.system = system
+        self.name = name
 
     def get_config_space(self):
         return self.get_default_config_space()
@@ -45,8 +46,8 @@ class Model(ABC):
         Parameters
         ----------
         """
-        traj = ampc.zeros(self.system, 1)
-        traj[0].obs = obs
+        traj = zeros(self.system, 1)
+        traj[0].obs[:] = obs
         return self.traj_to_state(traj)
 
     @abstractmethod

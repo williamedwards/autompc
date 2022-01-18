@@ -8,7 +8,7 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 # Internal library includes
-from ..utils.cs_utils import *
+from .utils.cs_utils import *
 
 class ControllerStateError(Exception):
     pass
@@ -19,8 +19,11 @@ class Controller:
         self.models = []
         self.optimizers = []
         self.ocp_factories = []
+        self.model = None
+        self.optimizer = None
         self.ocp = None
         self.trajs = None
+        self.config = None
 
     def set_model(self, model):
         self.models = [model]
@@ -55,13 +58,14 @@ class Controller:
     def set_trajs(self, trajs):
         self.trajs = trajs[:]
 
-    def _add_config_space(cs, label, choices):
+    def _add_config_space(self, cs, label, choices):
         choice_hyper = CS.CategoricalHyperparameter(label,
             choices=[choice.name for choice in choices])
+        cs.add_hyperparameter(choice_hyper)
         for choice in choices:
-            add_subspace_configuration(cs, choice.name,
+            add_configuration_space(cs, choice.name,
                 choice.get_config_space(),
-                parent_hyperparameter={"parameter" : choice_hyper,
+                parent_hyperparameter={"parent" : choice_hyper,
                     "value" : choice.name}
                 )
 
@@ -72,10 +76,12 @@ class Controller:
         self._add_config_space(cs, "optimizer", self.optimizers)
         self._add_config_space(cs, "ocp_factory", self.ocp_factories)
 
+        return cs
+
     def _get_choice_from_config(self, label, choices, config):
         choice_name = config[label]
         for choice in choices:
-            if choice.name = choice_name:
+            if choice.name == choice_name:
                 return choice
         raise ValueError(f"Unrecognized config value for {label}")
 
@@ -86,22 +92,22 @@ class Controller:
         return self._get_choice_from_config("optimizer", self.optimizers, self.config)
 
     def _get_ocp_factory_from_config(self):
-        return self._get_choice_from_config("ocp_factory", self.ocp_factoroies, self.config)
+        return self._get_choice_from_config("ocp_factory", self.ocp_factories, self.config)
 
     def _get_choice_config(self, label, choices, config):
         choice_name = config[label]
         choice = self._get_choice_from_config(label, choices, config)
         return create_subspace_configuration(config, choice_name, 
-            choice.get_config_space(), allow_with_inactive_values=True)
+            choice.get_config_space(), allow_inactive_with_values=True)
 
     def _get_model_config(self):
         return self._get_choice_config("model", self.models, self.config)
 
-    def _get_optimizer_from_config(self):
+    def _get_optimizer_config(self):
         return self._get_choice_config("optimizer", self.optimizers, self.config)
 
-    def _get_ocp_factory_from_config(self):
-        return self._get_choice_config("ocp_factory", self.ocp_factoroies, self.config)
+    def _get_ocp_factory_config(self):
+        return self._get_choice_config("ocp_factory", self.ocp_factories, self.config)
 
     def get_default_config(self):
         return self.get_config_space().get_default_configuration()
@@ -119,6 +125,8 @@ class Controller:
         return copy.deepcopy(self)
 
     def build(self):
+        if not self.ocp:
+            raise ControllerStateError("Must call set_ocp() before build()")
         if self.model:
             self.clear_model()
         if not self.config:
@@ -131,7 +139,7 @@ class Controller:
         else:
             raise ControllerStateError("No model specified.  Please add a model before calling build().")
         if optimizer:
-            optimizer.set_config(self._get_optimizer_config()):
+            optimizer.set_config(self._get_optimizer_config())
         else:
             raise ControllerStateError("No optimizer specified.  Please add an optimizer before calling build().")
         if ocp_factory:
@@ -154,7 +162,7 @@ class Controller:
         self.reset()
 
     def reset(self):
-        self.rest_optimizer()
+        self.reset_optimizer()
         self.reset_history()
 
     def reset_history(self):
@@ -166,7 +174,7 @@ class Controller:
             self.transformed_ocp = self.ocp_factory(self.ocp)
         else:
             self.transformed_ocp = self.ocp
-        self.optimizer.set_model(model)
+        self.optimizer.set_model(self.model)
         self.optimizer.set_ocp(self.transformed_ocp)
         self.optimizer.reset()
 
@@ -186,9 +194,10 @@ class Controller:
         if self.model_state is None:
             self.model_state = self.model.init_state(obs)
         elif not self.last_control is None:
-            self.model_state = self.model.update_state(self.model_state, self.last_control, obs)
+            self.model_state = self.model.update_state(self.model_state, 
+                    self.last_control, obs)
         
-        control = optimizer.run(self.model_state)
+        control = self.optimizer.run(self.model_state)
         self.last_control = control
 
         return control

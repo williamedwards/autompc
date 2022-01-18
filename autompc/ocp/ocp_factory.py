@@ -1,11 +1,12 @@
+from abc import ABC, abstractmethod
 
-
-class OCPFactory:
-    def __init__(self, system, ocp):
+class OCPFactory(ABC):
+    def __init__(self, system, name):
         self.system = system
+        self.name = name
 
     def get_config_space(self):
-        return get_default_config_space()
+        return self.get_default_config_space()
 
     @abstractmethod
     def get_default_config_space(self):

@@ -4,11 +4,12 @@ from abc import ABC, abstractmethod
 from pdb import set_trace
 
 class Optimizer(ABC):
-    def __init__(self, system, ocp):
+    def __init__(self, system, name):
         self.system = system
+        self.name = name
 
     def get_config_space(self):
-        return get_default_config_space()
+        return self.get_default_config_space()
 
     @abstractmethod
     def get_default_config_space(self):

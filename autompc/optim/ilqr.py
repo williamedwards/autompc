@@ -10,10 +10,9 @@ from pdb import set_trace
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
-from .optimizer import Optimizer, OptimizerFactory
+from .optimizer import Optimizer
 
-
-class IterativeLQRFactory(OptimizerFactory):
+class IterativeLQR(Optimizer):
     """
     Iterative Linear Quadratic Regulator (ILQR) can be considered as a Dynamic Programming (DP) method to solve trajectory optimization problems.
     Usually DP requires discretization and scales exponentially to the dimensionality of state and control so it is not practical beyond simple problems.
@@ -28,95 +27,45 @@ class IterativeLQRFactory(OptimizerFactory):
 
     - *horizon* (Type: int, Low: 5, Upper: 25, Default: 20): MPC Optimization Horizon.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.Optimizer = IterativeLQR
-        self.name = "IterativeLQR"
+    def __init__(self, system, verbose=False):
+        super().__init__(system, "IterativeLQR")
+        self.verbose = verbose
+        self.reset()
 
-    def get_configuration_space(self):
+    def get_default_config_space(self):
         cs = ConfigurationSpace()
         horizon = UniformIntegerHyperparameter(name="horizon",
                 lower=5, upper=25, default_value=20)
         cs.add_hyperparameter(horizon)
         return cs
 
-class IterativeLQR(Optimizer):
-    def __init__(self, system, model, ocp horizon, reuse_feedback=-1, 
-            ubounds=None, mode=None, verbose=False):
-        """Reuse_feedback determines how many steps of K are used as feedback.
-        ubounds is a tuple of minimum and maximum control bounds
-        mode specifies mode, 'barrier' use barrier method for control bounds; 'auglag' use augmented Lagrangian; None use default one, clip
-        """
-        super().__init__(system, model, ocp)
-        self.horizon = horizon
-        self.dt = system.dt
-        self._need_recompute = True  # this indicates a new iteration is required...
-        self._step_count = 0
-        if reuse_feedback is None or reuse_feedback <= 0:
-            self.reuse_feedback = 0
-        elif reuse_feedback > horizon:
-            self.reuse_feedback = horizon
-        else:
-            self.reuse_feedback = reuse_feedback
-        self._guess = None
-        if ubounds is None and task.are_ctrl_bounded:
-            bounds = task.get_ctrl_bounds()
-            self.ubounds = (bounds[:,0], bounds[:,1])
-        else:
-            self.ubounds = ubounds
-        self.mode = mode
-        self.verbose = verbose
-        if mode is None:
-            self.compute_ilqr = self.compute_ilqr_default
-        elif mode == 'barrier':
-            self.compute_ilqr = self.compute_barrier_ilqr
-        elif mode == 'auglag':
-            self.compute_ilqr = self.compute_auglag_ilqr
-        else:
-            raise Exception("mode has to be None/barrier/auglag")
+    def set_config(self, config):
+        self.horizon = config["horizon"]
 
     def reset(self):
-        self._need_recompute = True
-        self._step_count = 0
-        self._states = None
         self._guess = None
 
+    def set_ocp(self, ocp):
+        super().set_ocp(ocp)
+        if ocp.are_ctrl_bounded:
+            bounds = ocp.get_ctrl_bounds()
+            self.ubounds = (bounds[:,0], bounds[:,1])
+        else:
+            self.ubounds = None
+
     def get_state(self):
-        return {"guess" : copy.deepcopy(self._guess),
-            "need_recompute" : self._need_recompute,
-            "step_count" : self._step_count }
+        return {"guess" : copy.deepcopy(self._guess) }
 
     def set_state(self, state):
         self._guess = copy.deepcopy(state["guess"])
-        self._need_recompute = state["need_recompute"]
-        self._step_count = state["step_count"]
 
-    #def is_compatible(self, system, task, model):
-    #    return (model.is_diff
-    #            and task.get_cost().is_twice_diff
-    #            and not task.are_obs_bounded)
- 
-    def compute_ilqr_default(self, state, uguess, u_threshold=1e-3, max_iter=50, 
+    def compute_ilqr(self, state, uguess, u_threshold=1e-3, max_iter=50, 
             ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=False):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         Here I do not have Hessian correction since I'm certain all my matrices are SPD
         """
-        cost = self.task.get_cost()
-        # Cost function example
-        # cost = cost.eval_obs_cost(obs)
-        # cost, cost_jac = cost.eval_obs_cost_diff(obs)
-        # cost, cost_jac, cost_hess = cost.eval_obs_cost_hess(obs)
-        # cost = cost.eval_ctrl_cost(ctrl)
-        # cost, cost_jac = cost.eval_ctrl_cost_diff(ctrl)
-        # cost, cost_jac, cost_hess = cost.eval_ctrl_cost_hess(ctrl)
-        # cost = cost.eval_term_obs_cost(obs)
-        # cost, cost_jac = cost.eval_term_obs_cost_diff(obs)
-        # cost, cost_jac, cost_hess = cost.eval_term_obs_cost_hess(obs)
-        # Q, R, F = cost.get_cost_matrices()
-        # x0 = cost.get_x0()
-        # Q = Q * self.system.dt
-        # R = R * self.system.dt
+        cost = self.ocp.get_cost()
         H = self.horizon
         dt = self.system.dt
 
@@ -264,10 +213,9 @@ class IterativeLQR(Optimizer):
         return converged, states, ctrls, Ks, ks
 
     def run(self, state, silent=False):
-        """Here I am assuming I reuse the controller for half horizon"""
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         converged, states, ctrls, Ks, ks = self.compute_ilqr(state, self._guess,
                 silent=silent)
         self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
-        return ctrls[0], None
+        return ctrls[0]

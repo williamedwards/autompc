@@ -13,9 +13,7 @@ import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
-from pdb import set_trace
-
-from .model import Model, ModelFactory
+from .model import Model
 
 def transform_input(xu_means, xu_std, XU):
     XUt = []
@@ -73,38 +71,17 @@ class SimpleDataset(Dataset):
         return self.x[idx], self.y[idx]
 
 
-class MLPFactory(ModelFactory):
-    """
-    The multi-layer perceptron (MLP) model uses a feed-forward neural network
-    architecutret to predict the system dynamics. The network size, activation
-    function, and learning rate are tunable hyperparameters.
+class MLP(Model):
+    def __init__(self, system, n_train_iters=50, n_batch=64, use_cuda=True):
+        super().__init__(system, "MLP")
+        self.n_train_iters = n_train_iters
+        self.n_batch = n_batch
+        self.use_cuda = use_cuda
+        self.net = None
+        self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
+                else torch.device('cpu'))
 
-    Parameters
-
-    - *n_batch* (Type: int, Default: 64): Training batch size of the neural net.
-    - *n_train_iters* (Type: int, Default: 50): Number of training epochs
-
-    Hyperparameters:
-
-    - *n_hidden_layers* (Type: str, Choices: ["1", "2", "3", "4"], Default: "2"):
-      The number of hidden layers in the network
-    - *hidden_size_1* (Type int, Low: 16, High: 256, Default: 32): Size of hidden layer 1.
-    - *hidden_size_2* (Type int, Low: 16, High: 256, Default: 32): Size of hidden layer 2. 
-      (Conditioned on n_hidden_layers >=2).
-    - *hidden_size_3* (Type int, Low: 16, High: 256, Default: 32): Size of hidden layer 3. 
-      (Conditioned on n_hidden_layers >=3).
-    - *hidden_size_4* (Type int, Low: 16, High: 256, Default: 32): Size of hidden layer 4. 
-      (Conditioned on n_hidden_layers >=4).
-    - *nonlintype* (Type: str, choices: ["relu", "tanh", "sigmoid", "selu"], Default: "relu):
-      Type of activation function.
-    - *lr* (Type: float, Low: 1e-5, High: 1, Default: 1e-3): Adam learning rate for the network.
-    """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.Model = MLP
-        self.name = "MLP"
-
-    def get_configuration_space(self):
+    def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         nonlintype = CSH.CategoricalHyperparameter("nonlintype", 
                 choices=["relu", "tanh", "sigmoid", "selu"],
@@ -134,33 +111,15 @@ class MLPFactory(ModelFactory):
         cs.add_conditions([hidden_cond_2, hidden_cond_3, hidden_cond_4])
         return cs
 
-class MLP(Model):
-    def __init__(self, system, n_hidden_layers=3, hidden_size=128, 
-            nonlintype='relu', n_train_iters=50, n_batch=64, lr=1e-3,
-            hidden_size_1=None, hidden_size_2=None, hidden_size_3=None,
-            hidden_size_4=None,
-            use_cuda=True, seed=100):
-        Model.__init__(self, system)
-        self.n_hidden_layers = int(n_hidden_layers)
-        self.hidden_sizes = [hidden_size] * self.n_hidden_layers
-        self.nonlintype = nonlintype
-        #print(f"{torch.cuda.is_available()=}")
-        # if use_cuda and torch.cuda.is_available():
-        #     print("MLP Using Cuda")
-        # else:
-        #     if use_cuda:
-        #         print("MLP Not Using Cuda because torch.cuda is not available")
-        #     else:
-        #         print("MLP Not Using Cuda")
-        for i, size in enumerate([hidden_size_1, hidden_size_2, hidden_size_3,
-                hidden_size_4]):
-            if size is not None:
-                self.hidden_sizes[i] = size
-        #print("hidden_sizes=", hidden_sizes)
+    def set_config(self, config):
+        self.n_hidden_layers = int(config["n_hidden_layers"])
+        self.nonlintype = config["nonlintype"]
+        self.hidden_sizes = [config[f"hidden_size_{i}"] 
+                             for i in range(1,self.n_hidden_layers+1)]
+        self.lr = config["lr"]
+
+    def clear_model(self):
         self.net = None
-        self._train_data = (n_train_iters, n_batch, lr)
-        self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
-                else torch.device('cpu'))
 
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()
@@ -181,7 +140,6 @@ class MLP(Model):
         self.net = ForwardNet(self.system.obs_dim + self.system.ctrl_dim, self.system.obs_dim, 
             self.hidden_sizes, self.nonlintype)
         self.net = self.net.double().to(self._device)
-        n_iter, n_batch, lr = self._train_data
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
@@ -197,17 +155,17 @@ class MLP(Model):
         feedX = XUt
         predY = dYt
         dataset = SimpleDataset(feedX, predY)
-        dataloader = DataLoader(dataset, batch_size=n_batch, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=self.n_batch, shuffle=True)
         # now I can perform training... using torch default dataset holder
         self.net.train()
         for param in self.net.parameters():
             param.requires_grad_(True)
-        optim = torch.optim.Adam(self.net.parameters(), lr=lr)
+        optim = torch.optim.Adam(self.net.parameters(), lr=self.lr)
         lossfun = torch.nn.SmoothL1Loss()
         best_loss = float("inf")
         best_params = None
         print("Training MLP: ", end="")
-        for i in tqdm(range(n_iter), file=sys.stdout):
+        for i in tqdm(range(self.n_train_iters), file=sys.stdout):
             cum_loss = 0.0
             for i, (x, y) in enumerate(dataloader):
                 optim.zero_grad()
