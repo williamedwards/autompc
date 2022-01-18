@@ -24,7 +24,7 @@ class Model(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def set_config(self):
+    def set_config(self, config):
         raise NotImplementedError
 
     @abstractmethod

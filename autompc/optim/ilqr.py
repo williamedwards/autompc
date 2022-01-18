@@ -30,7 +30,6 @@ class IterativeLQR(Optimizer):
     def __init__(self, system, verbose=False):
         super().__init__(system, "IterativeLQR")
         self.verbose = verbose
-        self.reset()
 
     def get_default_config_space(self):
         cs = ConfigurationSpace()

@@ -26,11 +26,13 @@ task.set_num_steps(200)
 # Create Controller
 controller = ampc.Controller(system)
 
-from autompc.sysid import MLP
-controller.set_model(MLP(system))
+from autompc.sysid import MLP, ARX
+controller.add_model(MLP(system))
+controller.add_model(ARX(system))
 
-from autompc.optim import IterativeLQR
-controller.set_optimizer(IterativeLQR(system))
+from autompc.optim import IterativeLQR, MPPI
+controller.add_optimizer(IterativeLQR(system))
+controller.add_optimizer(MPPI(system))
 
 from autompc.ocp import QuadCostFactory
 controller.set_ocp_factory(QuadCostFactory(system))

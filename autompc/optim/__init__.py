@@ -4,7 +4,7 @@ from .ilqr import IterativeLQR
 #    from .nmpc import DirectTranscriptionController, DirectTranscriptionControllerFactory
 #except ImportError:
 #    print("Missing optional dependency for NMPC")
-#from .mppi import MPPI, MPPIFactory
+from .mppi import MPPI
 #from .zero import ZeroController, ZeroControllerFactory
 #from .wrapped_factory import WrappedFactory
 #from .rounded_controller import RoundedController

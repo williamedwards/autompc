@@ -8,10 +8,10 @@ import numpy.linalg as la
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
-from .model import Model, ModelFactory
+from .model import Model
 #from ..hyper import IntRangeHyperparam
 
-class ARXFactory(ModelFactory):
+class ARX(Model):
     R"""
     Autoregression with Exogenous Variable (ARX) learns the dynamics as
     a linear function of the last :math:`k` observations and controls.
@@ -27,22 +27,18 @@ class ARXFactory(ModelFactory):
     - *history* (Type: int, Low: 1, High: 10, Default: 4): Size of history window
       for ARX model.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.Model = ARX
-        self.name = "ARX"
+    def __init__(self, system):
+        super().__init__(system, "ARX")
 
-    def get_configuration_space(self):
+    def set_config(self, config):
+        self.history = config["history"]
+
+    def get_default_config_space(self):
         cs = ConfigurationSpace()
         history = UniformIntegerHyperparameter(name='history', 
                 lower=1, upper=10, default_value=4)
         cs.add_hyperparameter(history)
         return cs
-
-class ARX(Model):
-    def __init__(self, system, history):
-        super().__init__(system)
-        self.k = history
 
     def _get_feature_vector(self, traj, t=None):
         k = self.k
@@ -142,6 +138,8 @@ class ARX(Model):
 
         self.A, self.B = A, B
 
+    def clear_model(self):
+        self.A, self.B = None, None
 
     def pred(self, state, ctrl):
         statenew = self.A @ state + self.B @ ctrl

@@ -10,7 +10,7 @@ import copy
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 
-from .controller import Controller, ControllerFactory
+from .optimizer import Optimizer
 
 
 class MultivariateNormal:
@@ -23,7 +23,7 @@ class MultivariateNormal:
         noise = np.random.normal(scale=self.scale, size=new_shape)
         return noise
 
-class MPPIFactory(ControllerFactory):
+class MPPI(Optimizer):
     """
     Implementation of Model Predictive Path Integral (MPPI) controller.
     It originates from stochastic optimal control but also works for deterministic systems.
@@ -42,12 +42,11 @@ class MPPIFactory(ControllerFactory):
         Generally smaller value works better.
     - *num_path* (Type: int, Lower: 100, Upper: 1000, Default: 200): Number of perturbed control sequence to sample. Generally the more the better and it scales better with vectorized and parallel computation.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.Controller = MPPI
-        self.name = "MPPI"
+    # FIXME Random seeds not properly controlled
+    def __init__(self, system):
+        super().__init__(system, "MPPI")
 
-    def get_configuration_space(self):
+    def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         horizon = CSH.UniformIntegerHyperparameter(name="horizon",
                 lower=5, upper=30, default_value=20)
@@ -63,49 +62,41 @@ class MPPIFactory(ControllerFactory):
         cs.add_hyperparameter(num_path)
         return cs
 
-class MPPI(Controller):
-    def __init__(self, system, task, model, **kwargs):
-        super().__init__(system, task, model)
-        self.kwargs = kwargs 
-        self.model = model
-        self.dyn_eqn = model.pred_batch
-        cost = task.get_cost()
+    def set_config(self, config):
+        self.H = config["horizon"]
+        self.sigma = config["sigma"]  # sigma of the normal distribution
+        self.lmda = config["lmda"]
+        self.num_path = config["num_path"]
+
+    def set_ocp(self, ocp):
+        super().set_ocp(ocp)
+        cost = ocp.get_cost()
         def cost_eqn(path, actions):
             costs = np.zeros(path.shape[0])
             for i in range(path.shape[0]):
-                costs[i] += cost.eval_obs_cost(path[i,:system.obs_dim])
+                costs[i] += cost.eval_obs_cost(path[i,:self.system.obs_dim])
                 costs[i] += cost.eval_ctrl_cost(actions[i,:])
             return costs
         def terminal_cost(path):
-            last_obs = path[-1, :system.obs_dim]
+            last_obs = path[-1, :self.system.obs_dim]
             term_cost = cost.eval_term_obs_cost(last_obs)
             return term_cost
         self.cost_eqn = cost_eqn
         self.terminal_cost = terminal_cost
-        system = model.system
-        self.dim_state, self.dim_ctrl = model.state_dim, system.ctrl_dim
-        self.seed = kwargs.get('seed', 0)
-        self.H = kwargs.get('horizon', 20)
-        print(f"H={self.H}")
-        self.num_path = kwargs.get('num_path', 1000)  # how many paths are generated in parallel
-        print(f"num_path={self.num_path}")
-        self.num_iter = kwargs.get('niter', 1)
-        self.sigma = kwargs.get('sigma', 1)  # sigma of the normal distribution
-        self.lmda = kwargs.get('lmda', 1.0)  # scale the cost...
-        print(f"sigma={self.sigma}")
-        print(f"lmda={self.lmda}")
-        self.act_sequence = np.zeros((self.H, self.dim_ctrl))  # set initial default action as zero
-        self.noise_dist = MultivariateNormal(0, self.sigma)
-        self.act_sequence = self.noise_dist.sample((self.H,))
-        self.umin = task.get_ctrl_bounds()[:,0]
-        self.umax = task.get_ctrl_bounds()[:,1]
-        self.ctrl_scale = self.umax
-        # for the seed
-        self.cur_step = 0
-        self.niter = 1
+
+    def set_model(self, model):
+        super().set_model(model)
+        self.dyn_eqn = model.pred_batch
 
     def reset(self):
-        self.__init__(self.system, self.task, self.model, **self.kwargs)
+        self.dim_state, self.dim_ctrl = self.model.state_dim, self.system.ctrl_dim
+        self.act_sequence = np.zeros((self.H, self.dim_ctrl))  
+        self.noise_dist = MultivariateNormal(0, self.sigma)
+        self.act_sequence = self.noise_dist.sample((self.H,))
+        self.umin = self.ocp.get_ctrl_bounds()[:,0]
+        self.umax = self.ocp.get_ctrl_bounds()[:,1]
+        self.ctrl_scale = self.umax
+        self.niter = 1 # FIXME ?
 
     def update(self, costs, eps):
         """Based on the collected trajectory, update the action sequence.
@@ -151,126 +142,26 @@ class MPPI(Controller):
         # import pdb; pdb.set_trace()
         return costs, eps
 
-    def run(self, constate, new_obs):
-        # first is to extract current state
-        x0 = self.model.update_state(constate[:-self.system.ctrl_dim],
-                constate[-self.system.ctrl_dim:], new_obs)
+    def run(self, state):
+        x0 = state
         # then collect trajectories...
         for _ in range(self.niter):
-            costs, eps = self.do_rollouts(x0, self.seed + self.cur_step)
+            costs, eps = self.do_rollouts(x0)
             self.update(costs, eps)
-        self.cur_step += 1
         # update the cached action sequence
         ret_action = self.act_sequence[0].copy()
         ret_action *= self.ctrl_scale
-        statenew = np.concatenate([x0, ret_action])
 
-        return ret_action, statenew
+        return ret_action
 
-    def traj_to_state(self, traj):
-        return np.concatenate([self.model.traj_to_state(traj),
-                traj[-1].ctrl])
+    def get_state(self):
+        # TODO add random seed to state
+        return {"act_sequence", copy.deepcopy(act_sequence)}
 
-    @property
-    def state_dim(self):
-        return self.model.state_dim + self.system.ctrl_dim
+    def set_state(self, state):
+        self.act_sequence = copy.deepcopy(state["act_sequence"])
 
     def is_compatible(self, system, task, model):
-        return True
-
-
-class MPPICopy(Controller):
-    def __init__(self, system, task, model, **kwargs):
-        Controller.__init__(system, task, model)
-        self.n, self.m = system.obs_dim, system.ctrl_dim
-        self.seed = kwargs.get('seed', 0)
-        self.H = kwargs.get('H', 20)
-        self.num_path = kwargs.get('num_path', 1000)
-        self.num_iter = kwargs.get('niter', 1)
-        self.num_cpu = kwargs.get('num_cpu', 10)
-        betas = kwargs.get('filter_coefs', {'beta_0': 0.25, 'beta_1': 0.8, 'beta_2': 0.0})
-        self.sigma = kwargs.get('sigma', 1)
-        self.filter_coefs = (self.sigma, betas['beta_0'], betas['beta_1'], betas['beta_2'])
-        self.lmda = kwargs.get('lmda', 1.0)  # scale the cost...
-        self.paths_per_cpu = int(np.ceil(self.num_path / self.num_cpu))
-
-        self.act_sequence = np.zeros((self.H, self.m))  # set initial default action as zero
-
-        # for the seed
-        self.cur_step = 0
-        self.niter = 1
-    
-    def update(self, paths):
-        """Based on the collected trajectory, update the action sequence"""
-        num_traj = len(paths)
-        act = np.array([paths[i]["actions"] for i in range(num_traj)])
-        R = self.score_trajectory(paths)
-        # jlmd = (np.amax(R) - np.amin(R)) / 10
-        # jif lmd < 1:
-        # j    lmd = 1
-        lmd = self.lmda
-        S = np.exp(-1 / lmd * (R - np.amin(R)))
-        # blend the action sequence
-        weighted_seq = S * act.T
-        act_sequence = np.sum(weighted_seq.T, axis=0)/(np.sum(S) + 1e-6)
-        self.act_sequence = act_sequence
-
-    def advance_time(self, act_sequence=None):
-        """In this function, the cached act_sequence is updated"""
-        self.act_sequence[:-1] = self.act_sequence[1:]
-        self.act_sequence[-1] = self.act_sequence[-2]  # just copy the control...
-
-    def score_trajectory(self, paths):
-        """Score trajectories, here I use negative cost as reward"""
-        scores = np.array([path['cost'] for path in paths])
-        return scores
-
-    def do_rollouts(self, cur_state, seed=None):
-        paths = gather_paths_parallel(self.model,
-                                      self.task,
-                                      cur_state,
-                                      self.act_sequence,
-                                      self.filter_coefs,
-                                      seed,
-                                      self.paths_per_cpu,
-                                      self.num_cpu,
-                                      )
-        return paths
-
-    def run(self, traj, latent=None):
-        # first is to extract current state
-        x0 = self.model.traj_to_state(traj)
-        # then collect trajectories...
-        for _ in range(self.niter):
-            paths = self.do_rollouts(x0, self.seed + self.cur_step)
-            self.update(paths)
-        self.cur_step += 1
-        # update the cached action sequence
-        ret_action = self.act_sequence[0].copy()
-        self.advance_time()
-        return ret_action, None
-
-    def traj_to_state(self, traj):
-        return self.model.traj_to_state(traj)
-
-    @property
-    def state_dim(self):
-        return self.model.state_dim
-
-    @staticmethod
-    def get_configuration_space(system, task, model):
-        cs = CS.ConfigurationSpace()
-        horizon = CSH.UniformIntegerHyperparameter(name="horizon",
-                lower=10, upper=100, default_value=10)
-        cs.add_hyperparameter(horizon)
-        kappa = CSH.UniformFloatHyperparameter(name='kappa', lower=0.1, upper=1.0, default_value=1.0)
-        cs.add_hyperparameter(kappa)
-        num_traj = CSH.UniformIntegerHyperparameter(name='num_traj', lower=100, upper=1000, default_value=200)
-        cs.add_hyperparameter(num_traj)
-        return cs
-
-    def is_compatible(self, system, task, model):
-        # MPPI works with all model/system/task unless there is hard constraints, but can't we?
         return True
  
 
