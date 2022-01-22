@@ -3,5 +3,8 @@ from .koopman import Koopman, KoopmanFactory
 from .sindy import SINDy, SINDyFactory
 #from .gp import GaussianProcess
 from .mlp import MLP, MLPFactory
-from .largegp import ApproximateGPModel, ApproximateGPModelFactory
+try:
+    from .largegp import ApproximateGPModel, ApproximateGPModelFactory
+except ImportError:
+    pass
 #from .linearize import LinearizedModel

@@ -13,15 +13,16 @@ import numpy.linalg as la
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
+import torch
 try:
-    import torch
     import gpytorch
     from gpytorch.models import ApproximateGP
     from gpytorch.variational import CholeskyVariationalDistribution
     from gpytorch.variational import VariationalStrategy
     from torch.utils.data import TensorDataset, DataLoader
-except:
-    print("GPytorch is not installed, cannot import this module")
+except ImportError as e:
+    print("GPytorch is not installed, cannot use GP model")
+    raise e
 
 
 from .model import Model, ModelFactory
