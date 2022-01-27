@@ -1,5 +1,6 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+# 
 from pdb import set_trace
 
 import numpy as np
@@ -24,14 +25,14 @@ class ARX(Model):
 
     Hyperparameters:
 
-    - *history* (Type: int, Low: 1, High: 10, Default: 4): Size of history window
+    - **history** *(Type: int, Low: 1, High: 10, Default: 4)*: Size of history window
       for ARX model.
     """
     def __init__(self, system):
         super().__init__(system, "ARX")
 
     def set_config(self, config):
-        self.history = config["history"]
+        self.k = config["history"]
 
     def get_default_config_space(self):
         cs = ConfigurationSpace()
@@ -165,9 +166,10 @@ class ARX(Model):
 
 
     def get_parameters(self):
-        return {"coeffs" : np.copy(self.coeffs)}
+        return {"A" : self.A.tolist(), "B" : self.B.tolist()}
 
     def set_parameters(self, params):
-        self.coeffs = np.copy(params["coeffs"])
+        self.A = np.array(params["A"])
+        self.B = np.array(params["B"])
 
 

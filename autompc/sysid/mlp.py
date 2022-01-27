@@ -78,24 +78,24 @@ class MLP(Model):
 
     Parameters:
 
-    - *n_batch* (Type: int, Default: 64): Training batch size of the neural net.
-    - *n_train_iters* (Type: int, Default: 50): Number of training epochs
-    - *use_cuda* (Type: bool, Default: True): Use cuda if available.
+    - **n_batch** *(Type: int, Default: 64)*: Training batch size of the neural net.
+    - **n_train_iters** *(Type: int, Default: 50)*: Number of training epochs
+    - **use_cuda** *(Type: bool, Default: True)*: Use cuda if available.
 
     Hyperparameters:
 
-    - *n_hidden_layers* (Type: str, Choices: ["1", "2", "3", "4"], Default: "2"):
+    - **n_hidden_layers** *(Type: str, Choices: ["1", "2", "3", "4"], Default: "2")*:
       The number of hidden layers in the network
-    - *hidden_size_1* (Type int, Low: 16, High: 256, Default: 128): Size of hidden layer 1.
-    - *hidden_size_2* (Type int, Low: 16, High: 256, Default: 128): Size of hidden layer 2. 
+    - **hidden_size_1** *(Type int, Low: 16, High: 256, Default: 128)*: Size of hidden layer 1.
+    - **hidden_size_2** *(Type int, Low: 16, High: 256, Default: 128)*: Size of hidden layer 2. 
       (Conditioned on n_hidden_layers >=2).
-    - *hidden_size_3* (Type int, Low: 16, High: 256, Default: 128): Size of hidden layer 3. 
+    - **hidden_size_3** *(Type int, Low: 16, High: 256, Default: 128)*: Size of hidden layer 3. 
       (Conditioned on n_hidden_layers >=3).
-    - *hidden_size_4* (Type int, Low: 16, High: 256, Default: 128): Size of hidden layer 4. 
+    - **hidden_size_4** *(Type int, Low: 16, High: 256, Default: 128)*: Size of hidden layer 4. 
       (Conditioned on n_hidden_layers >=4).
-    - *nonlintype* (Type: str, choices: ["relu", "tanh", "sigmoid", "selu"], Default: "relu):
+    - **nonlintype** *(Type: str, choices: ["relu", "tanh", "sigmoid", "selu"], Default: "relu)*:
       Type of activation function.
-    - *lr* (Type: float, Low: 1e-5, High: 1, Default: 1e-3): Adam learning rate for the network.
+    - **lr** *(Type: float, Low: 1e-5, High: 1, Default: 1e-3)*: Adam learning rate for the network.
     """
     def __init__(self, system, n_train_iters=50, n_batch=64, use_cuda=True):
         super().__init__(system, "MLP")
@@ -159,11 +159,15 @@ class MLP(Model):
         self._device = device
         self.net = self.net.to(device)
 
-    def train(self, trajs, silent=False, seed=100):
+    def _init_net(self, seed=100):
         torch.manual_seed(seed)
         self.net = ForwardNet(self.system.obs_dim + self.system.ctrl_dim, self.system.obs_dim, 
             self.hidden_sizes, self.nonlintype)
         self.net = self.net.double().to(self._device)
+
+    def train(self, trajs, silent=False, seed=100):
+        self._init_net(seed)
+        torch.manual_seed(seed)
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
@@ -282,4 +286,6 @@ class MLP(Model):
         self.xu_std = params["xu_std"]
         self.dy_means = params["dy_means"]
         self.dy_std = params["dy_std"]
+        if self.net is None:
+            self._init_net()
         self.net.load_state_dict(params["net_state"])

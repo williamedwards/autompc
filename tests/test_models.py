@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 # Internal library inlcudes
 sys.path.insert(0, "..")
 import autompc as ampc
-from autompc.sysid import MLP
+from autompc.sysid import MLP, ARX
 from autompc.benchmarks import DoubleIntegratorBenchmark
 
 
@@ -76,6 +76,8 @@ class GenericModelTest(ABC):
         configs["default"] = self.model.get_default_config()
         input_states, input_controls = self.get_inputs()
 
+        predss = []
+        params = []
         for label, config in configs.items():
             model = self.model.clone()
             model.set_config(config)
@@ -96,6 +98,19 @@ class GenericModelTest(ABC):
             precomp = self.get_precomputed(label)
             self.assertTrue(np.allclose(preds1, precomp))
 
+            predss.append(preds1)
+            params.append(model.get_parameters())
+
+        # Check loading parameters
+        for (label, config), preds, param in zip(configs.items(), predss, params):
+            model = self.model.clone()
+            model.set_config(config)
+            model.set_parameters(param)
+
+            preds2 = model.pred_batch(input_states, input_controls)
+            self.assertTrue(np.allclose(preds, preds2))
+
+
 class MLPTest(GenericModelTest, unittest.TestCase):
     def get_model(self, system):
         return MLP(system)
@@ -111,14 +126,26 @@ class MLPTest(GenericModelTest, unittest.TestCase):
                 "tanh" : tanh_config,
                 "sigmoid" : sigmoid_config}
 
-
     def get_precomputed_prefix(self):
         return "precomputed/mlp"
+
+class ARXTest(GenericModelTest, unittest.TestCase):
+    def get_model(self, system):
+        return ARX(system)
+
+    def get_configs_to_test(self):
+        return dict()
+
+    def get_precomputed_prefix(self):
+        return "precomputed/arx"
+
 
 if __name__ == "__main__":
     if sys.argv[1] == "precompute":
         if sys.argv[2] == "mlp":
             test = MLPTest()
+        elif sys.argv[2] == "arx":
+            test = ARXTest()
         else:
             raise ValueError("Unknown model")
         test.setUp()

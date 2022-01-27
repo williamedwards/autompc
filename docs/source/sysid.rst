@@ -20,7 +20,7 @@ The Model Class
 Supported System ID Models
 --------------------------
 
-Multi-layer Perceptron (Fo2)
+Multi-layer Perceptron (Fo5)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: autompc.sysid.MLP
@@ -33,7 +33,7 @@ Sparse Identification of Nonlinear Dynamics (SINDy)
 Autoregression (ARX)
 ^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: autompc.sysid.ARXFactory
+.. autoclass:: autompc.sysid.ARX
 
 Koopman
 ^^^^^^^
