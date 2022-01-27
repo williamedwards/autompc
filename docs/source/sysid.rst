@@ -20,10 +20,10 @@ The Model Class
 Supported System ID Models
 --------------------------
 
-Multi-layer Perceptron
-^^^^^^^^^^^^^^^^^^^^^^
+Multi-layer Perceptron (Fo2)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: autompc.sysid.MLPFactory
+.. autoclass:: autompc.sysid.MLP
 
 Sparse Identification of Nonlinear Dynamics (SINDy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

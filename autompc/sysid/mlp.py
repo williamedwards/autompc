@@ -1,18 +1,17 @@
-"""
-Just doing system id using multi-layer perceptron.
-The code is similar to GP / RNN.
-The configuration space has to be carefully considered
-"""
-import itertools
+
+# Standard library includes
+import sys
+
+# External library includes
 import numpy as np
 from tqdm import tqdm
-import sys
 import torch
 from torch.utils.data import Dataset, DataLoader
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
+# Internal library includes
 from .model import Model
 
 def transform_input(xu_means, xu_std, XU):
@@ -72,6 +71,32 @@ class SimpleDataset(Dataset):
 
 
 class MLP(Model):
+    """
+    The multi-layer perceptron (MLP) model uses a feed-forward neural network
+    architecutret to predict the system dynamics. The network size, activation
+    function, and learning rate are tunable hyperparameters.
+
+    Parameters:
+
+    - *n_batch* (Type: int, Default: 64): Training batch size of the neural net.
+    - *n_train_iters* (Type: int, Default: 50): Number of training epochs
+    - *use_cuda* (Type: bool, Default: True): Use cuda if available.
+
+    Hyperparameters:
+
+    - *n_hidden_layers* (Type: str, Choices: ["1", "2", "3", "4"], Default: "2"):
+      The number of hidden layers in the network
+    - *hidden_size_1* (Type int, Low: 16, High: 256, Default: 128): Size of hidden layer 1.
+    - *hidden_size_2* (Type int, Low: 16, High: 256, Default: 128): Size of hidden layer 2. 
+      (Conditioned on n_hidden_layers >=2).
+    - *hidden_size_3* (Type int, Low: 16, High: 256, Default: 128): Size of hidden layer 3. 
+      (Conditioned on n_hidden_layers >=3).
+    - *hidden_size_4* (Type int, Low: 16, High: 256, Default: 128): Size of hidden layer 4. 
+      (Conditioned on n_hidden_layers >=4).
+    - *nonlintype* (Type: str, choices: ["relu", "tanh", "sigmoid", "selu"], Default: "relu):
+      Type of activation function.
+    - *lr* (Type: float, Low: 1e-5, High: 1, Default: 1e-3): Adam learning rate for the network.
+    """
     def __init__(self, system, n_train_iters=50, n_batch=64, use_cuda=True):
         super().__init__(system, "MLP")
         self.n_train_iters = n_train_iters
@@ -86,7 +111,6 @@ class MLP(Model):
         nonlintype = CSH.CategoricalHyperparameter("nonlintype", 
                 choices=["relu", "tanh", "sigmoid", "selu"],
                 default_value="relu")
-                #choices=["relu"])
         n_hidden_layers = CSH.CategoricalHyperparameter("n_hidden_layers",
                 choices=["1", "2", "3", "4"], default_value="2")
         hidden_size_1 = CSH.UniformIntegerHyperparameter("hidden_size_1",
@@ -199,28 +223,6 @@ class MLP(Model):
         return state + dy.reshape((state.shape[0], self.state_dim))
 
     def pred_diff(self, state, ctrl):
-        """Use code from https://gist.github.com/sbarratt/37356c46ad1350d4c30aefbd488a4faa .
-        
-        def get_batch_jacobian(net, x, to):
-            # noutputs: total output dim (e.g. net(x).shape(b,1,4,4) noutputs=1*4*4
-            # b: batch
-            # i: in_dim
-            # o: out_dim
-            # ti: total input dim
-            # to: total output dim
-            x_batch = x.shape[0]
-            x_shape = x.shape[1:]
-            x = x.unsqueeze(1)  # b, 1 ,i
-            x = x.repeat(1, to, *(1,)*len(x.shape[2:]))  # b * to,i  copy to o dim
-            x.requires_grad_(True)
-            tmp_shape = x.shape
-            y = net(x.reshape(-1, *tmp_shape[2:]))  # x.shape = b*to,i y.shape = b*to,to
-            y_shape = y.shape[1:]  # y.shape = b*to,to
-            y = y.reshape(x_batch, to, to)  # y.shape = b,to,to
-            input_val = torch.eye(to).reshape(1, to, to).repeat(x_batch, 1, 1)  # input_val.shape = b,to,to  value is (eye)
-            y.backward(input_val)  # y.shape = b,to,to
-            return x.grad.reshape(x_batch, *y_shape, *x_shape).data  # x.shape = b,o,i
-        """
         X = np.concatenate([state, ctrl])
         X = X[np.newaxis,:]
         Xt = transform_input(self.xu_means, self.xu_std, X)
@@ -242,7 +244,6 @@ class MLP(Model):
         return state+dy, state_jac, ctrl_jac
 
     def pred_diff_batch(self, state, ctrl):
-        """Prediction, but with gradient information"""
         X = np.concatenate([state, ctrl], axis=1)
         Xt = transform_input(self.xu_means, self.xu_std, X)
         obs_dim = state.shape[1]
