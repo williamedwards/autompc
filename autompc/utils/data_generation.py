@@ -10,7 +10,7 @@ import autompc as ampc
 
 # Project includes
 
-def uniform_random_generate(system, task, dynamics, rng, init_min, init_max, 
+def uniform_random_generate(system, ocp, dynamics, rng, init_min, init_max, 
         traj_len, n_trajs):
     trajs = []
     for _ in range(n_trajs):
@@ -19,7 +19,7 @@ def uniform_random_generate(system, task, dynamics, rng, init_min, init_max,
         y = state0[:]
         traj = ampc.zeros(system, traj_len)
         traj.obs[:] = y
-        umin, umax = task.get_ctrl_bounds().T
+        umin, umax = ocp.get_ctrl_bounds().T
         for i in range(traj_len):
             traj[i].obs[:] = y
             u = rng.uniform(umin, umax, system.ctrl_dim)
@@ -28,7 +28,7 @@ def uniform_random_generate(system, task, dynamics, rng, init_min, init_max,
         trajs.append(traj)
     return trajs
 
-def prbs_generate(system, task, dynamics, rng, init_min, init_max,
+def prbs_generate(system, ocp, dynamics, rng, init_min, init_max,
         traj_len, n_trajs, states, Nswitch):
     trajs = []
     for _ in range(n_trajs):
@@ -51,7 +51,7 @@ def prbs_generate(system, task, dynamics, rng, init_min, init_max,
         trajs.append(traj)
     return trajs
 
-def random_walk_generate(system, task, dynamics, rng, init_min, init_max, walk_rate,
+def random_walk_generate(system, ocp, dynamics, rng, init_min, init_max, walk_rate,
         traj_len, n_trajs):
     trajs = []
     for _ in range(n_trajs):
@@ -60,7 +60,7 @@ def random_walk_generate(system, task, dynamics, rng, init_min, init_max, walk_r
         y = state0[:]
         traj = ampc.zeros(system, traj_len)
         traj.obs[:] = y
-        umin, umax = task.get_ctrl_bounds().T
+        umin, umax = ocp.get_ctrl_bounds().T
         uamp = np.min([umin, umax])
         u = rng.uniform(umin, umax, system.ctrl_dim)
         step_size = walk_rate * system.dt
@@ -74,7 +74,7 @@ def random_walk_generate(system, task, dynamics, rng, init_min, init_max, walk_r
     return trajs
 
 
-def periodic_control_generate(system, task, dynamics, rng, init_min, init_max, U_1, 
+def periodic_control_generate(system, ocp, dynamics, rng, init_min, init_max, U_1, 
         traj_len, n_trajs):
     trajs = []
     periods = list(range(1, traj_len, max([1, traj_len // n_trajs])))
@@ -85,7 +85,7 @@ def periodic_control_generate(system, task, dynamics, rng, init_min, init_max, U
         y = state0[:]
         traj = ampc.zeros(system, traj_len)
         traj.obs[:] = y
-        umin, umax = task.get_ctrl_bounds().T
+        umin, umax = ocp.get_ctrl_bounds().T
         uamp = np.min([umin, umax])
         for i in range(traj_len):
             traj[i].obs[:] = y
