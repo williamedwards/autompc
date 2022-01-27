@@ -42,7 +42,6 @@ def simulate(controller, init_obs, term_cond=None, dynamics=None, sim_model=None
     x = np.copy(init_obs)
     sim_traj[0].obs[:] = x
     
-    constate = controller.traj_to_state(sim_traj)
     if dynamics is None:
         simstate = sim_model.traj_to_state(sim_traj)
     if silent:
@@ -50,7 +49,7 @@ def simulate(controller, init_obs, term_cond=None, dynamics=None, sim_model=None
     else:
         itr = tqdm(range(max_steps), file=sys.stdout)
     for _  in itr:
-        u, constate = controller.run(constate, sim_traj[-1].obs)
+        u = controller.run(sim_traj[-1].obs)
         if ctrl_bounds is not None:
             u = np.clip(u, ctrl_bounds[:,0], ctrl_bounds[:,1])
         if dynamics is None:

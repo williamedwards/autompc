@@ -10,11 +10,11 @@ import time
 import os, sys, glob, shutil
 
 # Internal project includes
-from .. import zeros, MPCCompatibilityError
+from .. import zeros
 from ..utils import simulate
 from ..evaluation import HoldoutModelEvaluator
 from .model_tuner import ModelTuner
-from ..sysid import MLPFactory, SINDyFactory, ApproximateGPModelFactory, ARXFactory, KoopmanFactory
+#from ..sysid import MLPFactory, SINDyFactory, ApproximateGPModelFactory, ARXFactory, KoopmanFactory
 from .surrogate_evaluator import SurrogateEvaluator
 from .true_dynamics_evaluator import TrueDynamicsEvaluator
 
@@ -31,7 +31,7 @@ from smac.utils.io.traj_logging import TrajLogger
 from joblib import Parallel, delayed
 
 
-PipelineTuneResult = namedtuple("PipelineTuneResult", ["inc_cfg", "cfgs", 
+ControlTunerResult = namedtuple("ControlTunerResult", ["inc_cfg", "cfgs", 
     "inc_cfgs", "costs", "inc_costs", "truedyn_costs", "inc_truedyn_costs", 
     "surr_dists", "truedyn_dists", "truedyn_eval_infos", "surr_eval_infos", 
     "surr_tune_result"]) # TODO update docstring
@@ -88,8 +88,8 @@ PipelineTuneResult contains information about a tuning process.
 
 """
 
-autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
-        ARXFactory, KoopmanFactory]
+#autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
+#        ARXFactory, KoopmanFactory]
 
 class CfgRunner:
     def __init__(self, evaluation_quantile, tuning_data=None, run_dir=None, timeout=None, log_file_name=None,
@@ -174,42 +174,40 @@ class CfgRunner:
     def run(self, cfg):
         print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
         tuning_data = self.get_tuning_data()
-        pipeline = tuning_data["pipeline"]
-        task = tuning_data["task"]
+        controller = tuning_data["controller"].clone()
         sysid_trajs = tuning_data["sysid_trajs"]
         control_evaluator = tuning_data["control_evaluator"]
         truedyn_evaluator = tuning_data["truedyn_evaluator"]
         info = dict()
 
-        try:
-            controller, _, _ = pipeline(cfg, sysid_trajs)
-            if self.max_eval_jobs > 1 and control_evaluator.is_parallelizable:
-                print("Entering Parallel Evaluation")
-                controller.model.set_device("cpu")
-                control_evaluator.set_device("cpu")
-                results = Parallel(n_jobs=self.max_eval_jobs)(delayed(control_evaluator.run_job)(controller, i) 
-                    for i in range(control_evaluator.num_jobs()))
-                surr_dist, surr_eval_info = control_evaluator.aggregate_results(results)
-            else:
-                print("Entering Serial Evaluation")
-                surr_dist, surr_eval_info = control_evaluator(controller)
-            surr_cost = surr_dist(self.evaluation_quantile)
-            info["surr_cost"] = surr_cost
-            info["surr_dist"] = str(surr_dist)
-            info["surr_eval_info"] = surr_eval_info
-            if not truedyn_evaluator is None:
-                truedyn_dist, truedyn_eval_info = truedyn_evaluator(controller)
-                truedyn_cost = truedyn_dist(self.evaluation_quantile)
-                info["truedyn_cost"] = truedyn_cost
-                info["truedyn_dist"] = str(truedyn_dist)
-                info["truedyn_eval_info"] = truedyn_eval_info
-            
-            if self.controller_save_dir:
-                controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
-                with open(controller_save_fn, "wb") as f:
-                    pickle.dump(controller, f)
-        except MPCCompatibilityError:
-            surr_cost = np.inf
+        controller.set_config(cfg)
+        controller.set_trajs(sysid_trajs)
+        controller.build()
+        if self.max_eval_jobs > 1 and control_evaluator.is_parallelizable:
+            print("Entering Parallel Evaluation")
+            controller.model.set_device("cpu")
+            control_evaluator.set_device("cpu")
+            results = Parallel(n_jobs=self.max_eval_jobs)(delayed(control_evaluator.run_job)(controller, i) 
+                for i in range(control_evaluator.num_jobs()))
+            surr_dist, surr_eval_info = control_evaluator.aggregate_results(results)
+        else:
+            print("Entering Serial Evaluation")
+            surr_dist, surr_eval_info = control_evaluator(controller)
+        surr_cost = surr_dist(self.evaluation_quantile)
+        info["surr_cost"] = surr_cost
+        info["surr_dist"] = str(surr_dist)
+        info["surr_eval_info"] = surr_eval_info
+        if not truedyn_evaluator is None:
+            truedyn_dist, truedyn_eval_info = truedyn_evaluator(controller)
+            truedyn_cost = truedyn_dist(self.evaluation_quantile)
+            info["truedyn_cost"] = truedyn_cost
+            info["truedyn_dist"] = str(truedyn_dist)
+            info["truedyn_eval_info"] = truedyn_eval_info
+        
+        if self.controller_save_dir:
+            controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
+            with open(controller_save_fn, "wb") as f:
+                pickle.dump(controller, f)
 
         # if not self.log_file_name is None:
         #     sys.stdout.close()
@@ -217,29 +215,29 @@ class CfgRunner:
 
         return surr_cost, info
 
-class PipelineTuner:
+class ControlTuner:
+    # TODO Add autotune and autoselect surrogate modes.
     """
     This class tunes SysID+MPC pipelines.
     """
-    def __init__(self, surrogate_mode="defaultcfg", surrogate_factory=None, surrogate_split=None, 
-            surrogate_cfg=None, evaluation_quantile=0.5,
+    def __init__(self, surrogate_mode="default", surrogate_split=None, 
+            surrogate_cfg=None, evaluation_quantile=0.5, surrogate=None,
             surrogate_evaluator=None, surrogate_tune_holdout=0.25, surrogate_tune_metric="rmse",
             control_evaluator_class=None, control_evaluator_kwargs=dict()): # TODO update docstring
         """
         Parameters
         ----------
         surrogate_mode : string
-            Mode for selecting surrogate model. One of the following: "defaultcfg" - use the surrogate factories
-            default configuration, "fixedcfg" - use the surrogate configuration passed by surrogate_cfg,
-            "autotune" - automatically tune hyperparameters of surrogate, "autoselect" - automatically tune and
-            select surrogate model, "pretrain" - Use an already trained surrogate which is passed when the tuning
+            Mode for selecting surrogate model. One of the following: "default" - use the surrogate models
+            currently set configuration or default configuration if none is currently set,
+            "autotune" - automatically tune hyperparameters of surrogate,
+            "autoselect" - automatically tune and select surrogate model,
+            "pretrain" - Use an already trained surrogate which is passed when the tuning
             process is run.
-        surrogate_factory : ModelFactory
-            Factory for creating surrogate model. Required for all modes except for autoselect.
+        surrogate : Model
+            Surrogate model. Required for all modes except for autoselect.
         surrogate_split : float
             Proportion of data to use for surrogate training.  Required for all modes except "pretrain"
-        surrogate_cfg : Configuration
-            Surrogate model config, required for "fixedcfg" mode
         surrogate_evaluator : ModelEvaluator
             Evaluator to use for surrogate tuning, used for "autoselect" and "autotune" modes. If not
             passed, will use HoldoutEvaluator with default arguments.
@@ -250,9 +248,8 @@ class PipelineTuner:
             of ModelEvaluator for more details.
         """
         self.surrogate_mode = surrogate_mode
-        self.surrogate_factory = surrogate_factory
+        self.surrogate = surrogate
         self.surrogate_split = surrogate_split
-        self.surrogate_cfg = surrogate_cfg
         self.surrogate_evaluator = surrogate_evaluator
         self.surrogate_tune_holdout = surrogate_tune_holdout
         self.surrogate_tune_metric = surrogate_tune_metric
@@ -260,46 +257,44 @@ class PipelineTuner:
         self.control_evaluator_kwargs = control_evaluator_kwargs
         self.evaluation_quantile = evaluation_quantile
 
-    def _get_tuning_data(self, pipeline, task, trajs, truedyn, rng, surrogate, surrogate_tune_iters):
+    def _get_tuning_data(self, controller, task, trajs, truedyn, rng, surrogate, surrogate_tune_iters):
         # Run surrogate training
-        if surrogate is None:
+        if self.surrogate_mode != "pretrain":
             surr_size = int(self.surrogate_split * len(trajs))
             shuffled_trajs = trajs[:]
             rng.shuffle(shuffled_trajs)
             surr_trajs = shuffled_trajs[:surr_size]
             sysid_trajs = shuffled_trajs[surr_size:]
 
-            if self.surrogate_factory is None:
-                surrogate_factory = MLPFactory(pipeline.system)
-            else:
-                surrogate_factory = self.surrogate_factory
-
             control_eval_rng = np.random.default_rng(rng.integers(1 << 31))
             if self.control_evaluator_class is None:
-                control_evaluator = SurrogateEvaluator(pipeline.system, task, surr_trajs,
-                        surrogate_factory, rng=rng, surrogate_cfg = self.surrogate_cfg,
+                control_evaluator = SurrogateEvaluator(controller.system, task, surr_trajs,
+                        surrogate=self.surrogate, rng=rng,
                         surrogate_mode=self.surrogate_mode, 
                         surrogate_tune_iters=surrogate_tune_iters, 
                         **self.control_evaluator_kwargs)
             else:
-                control_evaluator = self.control_evaluator_class(pipeline.system, task,
-                        surr_trajs, rng=control_eval_rng, **self.control_evaluator_kwargs)
+                control_evaluator = self.control_evaluator_class(controller.system, task,
+                        surr_trajs, surrogate=self.surrogate,
+                        surrogate_mode=self.surrogate_mode,
+                        surrogate_tune_iters=surrogate_tune_iters,
+                        rng=control_eval_rng, **self.control_evaluator_kwargs)
         else:
             sysid_trajs = trajs
             surr_trajs = None
-            control_evaluator = SurrogateEvaluator(pipeline.system, task, trajs=None,
-                    surrogate_factory=None, surrogate=surrogate)
+            control_evaluator = SurrogateEvaluator(controller.system, task, trajs=None,
+                    surrogate=surrogate, surrogate_mode=self.surrogate_mode)
 
         if not truedyn is None:
-            truedyn_evaluator = TrueDynamicsEvaluator(pipeline.system, task, trajs=None,
+            truedyn_evaluator = TrueDynamicsEvaluator(controller.system, task, trajs=None,
                     dynamics = truedyn)
         else:
             truedyn_evaluator = None
 
         tuning_data = dict()
-        tuning_data["pipeline"] = pipeline
+        tuning_data["controller"] = controller
         tuning_data["control_evaluator"] = control_evaluator
-        tuning_data["task"] = task
+        #tuning_data["task"] = task
         tuning_data["sysid_trajs"] = sysid_trajs
         tuning_data["surr_trajs"] = surr_trajs
         tuning_data["truedyn_evaluator"] = truedyn_evaluator
@@ -376,7 +371,7 @@ class PipelineTuner:
         else:
             surr_tune_result = None
 
-        tune_result = PipelineTuneResult(inc_cfg = inc_cfg,
+        tune_result = ControlTunerResult(inc_cfg = inc_cfg,
                 cfgs = cfgs,
                 inc_cfgs = inc_cfgs,
                 costs = costs,
@@ -391,7 +386,7 @@ class PipelineTuner:
 
         return tune_result
 
-    def run(self, pipeline, task, trajs, n_iters, rng, surrogate=None, truedyn=None, 
+    def run(self, controller, tasks, trajs, n_iters, rng, surrogate=None, truedyn=None, 
             surrogate_tune_iters=100, eval_timeout=600, output_dir=None, restore_dir=None,
             save_all_controllers=False, use_default_initial_design=True,
             debug_return_evaluator=False, max_eval_jobs=1): #TODO update docstring
@@ -400,11 +395,11 @@ class PipelineTuner:
 
         Parameters
         ----------
-        pipeline : Pipeline
-            Pipeline to tune.
+        controller : Controller
+            Controller to tune.
 
-        task : Task
-            Task specification to tune for
+        tasks : Task
+            TODO Update Entry
 
         trajs : List of Trajectory
             Trajectory training set.
@@ -414,9 +409,6 @@ class PipelineTuner:
 
         rng : numpy.random.Generator
             RNG to use for tuning.
-
-        surrogate : Model
-            Surrogate model to use for tuning. Used for "pretrain" mode.
 
         truedyn : obs, ctrl -> obs
             True dynamics function. If passed, the true dynamics cost
@@ -478,8 +470,11 @@ class PipelineTuner:
         else:
             controller_save_dir = None
 
+        if surrogate is None:
+            surrogate = self.surrogate
+
         if not restore_dir:
-            tuning_data = self._get_tuning_data(pipeline, task, trajs, truedyn, rng, 
+            tuning_data = self._get_tuning_data(controller, tasks, trajs, truedyn, rng, 
                 surrogate, surrogate_tune_iters)
             with open(os.path.join(run_dir, "tuning_data.pkl"), "wb") as f:
                 pickle.dump(tuning_data, f)
@@ -499,7 +494,7 @@ class PipelineTuner:
         smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
         scenario = Scenario({"run_obj" : "quality",
                              "runcount-limit" : n_iters,
-                             "cs" : pipeline.get_configuration_space(),
+                             "cs" : controller.get_config_space(),
                              "deterministic" : "true",
                              "limit_resources" : False,
                              "abort_on_first_run_crash" : False,
@@ -533,8 +528,11 @@ class PipelineTuner:
 
 
         # Generate final model and controller
-        controller, cost, model = pipeline(inc_cfg, tuning_data["sysid_trajs"])
+        tuned_controller = controller.clone()
+        tuned_controller.set_trajs(tuning_data["sysid_trajs"])
+        tuned_controller.set_config(inc_cfg)
+        tuned_controller.build()
 
         tune_result = self._get_tune_result(tuning_data, smac.runhistory)
 
-        return controller, tune_result
+        return tuned_controller, tune_result

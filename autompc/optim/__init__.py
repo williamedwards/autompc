@@ -7,4 +7,4 @@ from .ilqr import IterativeLQR
 from .mppi import MPPI
 #from .zero import ZeroController, ZeroControllerFactory
 #from .wrapped_factory import WrappedFactory
-#from .rounded_controller import RoundedController
+from .rounded_optimizer import RoundedOptimizer

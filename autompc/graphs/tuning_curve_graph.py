@@ -1,4 +1,4 @@
-from ..tuning.pipeline_tuner import PipelineTuneResult
+from ..tuning.control_tuner import ControlTunerResult
 from ..tuning.model_tuner import ModelTuneResult
 
 class TuningCurveGraph:

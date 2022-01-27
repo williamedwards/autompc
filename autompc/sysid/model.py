@@ -3,7 +3,7 @@
 import numpy as np
 
 from abc import ABC, abstractmethod
-from pdb import set_trace
+import copy
 
 from ..trajectory import zeros
 
@@ -30,6 +30,9 @@ class Model(ABC):
     @abstractmethod
     def set_config(self, config):
         raise NotImplementedError
+
+    def clone(self):
+        return copy.deepcopy(self)
 
     @abstractmethod
     def traj_to_state(self, traj):

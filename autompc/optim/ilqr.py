@@ -211,7 +211,7 @@ class IterativeLQR(Optimizer):
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks, ks
 
-    def run(self, state, silent=False):
+    def run(self, state, silent=True):
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         converged, states, ctrls, Ks, ks = self.compute_ilqr(state, self._guess,

@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from scipy.stats import norm
 
 class ControlEvaluator(ABC):
-    def __init__(self, system, task, trajs):
+    def __init__(self, system, tasks, trajs):
         self.system = system
-        self.task = task
+        self.tasks = tasks
         self.trajs = trajs
 
     @abstractmethod
