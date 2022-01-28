@@ -193,3 +193,62 @@ def set_hyper_constant(cs, hp_name, value):
     name = hp.name
     new_hp = CS.Constant(name=name, value=value)
     cs._hyperparameters[name] = new_hp
+
+def get_hyper_bool(config, name, default=False):
+    try:
+        val = config[name]
+    except KeyError:
+        return default
+    if val is None:
+        return default
+    elif isinstance(val, bool):
+        return val
+    elif isinstance(val, str):
+        if val == "true":
+            return True
+        elif val == "false":
+            return False
+        else:
+            raise ValueError("Unknown value for boolean hyperparameter")
+    else:
+        raise ValueError("Unknown type for boolean hyperparameter")
+
+def get_hyper_int(config, name, default=None):
+    try:
+        val = config[name]
+    except KeyError:
+        return default
+    if val is None:
+        return default
+    elif isinstance(val, int):
+        return val
+    elif isinstance(val, str):
+        return int(val)
+    else:
+        raise ValueError("Unknown type for integer hyperparameter")
+
+def get_hyper_float(config, name, default=None):
+    try:
+        val = config[name]
+    except KeyError:
+        return default
+    if val is None:
+        return default
+    elif isinstance(val, float):
+        return val
+    elif isinstance(val, str):
+        return float(val)
+    else:
+        raise ValueError("Unknown type for float hyperparameter")
+
+def get_hyper_str(config, name, default=None):
+    try:
+        val = config[name]
+    except KeyError:
+        return default
+    if val is None:
+        return default
+    elif isinstance(val, str):
+        return val
+    else:
+        raise ValueError("Unknown type for string hyperparameter")

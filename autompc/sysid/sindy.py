@@ -1,72 +1,67 @@
+
+
+# Standard library includes
+import pickle
+
+# External library includes
 import numpy as np
 import numpy.linalg as la
 import scipy.linalg as sla
-from pdb import set_trace
-from sklearn.linear_model import  Lasso
-
-from .model import Model, ModelFactory
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
-
 import pysindy as ps
 import pysindy.differentiation as psd
+from sklearn.linear_model import  Lasso
 
+# Internal library includes
+from .model import Model
 from .basis_funcs import *
+from ..utils.cs_utils import (get_hyper_bool, get_hyper_str,
+        get_hyper_float, get_hyper_int)
 
-class FourthOrderFiniteDifference(psd.base.BaseDifferentiation):
-    def _differentiate(self, x, t):
-        fd = psd.FiniteDifference(order=2)
-        xdot = fd._differentiate(x, t)
-        xdot[2:-2] = -x[4:] + 8 * x[3:-1] - 8 * x[1:-3] + x[:-4]
-        return xdot
-
-class SINDyFactory(ModelFactory):
+class SINDy(Model):
     R"""
     Sparse Identification of Nonlinear Dynamics (SINDy) is an system identification approach that works as follows. 
     Using a library of :math:`k` pre-selected functions (e.g. :math:`f \in \mathbb{R}^k`), it computes numerically the derivatives
-    of the system states (e.g. :math:`\dot{x} \in \mathbb{R}^n`) iteratively solves a least-squares optimization 
+    of the system states (e.g. :math:`\dot{x} \in \mathbb{R}^n`) and iteratively solves a least-squares optimization 
     to identify the weights :math:`K \in \mathbb{R}^{n \times k}` that best fit the data: e.g. :math:`\|\dot{x} - Kf(x) \|^2`. 
     In every iteration, functions whose weights are below a user-specified threshold :math:`\lambda` are discarded. 
     For more information, the reader is referred to https://arxiv.org/pdf/2004.08424.pdf
+
+    Parameters:
+
+    - **allow_cross_terms** *(Type: bool, Default: False)* Controls whether to allow polynomial cross-terms and trig
+      interaction terms in the basis functions.  For large systems, setting this to true can lead to very large sets
+      of basis functions, which can greatly slow down tuning/training.
     
     Hyperparameters:
 
-    - *time_mode* (Type str, Choices: ["discrete", "continuous"]): Whether to learn dynamics equations
+    - **time_mode** *(Type str, Choices: ["discrete", "continuous"])*: Whether to learn dynamics equations
       as discrete-time or continous-time.
-    - *method* (Type str, Choices: ["lstsq, lasso"], Default: "lstsq"): Method for selecting
-      model coefficients.
-    - *lasso_alpha* (Type: str, Low: 10^-5, High: 10^2, Default: 1): α parameter for lasso regression.
-      (Conditioned on method="lasso")
-    - *poly_basis* (Type: bool): Whether to use polynomial basis functions
-    - *poly_degree* (Type: int, Low: 2, High: 8, Default: 3): Maximum degree of polynomial terms.
+    - **threshold** *(Type: float, Low: 1e-5, High: 10, Default: 1e-2)*: Threshold :math:`\lambda` to use
+      for dropping basis functions.
+    - **poly_basis** *(Type: bool)*: Whether to use polynomial basis functions
+    - **poly_degree** *(Type: int, Low: 2, High: 8, Default: 3)*: Maximum degree of polynomial terms.
       (Conditioned on poly_basis="true")
-    - *poly_cross_terms* (Type: bool): Whether to include polynomial cross-terms.
+    - **poly_cross_terms** *(Type: bool)*: Whether to include polynomial cross-terms.
       (Conditioned on poly_basis="true")
-    - *trig_basis* (Type: bool): Whether to include trigonometric basis terms.
-    - *trig_freq* (Type: int, Low: 1, High: 8, Default: 1): Maximum trig function frequency to include.
+    - **trig_basis** *(Type: bool)*: Whether to include trigonometric basis terms.
+    - **trig_freq** *(Type: int, Low: 1, High: 8, Default: 1)*: Maximum trig function frequency to include.
       (Conditioned on trig_basis="true")
-    - *trig_interaction* (Type: bool): Whether to include cross-multiplication terms between trig functions
+    - **trig_interaction** *(Type: bool)*: Whether to include cross-multiplication terms between trig functions
       and other state variables.
     """ #TODO Consider whether to remove Lasso
-    def __init__(self, *args, allow_cross_terms=True, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.Model = SINDy
-        self.name = "SINDy"
+    def __init__(self, system, allow_cross_terms=False):
         self.allow_cross_terms = allow_cross_terms
+        super().__init__(system, "SINDy")
 
-    def get_configuration_space(self):
+    def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         time_mode = CSH.CategoricalHyperparameter("time_mode", 
                 choices=["discrete", "continuous"])
-        #method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso"])
-        method = CSH.CategoricalHyperparameter("method", choices=["lstsq"])
         threshold = CSH.UniformFloatHyperparameter("threshold",
                 lower=1e-5, upper=1e1, default_value=1e-2, log=True)
-        #lasso_alpha = CSH.UniformFloatHyperparameter("lasso_alpha", 
-        #        lower=1e-5, upper=1e2, default_value=1.0, log=True)
-        #use_lasso_alpha = CSC.InCondition(child=lasso_alpha, parent=method, 
-        #        values=["lasso"])
 
         poly_basis = CSH.CategoricalHyperparameter("poly_basis", 
                 choices=["true", "false"], default_value="false")
@@ -96,38 +91,22 @@ class SINDyFactory(ModelFactory):
         use_trig_interaction = CSC.InCondition(child=trig_interaction, parent=trig_basis,
                 values=["true"])
 
-        #cs.add_hyperparameters([method, lasso_alpha, threshold,
-        #    poly_basis, poly_degree, trig_basis, trig_freq, trig_interaction, 
-        #    poly_cross_terms, time_mode])
-        #cs.add_conditions([use_lasso_alpha, use_poly_degree, use_trig_freq, use_trig_interaction])
-        cs.add_hyperparameters([method, threshold,
+        cs.add_hyperparameters([threshold,
             poly_basis, poly_degree, trig_basis, trig_freq, trig_interaction, 
             poly_cross_terms, time_mode])
         cs.add_conditions([use_poly_degree, use_trig_freq, use_trig_interaction])
 
         return cs
 
-class SINDy(Model):
-    def __init__(self, system, method, lasso_alpha=None, threshold=1e-2, poly_basis=False,
-            poly_degree=1, poly_cross_terms=False, trig_basis=False, trig_freq=1, trig_interaction=False, time_mode="discrete"):
-        super().__init__(system)
-
-        self.method = method
-        self.lasso_alpha = lasso_alpha
-        if type(poly_basis) == str:
-            poly_basis = True if poly_basis == "true" else False
-        self.poly_basis = poly_basis
-        self.poly_degree = poly_degree
-        self.poly_cross_terms = poly_cross_terms
-        if type(trig_basis) == str:
-            trig_basis = True if trig_basis == "true" else False
-        self.trig_basis = trig_basis
-        self.trig_freq = trig_freq
-        self.trig_interaction = trig_interaction
-        if type(trig_interaction) == str:
-            self.trig_interaction = True if trig_interaction == "true" else False
-        self.time_mode = time_mode
-        self.threshold = threshold
+    def set_config(self, config):
+        self.poly_basis = get_hyper_bool(config, "poly_basis")
+        self.poly_degree = get_hyper_int(config, "poly_degree")
+        self.poly_cross_terms = get_hyper_bool(config, "poly_cross_terms")
+        self.trig_basis = get_hyper_bool(config, "trig_basis")
+        self.trig_freq = get_hyper_int(config, "trig_freq")
+        self.trig_interaction = get_hyper_bool(config, "trig_interaction")
+        self.time_mode = get_hyper_str(config, "time_mode")
+        self.threshold = get_hyper_float(config, "threshold")
 
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()
@@ -135,15 +114,14 @@ class SINDy(Model):
     def update_state(self, state, new_ctrl, new_obs):
         return new_obs.copy()
 
+    def clear(self):
+        self.model = None
+
     @property
     def state_dim(self):
         return self.system.obs_dim
 
-    def train(self, trajs, xdot=None, silent=False):
-        X = [traj.obs for traj in trajs]
-        U = [traj.ctrls for traj in trajs]
-
-        #basis_funcs = [get_constant_basis_func(), get_identity_basis_func()]
+    def _init_model(self):
         basis_funcs = [get_identity_basis_func()]
         if self.trig_basis:
             for freq in range(1,self.trig_freq+1):
@@ -168,14 +146,23 @@ class SINDy(Model):
             sindy_model = ps.SINDy(feature_library=library, 
                     discrete_time=False,
                     optimizer=ps.STLSQ(threshold=self.threshold))
-            sindy_model.fit(X, u=U, multiple_trajectories=True, 
-                    t=self.system.dt, x_dot=xdot)
         elif self.time_mode == "discrete":
             sindy_model = ps.SINDy(feature_library=library, 
                     discrete_time=True,
                     optimizer=ps.STLSQ(threshold=self.threshold))
-            sindy_model.fit(X, u=U, multiple_trajectories=True)
         self.model = sindy_model
+
+    def train(self, trajs, xdot=None, silent=False):
+        self._init_model()
+
+        X = [traj.obs for traj in trajs]
+        U = [traj.ctrls for traj in trajs]
+
+        if self.time_mode == "continuous":
+            self.model.fit(X, u=U, multiple_trajectories=True, 
+                    t=self.system.dt, x_dot=xdot)
+        elif self.time_mode == "discrete":
+            self.model.fit(X, u=U, multiple_trajectories=True)
 
     def pred(self, state, ctrl):
         xpred = self.pred_batch(state.reshape((1,state.size)), 
@@ -255,11 +242,10 @@ class SINDy(Model):
             ctrl_jac = self.system.dt * ctrl_jac
         return xpred, state_jac, ctrl_jac
 
-    # TODO fix this
     def get_parameters(self):
-        return {"A" : np.copy(self.A),
-                "B" : np.copy(self.B)}
+        breakpoint()
+        return self.model.model.get_params(deep=True)
 
     def set_parameters(self, params):
-        self.A = np.copy(params["A"])
-        self.B = np.copy(params["B"])
+        self._init_model()
+        self.model.model.set_params(**params)

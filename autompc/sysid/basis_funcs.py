@@ -7,6 +7,18 @@ from collections import namedtuple
 
 BasisFunction = namedtuple("BasisFunction", ["n_args", "func", "grad_func", "name_func"])
 
+class IdentityBasisFunction:
+    n_args = 1
+
+    def func(self):
+        return 1
+
+    def grad_func(self):
+        return [0]
+
+    def name_func(self):
+        return ""
+
 def get_constant_basis_func():
     return BasisFunction(n_args=0,
             func =      lambda : 1,

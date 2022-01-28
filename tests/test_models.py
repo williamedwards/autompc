@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 # Internal library inlcudes
 sys.path.insert(0, "..")
 import autompc as ampc
-from autompc.sysid import MLP, ARX
+from autompc.sysid import MLP, ARX, SINDy
 from autompc.benchmarks import DoubleIntegratorBenchmark
 
 
@@ -139,6 +139,35 @@ class ARXTest(GenericModelTest, unittest.TestCase):
     def get_precomputed_prefix(self):
         return "precomputed/arx"
 
+class SINDyTest(GenericModelTest, unittest.TestCase):
+    def get_model(self, system):
+        return SINDy(system, allow_cross_terms=True)
+
+    def get_configs_to_test(self):
+        poly_config = self.model.get_default_config()
+        poly_config["poly_basis"] = "true"
+        poly_config["poly_degree"] = 3
+        poly_config["poly_cross_terms"] = "true"
+        
+        trig_config = self.model.get_default_config()
+        trig_config["trig_basis"] = "true"
+        trig_config["trig_freq"] = 3
+        trig_config["trig_interaction"] = "true"
+
+        trig_and_poly_config = self.model.get_default_config()
+        trig_and_poly_config["poly_basis"] = "true"
+        trig_and_poly_config["poly_degree"] = 2
+        trig_and_poly_config["trig_basis"] = "true"
+        trig_and_poly_config["trig_freq"] = 2
+
+        return {"poly" : poly_config,
+                "trig" : trig_config,
+                "trig_and_poly" : trig_and_poly_config}
+
+    def get_precomputed_prefix(self):
+        return "precomputed/sindy"
+
+
 
 if __name__ == "__main__":
     if sys.argv[1] == "precompute":
@@ -146,6 +175,8 @@ if __name__ == "__main__":
             test = MLPTest()
         elif sys.argv[2] == "arx":
             test = ARXTest()
+        elif sys.argv[2] == "sindy":
+            test = SINDyTest()
         else:
             raise ValueError("Unknown model")
         test.setUp()
