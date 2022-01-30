@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 # Internal library inlcudes
 sys.path.insert(0, "..")
 import autompc as ampc
-from autompc.sysid import MLP, ARX, SINDy
+from autompc.sysid import MLP, ARX, SINDy, ApproximateGPModel
 from autompc.benchmarks import DoubleIntegratorBenchmark
 
 
@@ -96,6 +96,8 @@ class GenericModelTest(ABC):
 
             # Compare to pre-computed values
             precomp = self.get_precomputed(label)
+            if not np.allclose(preds1, precomp):
+                breakpoint()
             self.assertTrue(np.allclose(preds1, precomp))
 
             predss.append(preds1)
@@ -167,6 +169,15 @@ class SINDyTest(GenericModelTest, unittest.TestCase):
     def get_precomputed_prefix(self):
         return "precomputed/sindy"
 
+class ApproximateGPTest(GenericModelTest, unittest.TestCase):
+    def get_model(self, system):
+        return ApproximateGPModel(system)
+
+    def get_configs_to_test(self):
+        return dict()
+
+    def get_precomputed_prefix(self):
+        return "precomputed/approxgp"
 
 
 if __name__ == "__main__":
@@ -177,6 +188,8 @@ if __name__ == "__main__":
             test = ARXTest()
         elif sys.argv[2] == "sindy":
             test = SINDyTest()
+        elif sys.argv[2] == "approxgp":
+            test = ApproximateGPTest()
         else:
             raise ValueError("Unknown model")
         test.setUp()

@@ -122,7 +122,7 @@ class SINDy(Model):
         return self.system.obs_dim
 
     def _init_model(self):
-        basis_funcs = [get_identity_basis_func()]
+        basis_funcs = [IdentityBasisFunction()]
         if self.trig_basis:
             for freq in range(1,self.trig_freq+1):
                 basis_funcs += get_trig_basis_funcs(freq)
@@ -131,12 +131,12 @@ class SINDy(Model):
 
         if self.poly_basis:
             for deg in range(2,self.poly_degree+1):
-                basis_funcs.append(get_poly_basis_func(deg))
+                basis_funcs.append(PolyBasisFunction(deg))
             if self.poly_cross_terms:
                 for deg in range(2,self.poly_degree+1):
                     basis_funcs += get_cross_term_basis_funcs(deg)
 
-        library_functions = [basis.func for basis in basis_funcs]
+        library_functions = basis_funcs #[basis.func for basis in basis_funcs]
         function_names = [basis.name_func for basis in basis_funcs]
         library = ps.CustomLibrary(library_functions=library_functions,
                 function_names=function_names)
@@ -243,9 +243,7 @@ class SINDy(Model):
         return xpred, state_jac, ctrl_jac
 
     def get_parameters(self):
-        breakpoint()
-        return self.model.model.get_params(deep=True)
+        return {"pickled_model" : pickle.dumps(self.model)}
 
     def set_parameters(self, params):
-        self._init_model()
-        self.model.model.set_params(**params)
+        self.model = pickle.loads(params["pickled_model"])

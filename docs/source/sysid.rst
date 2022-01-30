@@ -43,4 +43,4 @@ Koopman
 Approximate Gaussian Process
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: autompc.sysid.ApproximateGPModelFactory
+.. autoclass:: autompc.sysid.ApproximateGPModel

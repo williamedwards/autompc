@@ -5,37 +5,66 @@ import inspect
 from pdb import set_trace
 from collections import namedtuple
 
-BasisFunction = namedtuple("BasisFunction", ["n_args", "func", "grad_func", "name_func"])
+CoargTuple = namedtuple("CoargTuple", ["co_argcount"])
 
 class IdentityBasisFunction:
-    n_args = 1
+    def __init__(self):
+        self.n_args = 1
+        self.__code__ = CoargTuple(self.n_args)
 
-    def func(self):
-        return 1
+    def __call__(self, x):
+        return x
 
-    def grad_func(self):
-        return [0]
+    def grad_func(self, x):
+        return [1]
 
-    def name_func(self):
-        return ""
+    def name_func(self, x):
+        return x
 
-def get_constant_basis_func():
-    return BasisFunction(n_args=0,
-            func =      lambda : 1,
-            grad_func = lambda : [0],
-            name_func = lambda : "")
+class PolyBasisFunction:
+    def __init__(self, degree):
+        self.n_args = 1
+        self.degree = degree
+        self.__code__ = CoargTuple(self.n_args)
 
-def get_identity_basis_func():
-    return BasisFunction(n_args=1,
-            func =      lambda x : x,
-            grad_func = lambda x : [1],
-            name_func = lambda x : x)
+    def __call__(self, x):
+        return x**self.degree
 
-def get_poly_basis_func(degree):
-    return BasisFunction(n_args=1,
-            func =      lambda x : x**degree,
-            grad_func = lambda x : [x**(degree-1)],
-            name_func = lambda x : "{}**{}".format(x,degree))
+    def grad_func(self, x):
+        degree * x**(self.degree-1)
+
+    def name_func(self, x):
+        return "{}**{}".format(x,self.degree)
+
+class PolynomialCrossTerm:
+    def __init__(self, n_args, trimmed_exp):
+        self.n_args = n_args
+        self.trimmed_exp = trimmed_exp
+        self.__code__ = CoargTuple(self.n_args)
+
+    def __call__(self, *args):
+        val = 1.0
+        for arg, exp in zip(args, self.trimmed_exp):
+            val *= arg**exp
+        return val
+
+    def grad_func(self, *args):
+        grads = []
+        for i in range(len(args)):
+            val = 1.0
+            for j, (arg, exp) in enumerate(zip(args, self.trimmed_exp)):
+                if i != j:
+                    val *= arg**exp
+                else:
+                    val *= exp * arg**(exp-1)
+            grads.append(val)
+        return np.array(grads)
+
+    def name_func(self, *args):
+        name = ""
+        for arg, exp in zip(args, self.trimmed_exp):
+            name += "{}^{} ".format(arg, exp)
+        return name
 
 def get_cross_term_basis_funcs(degree):
     bfuncs = []
@@ -50,89 +79,87 @@ def get_cross_term_basis_funcs(degree):
             continue
         used_exps.add(trimmed_exp)
         n_args = len(trimmed_exp)
-        arg_str = ", ".join(["x{}".format(i) for i in range(n_args)])
-        def func_(*args, tr):
-            val = 1.0
-            for arg, exp in zip(args, tr):
-                val *= arg**exp
-            return val
-
-        if n_args == 1:
-            func = lambda x0, *, tr=trimmed_exp: func_(x0, tr=tr)
-        elif n_args == 2:
-            func = lambda x0, x1, *, tr=trimmed_exp: func_(x0, x1, tr=tr)
-        elif n_args == 3:
-            func = lambda x0, x1, x2, *, tr=trimmed_exp: func_(x0, x1, x2, tr=tr)
-        elif n_args == 4:
-            func = lambda x0, x1, x2, x3, *, tr=trimmed_exp: func_(x0, x1, x2, x3, tr=tr)
-        elif n_args == 5:
-            func = lambda x0, x1, x2, x3, x4, *, tr=trimmed_exp: func_(x0, x1, x2, \
-                    x3, x4, tr=tr)
-        elif n_args == 6:
-            func = lambda x0, x1, x2, x3, x4, x5, *, tr=trimmed_exp: func_(x0, x1, \
-                    x2, x3, x4, x5, tr=tr)
-        elif n_args == 7:
-            func = lambda x0, x1, x2, x3, x4, x5, x6, *, tr=trimmed_exp: func_(x0, x1, \
-                    x2, x3, x4, x5, x6, tr=tr)
-        elif n_args == 8:
-            func = lambda x0, x1, x2, x3, x4, x5, x6, x7, *,tr=trimmed_exp: func_(x0, x1, \
-                    x2, x3, x4, x5, x6, x7, tr=tr)
-        elif n_args == 9:
-            func = lambda x0, x1, x2, x3, x4, x5, x6, x7, x8,*,tr=trimmed_exp: func_(x0, \
-                    x1, x2, x3, x4, x5, x6, x7, x8, tr=tr)
-        elif n_args == 10:
-            func = lambda x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, *, tr=trimmed_exp: \
-                    func_(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, tr=tr)
-        else:
-            raise ValueError("n_args > 10")
-
-        def grad_func(*args, trimmed_exp=trimmed_exp):
-            grads = []
-            for i in range(len(args)):
-                val = 1.0
-                for j, (arg, exp) in enumerate(zip(args, trimmed_exp)):
-                    if i != j:
-                        val *= arg**exp
-                    else:
-                        val *= exp * arg**(exp-1)
-                grads.append(val)
-            return np.array(grads)
-        def name_func(*args, trimmed_exp=trimmed_exp):
-            name = ""
-            for arg, exp in zip(args, trimmed_exp):
-                name += "{}^{} ".format(arg, exp)
-            return name
-        bfuncs.append(BasisFunction(n_args = n_args, func = func, 
-            grad_func=grad_func, name_func=name_func))
+        bfuncs.append(PolynomialCrossTerm(n_args, trimmed_exp))
     return bfuncs
 
+class SineBasisFunction:
+    def __init__(self, freq):
+        self.n_args = 1
+        self.freq = freq
+        self.__code__ = CoargTuple(self.n_args)
+
+    def __call__(self, x):
+        return np.sin(self.freq * x)
+
+    def grad_func(self, x):
+        return freq * np.cos(self.freq * x)
+
+    def name_func(self, x):
+        return "sin({} {})".format(self.freq, x)
+
+class CosineBasisFunction:
+    def __init__(self, freq):
+        self.n_args = 1
+        self.freq = freq
+        self.__code__ = CoargTuple(self.n_args)
+
+    def __call__(self, x):
+        return np.cos(self.freq * x)
+
+    def grad_func(self, x):
+        return -freq * np.sin(self.freq * x)
+
+    def name_func(self, x):
+        return "cos({} {})".format(self.freq, x)
+
 def get_trig_basis_funcs(freq):
-    sin_bfunc = BasisFunction(n_args=1,
-            func      = lambda x : np.sin(freq * x),
-            grad_func = lambda x : [freq * np.cos(freq * x)],
-            name_func = lambda x : "sin({} {})".format(freq, x))
-    cos_bfunc = BasisFunction(n_args=1,
-            func      = lambda x : np.cos(freq * x),
-            grad_func = lambda x : [-freq * np.sin(freq * x)],
-            name_func = lambda x : "cos({} {})".format(freq, x))
-    return [sin_bfunc, cos_bfunc]
+    return [SineBasisFunction(freq), CosineBasisFunction(freq)]
+
+class SineInteractionTerm:
+    def __init__(self, freq, swap_args=False):
+        self.n_args = 2
+        self.freq = freq
+        self.swap_args = swap_args
+        self.__code__ = CoargTuple(self.n_args)
+
+    def __call__(self, x, y):
+        if self.swap_args:
+            x, y = y, x
+        return x * np.sin(self.freq * y)
+
+    def grad_func(self, x, y):
+        if self.swap_args:
+            x, y = y, x
+        return [np.sin(self.freq * y), x * self.freq * np.cos(self.freq * y)]
+
+    def name_func(self, x, y):
+        if self.swap_args:
+            x, y = y, x
+        return "{} sin({} {})".format(x, self.freq, y)
+
+class CosineInteractionTerm:
+    def __init__(self, freq, swap_args=False):
+        self.n_args = 2
+        self.freq = freq
+        self.swap_args = swap_args
+        self.__code__ = CoargTuple(self.n_args)
+
+    def __call__(self, x, y):
+        if self.swap_args:
+            x, y = y, x
+        return x * np.cos(self.freq * y)
+
+    def grad_func(self, x, y):
+        if self.swap_args:
+            x, y = y, x
+        return [np.cos(freq * y), x * -self.freq * np.sin(self.freq * y)]
+
+    def name_func(self, x, y):
+        if self.swap_args:
+            x, y = y, x
+        return "{} cos({} {})".format(x, self.freq, y)
 
 def get_trig_interaction_terms(freq):
-    sin_bfunc = BasisFunction(n_args=2,
-            func      = lambda x,y : x * np.sin(freq * y),
-            grad_func = lambda x,y : [np.sin(freq * y), x * freq * np.cos(freq * y)],
-            name_func = lambda x,y : "{} sin({} {})".format(x, freq, y))
-    sin_bfunc2 = BasisFunction(n_args=2,
-            func      = lambda y,x : x * np.sin(freq * y),
-            grad_func = lambda y,x : [x * freq * np.cos(freq * y), np.sin(freq * y)],
-            name_func = lambda y,x : "{} sin({} {})".format(x, freq, y))
-    cos_bfunc = BasisFunction(n_args=2,
-            func      = lambda x,y : x * np.cos(freq * y),
-            grad_func = lambda x,y : [np.cos(freq * y), x * -freq * np.sin(freq * y)],
-            name_func = lambda x,y : "{} cos({} {})".format(x, freq, y))
-    cos_bfunc2 = BasisFunction(n_args=2,
-            func      = lambda y,x : x * np.cos(freq * y),
-            grad_func = lambda y,x : [x * -freq * np.sin(freq * y), np.cos(freq * y)],
-            name_func = lambda y,x : "{} cos({} {})".format(x, freq, y))
-    return sin_bfunc, sin_bfunc2, cos_bfunc, cos_bfunc2
+    return [SineInteractionTerm(freq), SineInteractionTerm(freq, swap_args=True),
+            CosineInteractionTerm(freq), CosineInteractionTerm(freq, swap_args=True)]
 
