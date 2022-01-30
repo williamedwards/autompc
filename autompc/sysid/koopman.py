@@ -1,17 +1,22 @@
+# Standard library includes
+from itertools import combinations
+
+# External library includes
 import numpy as np
 import numpy.linalg as la
 import scipy.linalg as sla
-from pdb import set_trace
 from sklearn.linear_model import  Lasso
-
-from .model import Model, ModelFactory
-from .stable_koopman import stabilize_discrete
-
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
-class KoopmanFactory(ModelFactory):
+# Internal library includes
+from .model import Model
+from .stable_koopman import stabilize_discrete
+from .basis_funcs import *
+from ..utils.cs_utils import *
+
+class Koopman(Model):
     """
     This class identifies Koopman models of the form :math:`\dot{\Psi}(x) = A\Psi(x) + Bu`. 
     Given states :math:`x \in \mathbb{R}^n`, :math:`\Psi(x) \in \mathbb{R}^N` ---termed Koopman 
@@ -23,27 +28,36 @@ class KoopmanFactory(ModelFactory):
     The choice of the basis functions is an open research question. In this implementation, 
     we choose basis functions that depend only on the system states and not the control, 
     in order to derive a representation that is amenable for LQR control. 
-    
+
+    Parameters:
+
+    - **allow_cross_terms** *(Type: bool, Default: False)* Controls whether to allow polynomial cross-terms and trig
+      interaction terms in the basis functions.  For large systems, setting this to true can lead to very large sets
+      of basis functions, which can greatly slow down tuning/training.
 
     Hyperparameters:
 
-    - *method* (Type: str, Choices: ["lstsq", "lasso", "stable"]): Method for training Koopman
+    - **method** *(Type: str, Choices: ["lstsq", "lasso", "stable"])*: Method for training Koopman
       operator.
-    - *lasso_alpha* (Type: float, Low: 10^-10, High: 10^2, Defalt: 1.0): α parameter for Lasso
+    - **lasso_alpha** *(Type: float, Low: 10^-10, High: 10^2, Defalt: 1.0)*: α parameter for Lasso
       regression. (Conditioned on method="lasso").
-    - *poly_basis* (Type: bool): Whether to use polynomial basis functions.
-    - *poly_degree* (Type: int, Low: 2, High: 8, Default: 3): Maximum degree of polynomial basis
-      functions. (Conditioned on poly_basis="true").
-    - *trig_basis* (Type: bool): Whether to use trig basis functions.
-    - *trig_freq* (Type: int, Low: 1, High: 8, Default: 1): Maximum frequency of trig functions.
-    - *product_terms* (Type: bool): Whether to include cross-product terms.
+    - **poly_basis** *(Type: bool)*: Whether to use polynomial basis functions
+    - **poly_degree** *(Type: int, Low: 2, High: 8, Default: 3)*: Maximum degree of polynomial terms.
+      (Conditioned on poly_basis="true")
+    - **poly_cross_terms** *(Type: bool)*: Whether to include polynomial cross-terms.
+      (Conditioned on poly_basis="true")
+    - **trig_basis** *(Type: bool)*: Whether to include trigonometric basis terms.
+    - **trig_freq** *(Type: int, Low: 1, High: 8, Default: 1)*: Maximum trig function frequency to include.
+      (Conditioned on trig_basis="true")
+    - **trig_interaction** *(Type: bool)*: Whether to include cross-multiplication terms between trig functions
+      and other state variables.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.Model = Koopman
-        self.name = "Koopman"
+    def __init__(self, system, allow_cross_terms=False):
+        self.allow_cross_terms = allow_cross_terms
+        super().__init__(system, "Koopman")
 
-    def get_configuration_space(self):
+
+    def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso",
             "stable"])
@@ -56,65 +70,69 @@ class KoopmanFactory(ModelFactory):
                 choices=["true", "false"], default_value="false")
         poly_degree = CSH.UniformIntegerHyperparameter("poly_degree", lower=2, upper=8,
                 default_value=3)
+        if self.allow_cross_terms:
+            poly_cross_terms = CSH.CategoricalHyperparameter("poly_cross_terms",
+                    choices=["true", "false"], default_value="false")
+        else:
+            poly_cross_terms = CSH.CategoricalHyperparameter("poly_cross_terms",
+                    choices=["false"], default_value="false")
         use_poly_degree = CSC.InCondition(child=poly_degree, parent=poly_basis,
+                values=["true"])
+        use_poly_cross_terms = CSC.InCondition(child=poly_cross_terms, parent=poly_basis,
                 values=["true"])
 
         trig_basis = CSH.CategoricalHyperparameter("trig_basis", 
                 choices=["true", "false"], default_value="false")
         trig_freq = CSH.UniformIntegerHyperparameter("trig_freq", lower=1, upper=8,
                 default_value=1)
+        if self.allow_cross_terms:
+            trig_interaction = CSH.CategoricalHyperparameter("trig_interaction", 
+                    choices=["true", "false"], default_value="false")
+        else:
+            trig_interaction = CSH.CategoricalHyperparameter("trig_interaction", 
+                    choices=["false"], default_value="false")
         use_trig_freq = CSC.InCondition(child=trig_freq, parent=trig_basis,
                 values=["true"])
-
-        product_terms = CSH.CategoricalHyperparameter("product_terms",
-                choices=["false"], default_value="false")
-
+        use_trig_interaction = CSC.InCondition(child=trig_interaction, parent=trig_basis,
+                values=["true"])
 
         cs.add_hyperparameters([method, poly_basis, poly_degree,
-            trig_basis, trig_freq, product_terms, lasso_alpha])
-        cs.add_conditions([use_poly_degree, use_trig_freq, use_lasso_alpha])
+            trig_basis, trig_freq, poly_cross_terms, trig_interaction, lasso_alpha])
+        cs.add_conditions([use_poly_degree, use_trig_freq, use_lasso_alpha,
+            use_poly_cross_terms, use_trig_interaction])
 
         return cs
 
-class Koopman(Model):
-    def __init__(self, system, method, lasso_alpha=None, poly_basis=False,
-            poly_degree=1, trig_basis=False, trig_freq=1, product_terms=False,
-            use_cuda=None):
-        super().__init__(system)
+    def set_config(self, config):
+        self.method = get_hyper_str(config, "method")
+        self.lasso_alpha = get_hyper_float(config, "lasso_alpha")
+        self.poly_basis = get_hyper_bool(config, "poly_basis")
+        self.poly_degree = get_hyper_int(config, "poly_degree")
+        self.poly_cross_terms = get_hyper_bool(config, "poly_cross_terms")
+        self.trig_basis = get_hyper_bool(config, "trig_basis")
+        self.trig_freq = get_hyper_int(config, "trig_freq")
+        self.trig_interaction = get_hyper_bool(config, "trig_interaction")
 
-        self.method = method
-        if not lasso_alpha is None:
-            self.lasso_alpha = lasso_alpha
-        else:
-            self.lasso_alpha = None
-        if type(poly_basis) == str:
-            poly_basis = True if poly_basis == "true" else False
-        self.poly_basis = poly_basis
-        self.poly_degree = poly_degree
-        if type(trig_basis) == str:
-            trig_basis = True if trig_basis == "true" else False
-        self.trig_basis = trig_basis
-        self.trig_freq = trig_freq
-        if type(product_terms) == str:
-            self.product_terms = True if product_terms == "true" else False
-
-        self.basis_funcs = [lambda x: x]
-        if self.poly_basis:
-            self.basis_funcs += [lambda x: x**i for i in range(2, 1+self.poly_degree)]
+        basis_funcs = [IdentityBasisFunction()]
         if self.trig_basis:
-            for i in range(1, 1+self.poly_degree):
-                self.basis_funcs += [lambda x: np.sin(i*x), lambda x : np.cos(i*x)]
+            for freq in range(1,self.trig_freq+1):
+                basis_funcs += get_trig_basis_funcs(freq)
+                if self.trig_interaction:
+                    basis_funcs += get_trig_interaction_terms(freq)
+
+        if self.poly_basis:
+            for deg in range(2,self.poly_degree+1):
+                basis_funcs.append(PolyBasisFunction(deg))
+            if self.poly_cross_terms:
+                for deg in range(2,self.poly_degree+1):
+                    basis_funcs += get_cross_term_basis_funcs(deg)
+        self.basis_funcs = basis_funcs
 
     def _apply_basis(self, state):
-        tr_state = [b(x) for b in self.basis_funcs for x in state]
-        if self.product_terms:
-            pr_terms = []
-            for i, x in enumerate(tr_state):
-                for j, y in enumerate(tr_state):
-                    if i < j:
-                        pr_terms.append(x*y)
-            tr_state += pr_terms
-
+        tr_state = []
+        for basis in self.basis_funcs:
+            for idxs in combinations(range(self.system.obs_dim), basis.n_args):
+                tr_state.append(basis(*state[list(idxs)])) 
         return np.array(tr_state)
 
     def _transform_observations(self, observations):
@@ -131,7 +149,11 @@ class Koopman(Model):
 
     @property
     def state_dim(self):
-        return len(self.basis_funcs) * self.system.obs_dim
+        state_dim = 0
+        for basis in self.basis_funcs:
+            for idxs in combinations(range(self.system.obs_dim), basis.n_args):
+                state_dim += 1
+        return state_dim
 
     def train(self, trajs, silent=False):
         trans_obs = [self._transform_observations(traj.obs[:]) for traj in trajs]
@@ -163,6 +185,10 @@ class Koopman(Model):
 
         self.A, self.B = A, B
 
+    def clear(self):
+        self.A = None
+        self.B = None
+
     def pred(self, state, ctrl):
         xpred = self.A @ state + self.B @ ctrl
         return xpred
@@ -181,9 +207,9 @@ class Koopman(Model):
         return np.copy(self.A), np.copy(self.B)
 
     def get_parameters(self):
-        return {"A" : np.copy(self.A),
-                "B" : np.copy(self.B)}
+        return {"A" : self.A.tolist(),
+                "B" : self.B.tolist()}
 
     def set_parameters(self, params):
-        self.A = np.copy(params["A"])
-        self.B = np.copy(params["B"])
+        self.A = np.array(params["A"])
+        self.B = np.array(params["B"])

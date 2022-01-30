@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 # Internal library inlcudes
 sys.path.insert(0, "..")
 import autompc as ampc
-from autompc.sysid import MLP, ARX, SINDy, ApproximateGPModel
+from autompc.sysid import MLP, ARX, SINDy, ApproximateGPModel, Koopman
 from autompc.benchmarks import DoubleIntegratorBenchmark
 
 
@@ -36,14 +36,14 @@ class GenericModelTest(ABC):
     def get_precomputed_prefix(self):
         raise NotImplementedError
 
-    def get_inputs(self, num_inputs=100, seed=100):
+    def get_inputs(self, model, num_inputs=100, seed=100):
         states = []
         controls = []
         ctrl_bounds = self.benchmark.task.get_ocp().get_ctrl_bounds()
         rng = np.random.default_rng(seed)
         for traj in self.trajs:
             for i in range(1, len(traj)):
-                states.append(self.model.traj_to_state(traj[:i]))
+                states.append(model.traj_to_state(traj[:i]))
                 controls.append(rng.uniform(ctrl_bounds[0,0], ctrl_bounds[0,1]))
         states = np.array(states)
         controls = np.array(controls)
@@ -61,12 +61,12 @@ class GenericModelTest(ABC):
     def generate_precomputed(self):
         configs = self.get_configs_to_test()
         configs["default"] = self.model.get_default_config()
-        input_states, input_controls = self.get_inputs()
 
         for label, config in configs.items():
             model = self.model.clone()
             model.set_config(config)
             model.train(self.trajs)
+            input_states, input_controls = self.get_inputs(model)
             preds = model.pred_batch(input_states, input_controls)
             fn = f"{self.get_precomputed_prefix()}_{label}.txt"
             np.savetxt(fn, preds)
@@ -74,7 +74,6 @@ class GenericModelTest(ABC):
     def test_model_train_predict(self):
         configs = self.get_configs_to_test()
         configs["default"] = self.model.get_default_config()
-        input_states, input_controls = self.get_inputs()
 
         predss = []
         params = []
@@ -82,6 +81,9 @@ class GenericModelTest(ABC):
             model = self.model.clone()
             model.set_config(config)
             model.train(self.trajs)
+            input_states, input_controls = self.get_inputs(model)
+
+            self.assertEqual(input_states.shape[1], model.state_dim)
 
             # Test Single Prediction
             preds1 = []
@@ -108,6 +110,7 @@ class GenericModelTest(ABC):
             model = self.model.clone()
             model.set_config(config)
             model.set_parameters(param)
+            input_states, input_controls = self.get_inputs(model)
 
             preds2 = model.pred_batch(input_states, input_controls)
             self.assertTrue(np.allclose(preds, preds2))
@@ -164,7 +167,8 @@ class SINDyTest(GenericModelTest, unittest.TestCase):
 
         return {"poly" : poly_config,
                 "trig" : trig_config,
-                "trig_and_poly" : trig_and_poly_config}
+                "trig_and_poly" : trig_and_poly_config
+                }
 
     def get_precomputed_prefix(self):
         return "precomputed/sindy"
@@ -179,6 +183,49 @@ class ApproximateGPTest(GenericModelTest, unittest.TestCase):
     def get_precomputed_prefix(self):
         return "precomputed/approxgp"
 
+class KoopmanTest(GenericModelTest, unittest.TestCase):
+    def get_model(self, system):
+        return Koopman(system, allow_cross_terms=True)
+
+    def get_configs_to_test(self):
+        poly_config = self.model.get_default_config()
+        poly_config["poly_basis"] = "true"
+        poly_config["poly_degree"] = 3
+        poly_config["poly_cross_terms"] = "true"
+        
+        trig_config = self.model.get_default_config()
+        trig_config["trig_basis"] = "true"
+        trig_config["trig_freq"] = 3
+        trig_config["trig_interaction"] = "true"
+
+        trig_and_poly_config = self.model.get_default_config()
+        trig_and_poly_config["poly_basis"] = "true"
+        trig_and_poly_config["poly_degree"] = 2
+        trig_and_poly_config["trig_basis"] = "true"
+        trig_and_poly_config["trig_freq"] = 2
+
+        lasso_config = self.model.get_default_config()
+        lasso_config["method"] = "lasso"
+        lasso_config["poly_basis"] = "true"
+        lasso_config["poly_degree"] = 2
+        lasso_config["trig_basis"] = "true"
+        lasso_config["trig_freq"] = 2
+
+        stable_config = self.model.get_default_config()
+        stable_config["method"] = "stable"
+        stable_config["poly_basis"] = "true"
+        stable_config["poly_degree"] = 2
+        stable_config["trig_basis"] = "true"
+        stable_config["trig_freq"] = 2
+
+        return {"poly" : poly_config,
+                "trig" : trig_config,
+                "trig_and_poly" : trig_and_poly_config,
+                "stable" : stable_config,
+                "lasso" : lasso_config}
+
+    def get_precomputed_prefix(self):
+        return "precomputed/koopman"
 
 if __name__ == "__main__":
     if sys.argv[1] == "precompute":
@@ -190,6 +237,8 @@ if __name__ == "__main__":
             test = SINDyTest()
         elif sys.argv[2] == "approxgp":
             test = ApproximateGPTest()
+        elif sys.argv[2] == "koopman":
+            test = KoopmanTest()
         else:
             raise ValueError("Unknown model")
         test.setUp()

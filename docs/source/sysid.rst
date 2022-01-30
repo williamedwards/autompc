@@ -4,12 +4,6 @@ sysid package
 SysID Base Classes 
 ------------------
  
-The ModelFactory Class
-^^^^^^^^^^^^^^^^^^^^^^^
-
-.. autoclass:: autompc.sysid.model.ModelFactory
-   :members:
-
 The Model Class
 ^^^^^^^^^^^^^^^
 
@@ -20,8 +14,8 @@ The Model Class
 Supported System ID Models
 --------------------------
 
-Multi-layer Perceptron (Fo6)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Multi-layer Perceptron
+^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: autompc.sysid.MLP
 
@@ -38,7 +32,7 @@ Autoregression (ARX)
 Koopman
 ^^^^^^^
 
-.. autoclass:: autompc.sysid.KoopmanFactory
+.. autoclass:: autompc.sysid.Koopman
 
 Approximate Gaussian Process
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
