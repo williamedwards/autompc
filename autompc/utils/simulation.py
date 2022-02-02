@@ -8,6 +8,40 @@ from ..trajectory import zeros, extend
 import numpy as np
 from tqdm import tqdm
 
+def rollout(model, traj, start, horizon):
+    """
+    Rollout model predictions using the controls from traj.
+
+    Parameters
+    ----------
+    model : Model
+        Model used for prediction.
+
+    traj : Trajectory
+        Trajectory used to compute initial model state and
+        for controls.
+
+    start : int
+        For a start index t, the model will begin by predicting
+        the observation at index t+1 based on the trajectory history.
+
+    horizon : int
+        Number of steps to rollout model.
+
+    Returns
+    -------
+    traj : Trajectory
+        Predicted trajectory of length start+horizon+1.
+        Identical to input trajectory for first start+1
+        steps.
+    """
+    model_state = model.traj_to_state(traj[:start+1])
+    out_traj = traj[:start+1]
+    for t in range(start, start+horizon):
+        model_state = model.pred(model_state, traj[t].ctrl)
+        out_traj = extend(out_traj, [model_state[:model.system.obs_dim]], [traj[t].ctrl])
+    return out_traj
+
 def simulate(controller, init_obs, term_cond=None, dynamics=None, sim_model=None, max_steps=10000, ctrl_bounds=None, silent=False):
     """
     Simulate a controller with respect to a dynamics function or simulation model.

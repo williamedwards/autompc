@@ -6,17 +6,37 @@ import numpy.linalg as la
 from .cost import Cost
 
 class ThresholdCost(Cost):
-    def __init__(self, system, goal, obs_range, threshold):
+    def __init__(self, system, goal, threshold, obs_range=None, observations=None):
         """
         Create threshold cost. Returns 1 for every time steps
         where :math:`||x - x_\\textrm{goal}||_\\infty > \\textrm{threshold}`.
         The check is performed only over the observation dimensions from
         obs_range[0] to obs_range[1].
+
+        Parameters
+        ----------
+        system : System
+            Robot system object
+
+        goal : Numpy array
+            Goal position
+
+        obs_range : (int, int)
+            First (inclusive and last (exclusive) index of observations
+            for which goal is specified.  If neither this field nor
+            observations is set, default is full observation range.
+
+        observations : [str]
+            List of observation names for which goal is specified.
+            Supersedes obs_range when present.
         """
         super().__init__(system)
-        self._goal = np.copy(goal)
         self._threshold = np.copy(threshold)
-        self._obs_range = obs_range[:]
+        if obs_range is not None:
+            self._obs_idxs = list(range(obs_range[0], obs_range[1]))
+        if observations is not None:
+            self._obs_idxs = [system.observations.index(obs) for obs in observations]
+        self.set_goal(goal)
 
         self._is_quad = False
         self._is_convex = False
@@ -24,8 +44,16 @@ class ThresholdCost(Cost):
         self._is_twice_diff = False
         self._has_goal = True
 
+    def set_goal(self, goal):
+        if len(goal) < self.system.obs_dim:
+            self._goal = np.zeros(self.system.obs_dim)
+            self._goal[self._obs_idxs] = goal
+        else:
+            self._goal = np.copy(goal)
+
+
     def eval_obs_cost(self, obs):
-        if (la.norm(obs[self._obs_range[0]:self._obs_range[1]] - self._goal[self._obs_range[0]:self._obs_range[1]], np.inf) 
+        if (la.norm(obs[self._obs_idxs] - self._goal[self._obs_idxs], np.inf) 
                 > self._threshold):
             return 1.0
         else:
