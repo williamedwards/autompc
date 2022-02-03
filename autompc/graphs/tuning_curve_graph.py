@@ -15,7 +15,7 @@ class TuningCurveGraph:
         tune_result : ModelTuneResult or PipelineTuneResult
             Tuning result to plot
         """
-        if isinstance(tune_result, PipelineTuneResult):
+        if isinstance(tune_result, ControlTunerResult):
             if tune_result.inc_truedyn_costs is not None:
                 ax.plot(tune_result.inc_truedyn_costs, label="True Dyn. Cost") 
             ax.plot(tune_result.inc_costs, label="Surr. Cost")
