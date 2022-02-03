@@ -2,3 +2,4 @@
 0.000000, 2147483648.000000, 0.021671, 1, 0.021671, model=''MLP'', _MLP:hidden_size_1='19', _MLP:lr='0.025269038206003618', _MLP:n_hidden_layers=''2'', _MLP:nonlintype=''relu'', _MLP:hidden_size_2='235'
 145.130477, 0.124429, 145.153615, 1, 0.023138, model=''MLP'', _MLP:hidden_size_1='19', _MLP:lr='0.025269038206003618', _MLP:n_hidden_layers=''2'', _MLP:nonlintype=''relu'', _MLP:hidden_size_2='235'
 328.138669, 0.050935, 328.162771, 2, 0.024101, model=''MLP'', _MLP:hidden_size_1='176', _MLP:lr='0.0005887602335915966', _MLP:n_hidden_layers=''3'', _MLP:nonlintype=''selu'', _MLP:hidden_size_2='82', _MLP:hidden_size_3='46'
+885.085279, 0.036273, 885.111738, 3, 0.026459, model=''MLP'', _MLP:hidden_size_1='130', _MLP:lr='0.0008353700565101007', _MLP:n_hidden_layers=''4'', _MLP:nonlintype=''tanh'', _MLP:hidden_size_2='213', _MLP:hidden_size_3='175', _MLP:hidden_size_4='25'
