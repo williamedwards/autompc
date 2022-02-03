@@ -17,7 +17,7 @@ Supported Optimizers
 Linear Quadratic Regulator (LQR)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: autompc.control.LQRFactory
+.. autoclass:: autompc.optim.LQR
 
 Iterative Linear Quadratic Regulator (iLQR)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

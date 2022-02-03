@@ -1,4 +1,4 @@
-#from .lqr import LQRFactory, FiniteHorizonLQR, InfiniteHorizonLQR
+from .lqr import LQR
 from .ilqr import IterativeLQR
 #try:
 #    from .nmpc import DirectTranscriptionController, DirectTranscriptionControllerFactory
