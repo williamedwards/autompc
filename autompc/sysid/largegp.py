@@ -114,68 +114,84 @@ class ApproximateGPModel(Model):
     def clear(self):
         self.gpmodel = None
 
-    def train(self, trajs, silent=False, seed=100):
-        """Given collected trajectories, train the GP to approximate the actual dynamics"""
-        # extract transfer pairs from data
-        torch.manual_seed(seed)
-        X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
-        dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
-        num_task = dY.shape[1]
-        self.num_task = num_task
-        U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
-        XU = np.concatenate((X, U), axis = 1) # stack X and U together
-        self.xu_means = np.mean(XU, axis=0)
-        self.xu_std = np.std(XU, axis=0)
-        XUt = transform_input(self.xu_means, self.xu_std, XU)
+    def _set_pairs(self, XU, dY):
+        self.XU = XU
+        self.dY = dY
+        
+    def _prepare_data(self):
+        self.num_task = self.dY.shape[1]
+        self.xu_means = np.mean(self.XU, axis=0)
+        self.xu_std = np.std(self.XU, axis=0)
+        XUt = transform_input(self.xu_means, self.xu_std, self.XU)
 
-        self.dy_means = np.mean(dY, axis=0)
-        self.dy_std = np.std(dY, axis=0)
-        dYt = transform_input(self.dy_means, self.dy_std, dY)
+        self.dy_means = np.mean(self.dY, axis=0)
+        self.dy_std = np.std(self.dY, axis=0)
+        dYt = transform_input(self.dy_means, self.dy_std, self.dY)
 
         # convert into desired tensor data loader
         train_x = torch.from_numpy(XUt)
         train_y = torch.from_numpy(dYt)
         train_x = train_x.to(self.device)
         train_y = train_y.to(self.device)
+        self.n_datapoints = train_y.shape[0]
         train_dataset = TensorDataset(train_x, train_y)
-        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
-        # construct the approximate GP instance
-        induce = torch.stack([train_x[:self.induce_count] for _ in range(num_task)], dim=0)
-        self.induce = induce
-        self.gpmodel = ApproximateGPytorchModel(induce, num_task).double()
+        self.train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+        self.induce = torch.stack([train_x[:self.induce_count] for _ in range(self.num_task)], dim=0)
+
+    def _init_train(self, seed):
+        torch.manual_seed(seed)
+        self.gpmodel = ApproximateGPytorchModel(self.induce, self.num_task).double()
         self.gpmodel = self.gpmodel.to(self.device)
-        likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=num_task)
-        likelihood = likelihood.to(self.device)
-        
+
+        # construct the approximate GP instance
+        self.likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=self.num_task)
+        self.likelihood = self.likelihood.to(self.device)
+
         # Initialize kernels
         self.gpmodel.train()
-        likelihood.train()
+        self.likelihood.train()
 
-        optimizer = torch.optim.Adam([
+        self.optimizer = torch.optim.Adam([
             {'params': self.gpmodel.parameters()},
-            {'params': likelihood.parameters()},
+            {'params': self.likelihood.parameters()},
         ], lr=self.lr)
 
         # Our loss object. We're using the VariationalELBO
-        mll = gpytorch.mlls.VariationalELBO(likelihood, self.gpmodel, num_data=train_y.size(0))
+        self.mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.gpmodel, num_data=self.n_datapoints)
+
+    def _step_train(self):
+        for x_batch, y_batch in self.train_loader:
+            self.optimizer.zero_grad()
+            output = self.gpmodel(x_batch)
+            loss = -self.mll(output, y_batch)
+            # minibatch_iter.set_postfix(loss=loss.item())
+            loss.backward()
+            self.optimizer.step()
+
+    def _finish_train(self):
+        self.gpmodel.eval()
+        self.likelihood.eval()
+        self.gpmodel.likelihood = self.likelihood
+
+    def train(self, trajs, silent=False, seed=100):
+        """Given collected trajectories, train the GP to approximate the actual dynamics"""
+        # extract transfer pairs from data
+        X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
+        dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
+        U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
+        XU = np.concatenate((X, U), axis = 1) # stack X and U together
+        self._set_pairs(XU, dY)
+        self._prepare_data()
+        self._init_train(seed)
 
         if silent:
             itr = range(self.n_train_iters)
         else:
             itr = tqdm.tqdm(range(self.n_train_iters))
         for i in itr:
-            # Within each iteration, we will go over each minibatch of data
-            for x_batch, y_batch in train_loader:
-                optimizer.zero_grad()
-                output = self.gpmodel(x_batch)
-                loss = -mll(output, y_batch)
-                # minibatch_iter.set_postfix(loss=loss.item())
-                loss.backward()
-                optimizer.step()
+            self._step_train()
 
-        self.gpmodel.eval()
-        likelihood.eval()
-        self.gpmodel.likelihood = likelihood
+        self._finish_train()
 
     def get_parameters(self):
         return {"gpmodel_state" : self.gpmodel.state_dict(),

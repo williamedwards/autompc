@@ -208,14 +208,14 @@ class MLP(Model):
             param.requires_grad_(False)
 
     def train(self, trajs, silent=False, seed=100):
-        self._init_train(seed)
-
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
         XU = np.concatenate((X, U), axis = 1) # stack X and U together
         self._set_pairs(XU, dY)
         self._prepare_data()
+        self._init_train(seed)
+
 
         print("Training MLP: ", end="")
         for i in tqdm(range(self.n_train_iters), file=sys.stdout):
