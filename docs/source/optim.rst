@@ -34,6 +34,6 @@ Model Predictive Path Integral (MPPI)
 
 .. autoclass:: autompc.optim.MPPI
 
-Zero Controller
-^^^^^^^^^^^^^^^
-.. autoclass:: autompc.control.ZeroControllerFactory
+Zero Optimizer
+^^^^^^^^^^^^^^
+.. autoclass:: autompc.optim.ZeroOptimizer

@@ -8,6 +8,14 @@ import ConfigSpace as CS
 from .optimizer import Optimizer
 
 class ZeroOptimizer(Optimizer):
+    """
+    The Zero otpimizer is a simple optimizer which always returns
+    zero control.
+
+    Parameters:
+
+    Hyperparameters:
+    """
     def __init__(self, system):
         super().__init__(system, "Zero")
 
