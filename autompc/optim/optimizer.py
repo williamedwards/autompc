@@ -1,6 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 from abc import ABC, abstractmethod
+import copy
 from pdb import set_trace
 
 class Optimizer(ABC):
@@ -20,7 +21,7 @@ class Optimizer(ABC):
         return self.get_config_space().get_default_configuration()
 
     @abstractmethod
-    def run(self, state):
+    def step(self, state):
         """
         Run the controller for a given time step
 
@@ -34,6 +35,28 @@ class Optimizer(ABC):
                 Next control input
         """
         raise NotImplementedError
+
+    @abstractmethod
+    def is_compatible(self, model, ocp):
+        """
+        Check if an optimizer is compatible with a given model
+        or ocp/ocp factory.
+
+        Parameters
+        ----------
+        model : Model
+            Model to check compatibility.
+        
+        ocp : OCP
+            OCP to check compatibility
+        """
+        raise NotImplementedError
+
+    def run(self, *args, **kwargs):
+        """
+        Alias of step() included for backwards compatibility.
+        """
+        return self.step(*args, **kwargs)
 
     def reset(self):
         """
@@ -56,3 +79,6 @@ class Optimizer(ABC):
     @abstractmethod
     def set_state(self, state):
         raise NotImplementedError
+
+    def clone(self):
+        return copy.deepcopy(self)

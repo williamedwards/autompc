@@ -13,7 +13,7 @@ Contents:
 
    source/core
    source/sysid
-   source/control
+   source/optim
    source/tasks
    source/costs
    source/evaluation

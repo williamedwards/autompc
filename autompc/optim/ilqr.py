@@ -1,15 +1,14 @@
-"""
-This file implement iterative LQR methods for optimization over nonlinear models.
-But after realizing ilqr is different from optimization + local lqr feedback.
-I start questioning myself whether this is gonna work, but anyway... It won't hurt.
-"""
+
+# Standard libary includes
+import copy 
+
+# External library includes
 import numpy as np
 import numpy.linalg as la
-from pdb import set_trace
-
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
+# Internal libary includes
 from .optimizer import Optimizer
 
 class IterativeLQR(Optimizer):
@@ -25,7 +24,7 @@ class IterativeLQR(Optimizer):
 
     Hyperparameters:
 
-    - *horizon* (Type: int, Low: 5, Upper: 25, Default: 20): MPC Optimization Horizon.
+    - **horizon** *(Type: int, Low: 5, Upper: 25, Default: 20)*: MPC Optimization Horizon.
     """
     def __init__(self, system, verbose=False):
         super().__init__(system, "IterativeLQR")
@@ -54,6 +53,11 @@ class IterativeLQR(Optimizer):
 
     def get_state(self):
         return {"guess" : copy.deepcopy(self._guess) }
+
+    def is_compatible(self, model, ocp):
+        return (model.is_diff
+                and ocp.get_cost().is_twice_diff
+                and not ocp.are_obs_bounded)
 
     def set_state(self, state):
         self._guess = copy.deepcopy(state["guess"])
@@ -211,7 +215,7 @@ class IterativeLQR(Optimizer):
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks, ks
 
-    def run(self, state, silent=True):
+    def step(self, state, silent=True):
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         converged, states, ctrls, Ks, ks = self.compute_ilqr(state, self._guess,
