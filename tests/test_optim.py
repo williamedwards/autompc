@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 sys.path.insert(0, "..")
 import autompc as ampc
 from autompc.sysid import MLP
-from autompc.optim import IterativeLQR
+from autompc.optim import IterativeLQR, MPPI
 from autompc.ocp import OCP
 from autompc.costs import QuadCost
 from autompc.benchmarks import DoubleIntegratorBenchmark
@@ -124,10 +124,22 @@ class IterativeLQRTest(GenericOptimTest, unittest.TestCase):
     def get_precomputed_prefix(self):
         return "precomputed/ilqr"
 
+class MPPITest(GenericOptimTest, unittest.TestCase):
+    def get_optim(self, system):
+        return MPPI(system)
+
+    def get_configs_to_test(self):
+        return dict()
+
+    def get_precomputed_prefix(self):
+        return "precomputed/mppi"
+
 if __name__ == "__main__":
     if sys.argv[1] == "precompute":
         if sys.argv[2] == "ilqr":
             test = IterativeLQRTest()
+        if sys.argv[2] == "mppi":
+            test = MPPITest()
         else:
             raise ValueError("Unknown model")
         test.setUp()

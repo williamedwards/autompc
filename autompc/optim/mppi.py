@@ -1,26 +1,24 @@
-"""
-Implement the model predictive path integral control methods.
-The implementation is based on paper Information theoretic MPC for model-based reinforcement learning
-from https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=7989202
-It directly modifies code from github repository called pytorch_mppi but now uses numpy
-"""
-import numpy as np
-import multiprocessing as mp
+
+# Standard library includes
 import copy
+import multiprocessing as mp
+
+# External library includes
+import numpy as np
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 
+# Internal libary includes
 from .optimizer import Optimizer
 
 
 class MultivariateNormal:
     def __init__(self, mu, cov):
         self.scale = np.sqrt(cov)
-        # np.random.seed(42)
 
-    def sample(self, shape):
+    def sample(self, shape, rng):
         new_shape = shape + (1,)
-        noise = np.random.normal(scale=self.scale, size=new_shape)
+        noise = rng.normal(scale=self.scale, size=new_shape)
         return noise
 
 class MPPI(Optimizer):
@@ -34,17 +32,22 @@ class MPPI(Optimizer):
     and `Information Theoretic Model Predictive Control: Theory and Applications to Autonomous Driving <https://arxiv.org/abs/1707.02342>`_.
     Development of this controller uses reference from `this repository <https://github.com/UM-ARM-Lab/pytorch_mppi>`_.
 
+    Parameters:
+
+    - **niter** *(Type: int, Default: 1)*: Number of MPPI iterations to perform at each time step.
+
     Hyperparameters:
 
-    - *horizon* (Type: int, Lower: 5, Upper: 30, Default: 20): Controller horizon. This behaves in the same way as MPC controller.
-    - *sigma* (Type: float, Lower: 0.1, Upper 2.0, Default: 1.0): Variance of the disturbance. Since the disturbance is Gaussian, the standard deviation is its square root. It is shared in all the control dimensions.
-    - *lmda* (Type: float, Lower: 10^-4, Upper: 2.0, Default: 1.0): Higher value increases the cost of control noise and gets more samples around current contorl sequence. 
+    - **horizon** *(Type: int, Lower: 5, Upper: 30, Default: 20)*: Controller horizon. This behaves in the same way as MPC controller.
+    - **sigma** *(Type: float, Lower: 0.1, Upper 2.0, Default: 1.0)*: Variance of the disturbance. Since the disturbance is Gaussian, the standard deviation is its square root. It is shared in all the control dimensions.
+    - **lmda** *(Type: float, Lower: 10^-4, Upper: 2.0, Default: 1.0)*: Higher value increases the cost of control noise and gets more samples around current contorl sequence. 
         Generally smaller value works better.
-    - *num_path* (Type: int, Lower: 100, Upper: 1000, Default: 200): Number of perturbed control sequence to sample. Generally the more the better and it scales better with vectorized and parallel computation.
+    - **num_path** *(Type: int, Lower: 100, Upper: 1000, Default: 200)*: Number of perturbed control sequence to sample. Generally the more the better and it scales better with vectorized and parallel computation.
     """
     # FIXME Random seeds not properly controlled
-    def __init__(self, system):
+    def __init__(self, system, niter=1):
         super().__init__(system, "MPPI")
+        self.niter = niter
 
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
@@ -88,15 +91,15 @@ class MPPI(Optimizer):
         super().set_model(model)
         self.dyn_eqn = model.pred_batch
 
-    def reset(self):
+    def reset(self, seed=100):
+        self.rng = np.random.default_rng(seed)
         self.dim_state, self.dim_ctrl = self.model.state_dim, self.system.ctrl_dim
         self.act_sequence = np.zeros((self.H, self.dim_ctrl))  
         self.noise_dist = MultivariateNormal(0, self.sigma)
-        self.act_sequence = self.noise_dist.sample((self.H,))
+        self.act_sequence = self.noise_dist.sample((self.H,), self.rng)
         self.umin = self.ocp.get_ctrl_bounds()[:,0]
         self.umax = self.ocp.get_ctrl_bounds()[:,1]
         self.ctrl_scale = self.umax
-        self.niter = 1 # FIXME ?
 
     def update(self, costs, eps):
         """Based on the collected trajectory, update the action sequence.
@@ -114,7 +117,7 @@ class MPPI(Optimizer):
         self.act_sequence[-1] = self.act_sequence[-2]
         # generate random noises
         # eps = np.random.normal(scale=self.sigma, size=(self.H, self.num_path, self.dim_ctrl))  # horizon by num_path by ctrl_dim
-        eps = self.noise_dist.sample((self.num_path, self.H)).transpose((1, 0, 2))
+        eps = self.noise_dist.sample((self.num_path, self.H), self.rng).transpose((1, 0, 2))
         # path = np.zeros((self.H + 1, self.num_path, self.dim_state))  # horizon by num_path by state_dim
         # path[0] = cur_state  # just copy the initial state in...
         path = np.zeros((self.num_path, self.dim_state))
@@ -142,7 +145,7 @@ class MPPI(Optimizer):
         # import pdb; pdb.set_trace()
         return costs, eps
 
-    def run(self, state):
+    def step(self, state):
         x0 = state
         # then collect trajectories...
         for _ in range(self.niter):
@@ -155,125 +158,12 @@ class MPPI(Optimizer):
         return ret_action
 
     def get_state(self):
-        # TODO add random seed to state
-        return {"act_sequence", copy.deepcopy(act_sequence)}
+        return {"act_sequence" : copy.deepcopy(self.act_sequence),
+                "rng_state" : self.rng.bit_generator.__getstate__()}
 
     def set_state(self, state):
         self.act_sequence = copy.deepcopy(state["act_sequence"])
+        self.rng.bit_generator.__setstate__(state["rng_state"])
 
-    def is_compatible(self, system, task, model):
+    def is_compatible(self, model, ocp):
         return True
- 
-
-def do_env_rollout(model, task, start_state, act_list):
-    """
-        1) Construct env with env_id and set it to start_state.
-        2) Generate rollouts using act_list.
-           act_list is a list with each element having size (H,m).
-           Length of act_list is the number of desired rollouts.
-    """
-    e = copy.copy(model)
-    paths = []
-    H = act_list[0].shape[0]
-    N = len(act_list)
-    add_obs_cost, add_ctrl_cost, terminal_obs_cost = task.get_costs()
-    for i in range(N):  # repeat simulation for this long...
-        state = start_state.copy()
-        act = []
-        states = []
-        reward = 0
-        for k in range(H):
-            ctrl = act_list[i][k]
-            act.append(ctrl)
-            states.append(state)
-            next_state = e.pred(state, ctrl)
-            reward += (add_obs_cost(state) + add_ctrl_cost(ctrl)) * model.dt
-            state = next_state
-        reward += terminal_obs_cost(state)  # terminal cost evaluated at the final state, nice...
-
-        path = dict(
-                    actions=np.array(act),
-                    cost=reward,
-                    states=np.array(states),
-                    statef=state
-                    )
-        paths.append(path)
-
-    return paths
-
-
-def generate_perturbed_actions(base_act, filter_coefs):
-    """
-    Generate perturbed actions around a base action sequence
-    """
-    sigma, beta_0, beta_1, beta_2 = filter_coefs
-    eps = np.random.normal(loc=0, scale=1.0, size=base_act.shape) * sigma
-    for i in range(2, eps.shape[0]):
-        eps[i] = beta_0*eps[i] + beta_1*eps[i-1] + beta_2*eps[i-2]
-    return base_act + eps
-
-
-def generate_paths(model, task, start_state, N, base_act, filter_coefs, base_seed):
-    """
-    first generate enough perturbed actions
-    then do rollouts with generated actions
-    set seed inside this function for multiprocessing
-    """
-    np.random.seed(base_seed)
-    act_list = []
-    for i in range(N):
-        act = generate_perturbed_actions(base_act, filter_coefs)
-        act_list.append(act)
-    paths = do_env_rollout(model, task, start_state, act_list)
-    return paths
-
-
-def generate_paths_star(args_list):
-    return generate_paths(*args_list)
-
-# here env_id should be the model
-def gather_paths_parallel(model, task, start_state, base_act, filter_coefs, base_seed, paths_per_cpu, num_cpu=None):
-    num_cpu = mp.cpu_count() if num_cpu is None else num_cpu
-    args_list = []
-    for i in range(num_cpu):
-        cpu_seed = base_seed + i*paths_per_cpu
-        args_list_cpu = [model, task, start_state, paths_per_cpu, base_act, filter_coefs, cpu_seed]
-        args_list.append(args_list_cpu)
-
-    # do multiprocessing
-    results = _try_multiprocess(args_list, num_cpu, max_process_time=300, max_timeouts=4)
-    paths = []
-    for result in results:
-        for path in result:
-            paths.append(path)
-
-    return paths
-
-
-def _try_multiprocess(args_list, num_cpu, max_process_time, max_timeouts):
-    # Base case
-    if max_timeouts == 0:
-        return None
-
-    if num_cpu == 1:
-        results = [generate_paths_star(args_list[0])]  # dont invoke multiprocessing unnecessarily
-
-    else:
-        pool = mp.Pool(processes=num_cpu, maxtasksperchild=1)
-        parallel_runs = [pool.apply_async(generate_paths_star,
-                                         args=(args_list[i],)) for i in range(num_cpu)]
-        try:
-            results = [p.get(timeout=max_process_time) for p in parallel_runs]
-        except Exception as e:
-            print(str(e))
-            print("Timeout Error raised... Trying again")
-            pool.close()
-            pool.terminate()
-            pool.join()
-            return _try_multiprocess(args_list, num_cpu, max_process_time, max_timeouts - 1)
-
-        pool.close()
-        pool.terminate()
-        pool.join()
-
-    return results

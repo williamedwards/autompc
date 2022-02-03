@@ -32,7 +32,7 @@ Direct Transcription (DT)
 Model Predictive Path Integral (MPPI)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: autompc.control.MPPIFactory
+.. autoclass:: autompc.optim.MPPI
 
 Zero Controller
 ^^^^^^^^^^^^^^^
