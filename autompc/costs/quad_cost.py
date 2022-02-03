@@ -49,3 +49,9 @@ class QuadCost(Cost):
         self._is_diff = True
         self._is_twice_diff = True
         self._has_goal = True
+
+    is_quad = True
+    is_convex = True
+    is_diff = True
+    is_twice_diff = True
+    has_goal = True

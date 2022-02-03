@@ -43,7 +43,7 @@ class DoubleIntegratorBenchmark(Benchmark):
         cost = ThresholdCost(system, goal=np.zeros(2), threshold=0.1, 
                 obs_range=(0,2))
         ocp = OCP(system)
-        ocp.set_cost(system)
+        ocp.set_cost(cost)
         ocp.set_ctrl_bound("u", -10.0, 10.0)
         task = Task(system)
         task.set_ocp(ocp)

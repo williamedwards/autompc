@@ -12,6 +12,7 @@ import ConfigSpace.conditions as CSC
 
 # Internal library includes
 from .ocp_factory import OCPFactory
+from .ocp import PrototypeOCP
 from ..costs.quad_cost import QuadCost
 
 def construct_default_bounds():
@@ -23,7 +24,7 @@ class QuadCostFactory(OCPFactory):
 
     .. math::
 
-        x_N^T F x_N  + \\sum_{t=0}^{N} (x_t^T Q x_t + u_t^T R u_t)
+        x_N^T (F - x_g) x_N  + \\sum_{t=0}^{N} (x_t^T (Q - x_g) x_t + u_t^T R u_t)
 
     Parameters:
      - *goal* (numpy array of size system.obs_dim): Goal state. Default is
@@ -37,7 +38,7 @@ class QuadCostFactory(OCPFactory):
         corresponding to control dimension with label **x**
      - * **x**_F* (float, Lower: 10^-3, Upper: 10^4): Digaonal F matrix value
         corresponding to ovservation dimension with label **x**
-    """ # TODO Fix math notation to include goal
+    """
     def __init__(self, system, goal=None):
         if goal is None:
             self.goal = None
@@ -184,11 +185,11 @@ class QuadCostFactory(OCPFactory):
         cs.add_hyperparameters(Q_hypers + R_hypers + F_hypers + goal_hypers)
         return cs
 
-    def is_compatible(self, system, task, Model):
-        if self.goal is None:
-            return task.get_cost().has_goal
+    def is_compatible(self, ocp):
+        if self.goal:
+            return True
         else:
-            True
+            return ocp.get_cost().has_goal
 
     def _get_matrix(self, cfg, label, fixed_dict, dim_names):
         mat = np.zeros((len(dim_names), len(dim_names)))
@@ -219,6 +220,9 @@ class QuadCostFactory(OCPFactory):
 
     def set_config(self, config):
         self.config = config
+        
+    def get_prototype(self, config, ocp):
+        return PrototypeOCP(ocp, cost=QuadCost)
 
     def __call__(self, ocp):
         Q = self._get_matrix(self.config, "Q", self._Q_fixed, self.system.observations)

@@ -236,3 +236,11 @@ class Model(ABC):
         Returns true for trainable models.
         """
         return not self.train.__func__ is Model.train
+
+    def get_prototype(self, config):
+        """
+        Returns a prototype of the model to be used for compatibility checking.
+        It's only necessary to override this function when the compatibility
+        properties depend on the config.
+        """
+        return self

@@ -9,12 +9,17 @@ import ConfigSpace.conditions as CSC
 
 # Internal library includes
 from .utils.cs_utils import *
+from .utils.exceptions import OptionalDependencyException
+from .utils.configuration_space import ControllerConfigurationSpace
+from . import sysid
+from . import optim
+from . import ocp
 
 class ControllerStateError(Exception):
     pass
 
 class Controller:
-    def __init__(self, system):
+    def __init__(self, system, check_config_in_cs=False):
         self.system = system
         self.models = []
         self.optimizers = []
@@ -24,6 +29,8 @@ class Controller:
         self.ocp = None
         self.trajs = None
         self.config = None
+
+        self._check_config_in_cs = check_config_in_cs
 
     def set_model(self, model):
         self.models = [model]
@@ -70,7 +77,10 @@ class Controller:
                 )
 
     def get_config_space(self):
-        cs = CS.ConfigurationSpace()
+        if self._check_config_in_cs:
+            cs = ControllerConfigurationSpace(self)
+        else:
+            cs = CS.ConfigurationSpace()
         
         self._add_config_space(cs, "model", self.models)
         self._add_config_space(cs, "optimizer", self.optimizers)
@@ -85,14 +95,20 @@ class Controller:
                 return choice
         raise ValueError(f"Unrecognized config value for {label}")
 
-    def _get_model_from_config(self):
-        return self._get_choice_from_config("model", self.models, self.config)
+    def _get_model_from_config(self, config=None):
+        if config is None:
+            config = self.config
+        return self._get_choice_from_config("model", self.models, config)
 
-    def _get_optimizer_from_config(self):
-        return self._get_choice_from_config("optimizer", self.optimizers, self.config)
+    def _get_optimizer_from_config(self, config=None):
+        if config is None:
+            config = self.config
+        return self._get_choice_from_config("optimizer", self.optimizers, config)
 
-    def _get_ocp_factory_from_config(self):
-        return self._get_choice_from_config("ocp_factory", self.ocp_factories, self.config)
+    def _get_ocp_factory_from_config(self, config=None):
+        if config is None:
+            config = self.config
+        return self._get_choice_from_config("ocp_factory", self.ocp_factories, config)
 
     def _get_choice_config(self, label, choices, config):
         choice_name = config[label]
@@ -100,20 +116,44 @@ class Controller:
         return create_subspace_configuration(config, choice_name, 
             choice.get_config_space(), allow_inactive_with_values=True)
 
-    def _get_model_config(self):
-        return self._get_choice_config("model", self.models, self.config)
+    def _get_model_config(self, config=None):
+        if config is None:
+            config = self.config
+        return self._get_choice_config("model", self.models, config)
 
-    def _get_optimizer_config(self):
-        return self._get_choice_config("optimizer", self.optimizers, self.config)
+    def _get_optimizer_config(self, config=None):
+        if config is None:
+            config = self.config
+        return self._get_choice_config("optimizer", self.optimizers, config)
 
-    def _get_ocp_factory_config(self):
-        return self._get_choice_config("ocp_factory", self.ocp_factories, self.config)
+    def _get_ocp_factory_config(self, config=None):
+        if config is None:
+            config = self.config
+        return self._get_choice_config("ocp_factory", self.ocp_factories, config)
 
     def get_default_config(self):
         return self.get_config_space().get_default_configuration()
 
     def set_config(self, config):
+        if not self.check_config(config):
+            raise ValueError("Controller config is incompatible")
         self.config = copy.deepcopy(config)
+
+    def check_config(self, config, ocp=None):
+        if ocp is None:
+            ocp = self.ocp
+        model = self._get_model_from_config(config)
+        model_cfg = self._get_model_config(config)
+        model_ptype = model.get_prototype(model_cfg)
+
+        ocp_factory = self._get_ocp_factory_from_config(config)
+        ocp_config = self._get_ocp_factory_config(config)
+        if not ocp_factory.is_compatible(ocp):
+            return False
+        ocp_ptype = ocp_factory.get_prototype(ocp_config, ocp)
+
+        optim = self._get_optimizer_from_config(config)
+        return optim.is_compatible(model_ptype, ocp_ptype)
 
     def clear_trajs(self):
         self.trajs = None
@@ -222,3 +262,38 @@ class Controller:
         self.model_state = state["model_state"]
         self.last_control = state["last_control"]
         self.optimizer.set_state(state["optimizer_state"])
+
+class AutoSelectController(Controller):
+    """
+    A version of the controller which comes with a default selection
+    of models, optimizer, and OCP factories.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._add_models()
+        self._add_optimizers()
+        self._add_ocp_factories()
+
+    def _add_if_available(self, add_func, module, name):
+        if not hasattr(module, name):
+            return
+        try:
+            add_func(getattr(module, name)(self.system))
+        except OptionalDependencyException:
+            return
+
+    def _add_models(self):
+        self._add_if_available(self.add_model, sysid, "MLP")
+        self._add_if_available(self.add_model, sysid, "ApproximateGP")
+        self._add_if_available(self.add_model, sysid, "SINDy")
+        self._add_if_available(self.add_model, sysid, "ARX")
+        self._add_if_available(self.add_model, sysid, "Koopman")
+
+    def _add_optimizers(self):
+        self._add_if_available(self.add_optimizer, optim, "IterativeLQR")
+        self._add_if_available(self.add_optimizer, optim, "MPPI")
+        self._add_if_available(self.add_optimizer, optim, "LQR")
+        self._add_if_available(self.add_optimizer, optim, "DirectTranscription")
+
+    def _add_ocp_factories(self):
+        self._add_if_available(self.add_ocp_factory, ocp, "QuadCostFactory")

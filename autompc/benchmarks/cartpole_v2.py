@@ -12,7 +12,8 @@ import matplotlib.animation as animation
 from .benchmark import Benchmark
 from ..utils.data_generation import *
 from .. import System
-from ..tasks import Task
+from ..task import Task
+from ..ocp import OCP
 from ..costs import BoxThresholdCost,ThresholdCost
 
 def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
@@ -49,9 +50,11 @@ class CartpoleSwingupV2Benchmark(Benchmark):
 
         limits = np.array([[-0.2, 0.2], [-0.2, 0.2], [-10.0, 10.0], [-np.inf, np.inf]])
         cost = BoxThresholdCost(system, limits, goal=np.zeros(4)) 
+        ocp = OCP(system)
+        ocp.set_cost(cost)
+        ocp.set_ctrl_bound("u", -20.0, 20.0)
         task = Task(system)
-        task.set_cost(cost)
-        task.set_ctrl_bound("u", -20.0, 20.0)
+        task.set_ocp(ocp)
         init_obs = np.array([3.1, 0.0, 0.0, 0.0])
         task.set_init_obs(init_obs)
         task.set_num_steps(200)
@@ -122,20 +125,21 @@ class CartpoleSwingupV2Benchmark(Benchmark):
     def _gen_trajs(self, n_trajs, traj_len, rng):
         init_min = np.array([-1.0, 0.0, 0.0, 0.0])
         init_max = np.array([1.0, 0.0, 0.0, 0.0])
+        ocp = self.task.get_ocp()
         if self._data_gen_method == "uniform_random":
-            return uniform_random_generate(self.system, self.task, self.dynamics, rng, 
+            return uniform_random_generate(self.system, ocp, self.dynamics, rng, 
                     init_min=init_min, init_max=init_max,
                     traj_len=traj_len, n_trajs=n_trajs)
         elif self._data_gen_method == "periodic_control":
-            return periodic_control_generate(self.system, self.task, self.dynamics, rng, 
+            return periodic_control_generate(self.system, ocp, self.dynamics, rng, 
                     init_min=init_min, init_max=init_max, U_1=np.ones(1),
                     traj_len=traj_len, n_trajs=n_trajs)
         elif self._data_gen_method == "multisine":
-            return multisine_generate(self.system, self.task, self.dynamics, rng, 
+            return multisine_generate(self.system, ocp, self.dynamics, rng, 
                     init_min=init_min, init_max=init_max, n_freqs=20,
                     traj_len=traj_len, n_trajs=n_trajs)
         elif self._data_gen_method == "random_walk":
-            return random_walk_generate(self.system, self.task, self.dynamics, rng, 
+            return random_walk_generate(self.system, ocp, self.dynamics, rng, 
                     init_min=init_min, init_max=init_max, walk_rate=1.0,
                     traj_len=traj_len, n_trajs=n_trajs)
 
@@ -151,7 +155,6 @@ class CartpoleSwingupV2Benchmark(Benchmark):
             tune_result = pickle.load(f)
 
         return tune_result
-
 
     @staticmethod
     def data_gen_methods():

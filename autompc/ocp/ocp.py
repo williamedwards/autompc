@@ -173,3 +173,28 @@ class OCP:
             Control bounds
         """
         return self._ctrl_bounds.copy()
+
+class PrototypeCost:
+    def __init__(self):
+        pass
+
+class PrototypeOCP:
+    """
+    PrototypeOCP represents only the compatibility properties of
+    an OCP.  This is used for checking compatibility with as a little
+    overhead as possible.
+    """
+    def __init__(self, ocp, cost=None):
+        self.are_obs_bounded = ocp.are_obs_bounded
+        self.are_ctrl_bounded = ocp.are_ctrl_bounded
+        if cost is None:
+            cost = ocp.cost
+        self.cost = PrototypeCost()
+        self.cost.is_quad = cost.is_quad
+        self.cost.is_convex = cost.is_convex
+        self.cost.is_diff = cost.is_diff
+        self.cost.is_twice_diff = cost.is_twice_diff
+        self.cost.has_goal = cost.has_goal
+
+    def get_cost(self):
+        return self.cost

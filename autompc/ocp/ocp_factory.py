@@ -29,3 +29,10 @@ class OCPFactory(ABC):
         Returns true for trainable models.
         """
         return not self.train.__func__ is OCPFactory.train
+
+    @abstractmethod
+    def get_prototype(self, config, ocp):
+        """
+        Returns a prototype of the output OCP for compatibility checking.
+        """
+        raise NotImplementedError
