@@ -80,43 +80,44 @@ class ModelTuner:
         """
         self.system = system
         self.evaluator = evaluator
-        self.model_factories = []
+        self.models_and_cs = []
 
-    def add_model_factory(self, model_factory, cs=None):
+    def add_model(self, model, cs=None):
         """
-        Add a model factory which is an option for tuning.
+        Add a model which is an option for tuning.
         Multiple model factories can be added and the tuner
         will select between them.
 
         Parameters
         ----------
-        model_factory : ModelFactory
+        model : Model
+            Model to be considered for tuning.
 
         cs : ConfigurationSpace
-            Configuration space for model factory. This only needs to be
+            Configuration space for model. This only needs to be
             passed if the configuration space is customized, otherwise
             it will be derived from the model_factory.
         """
         if cs is None:
-            cs = model_factory.get_configuration_space()
-        self.model_factories.append((model_factory, cs))
+            cs = model.get_config_space()
+        self.models_and_cs.append((model, cs))
 
     def _get_model_cfg(self, cfg_combined):
-        for model_factory, cs in self.model_factories:
-            if model_factory.name != cfg_combined["model"]:
+        for model, cs in self.models_and_cs:
+            if model.name != cfg_combined["model"]:
                 continue
             cfg = cs.get_default_configuration()
-            prefix = "_" + model_factory.name + ":"
+            prefix = "_" + model.name + ":"
             for key, val in cfg_combined.get_dictionary().items():
                 if key[:len(prefix)] == prefix:
                     cfg[key.split(":", 1)[1]] = val
-            return model_factory, cfg
+            return model, cfg
 
     def _evaluate(self, cfg_combined):
         print("Evaluating Cfg:")
         print(cfg_combined)
-        model_factory, cfg = self._get_model_cfg(cfg_combined)
-        value = self.evaluator(model_factory, cfg)
+        model, cfg = self._get_model_cfg(cfg_combined)
+        value = self.evaluator(model, cfg)
         print("Model Score ", value)
         return value
 
@@ -146,11 +147,11 @@ class ModelTuner:
         cs_combined = CS.ConfigurationSpace()
 
         model_choice = CSH.CategoricalHyperparameter("model",
-                choices=[model_factory.name for model_factory, _ 
-                    in self.model_factories])
+                choices=[model.name for model, _ 
+                    in self.models_and_cs])
         cs_combined.add_hyperparameter(model_choice)
-        for model_factory, cs in self.model_factories:
-            model_name = model_factory.name
+        for model, cs in self.models_and_cs:
+            model_name = model.name
             add_configuration_space(cs_combined, "_" + model_name, 
                     cs, parent_hyperparameter={"parent" : model_choice, 
                         "value" : model_name})
@@ -192,7 +193,9 @@ class ModelTuner:
                 inc_costs = inc_costs,
                 inc_cfgs = inc_cfgs)
 
-        model_factory, inc_cfg = self._get_model_cfg(incumbent)
-        final_model = model_factory(inc_cfg, self.evaluator.trajs)
+        model, inc_cfg = self._get_model_cfg(incumbent)
+        final_model = model.clone()
+        final_model.set_config(inc_cfg)
+        final_model.train(self.evaluator.trajs)
 
         return final_model, tune_result

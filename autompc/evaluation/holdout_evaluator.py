@@ -49,12 +49,14 @@ class HoldoutModelEvaluator(ModelEvaluator):
             if traj not in self.holdout:
                 self.training_set.append(traj)
 
-    def __call__(self, model_factory, configuration):
+    def __call__(self, model, configuration):
         if self.verbose:
             print("Evaluating Configuration:")
             print(configuration)
             print("----")
-        m = model_factory(configuration, self.training_set)
+        m = model.clone()
+        m.set_config(configuration)
+        m.train(self.training_set)
 
         metric_value = self.metric(m, self.holdout)
 

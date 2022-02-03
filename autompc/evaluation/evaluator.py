@@ -39,18 +39,18 @@ class ModelEvaluator(ABC):
             self.metric = metric
 
     @abstractmethod
-    def __call__(self, model_factory, configuration):
+    def __call__(self, model, configuration):
         """
         Accepts the model class and the configuration.
 
         Parameters
         ----------
-        model_factory : ModelFactory
+        model : Model
             Model factory evaluate
 
         configuration : Configuration
             Hyperparameter configuration used to
-            instantiate model
+            train model
 
         Returns
         -------

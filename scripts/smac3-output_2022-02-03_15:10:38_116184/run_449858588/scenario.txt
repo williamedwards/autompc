@@ -1,0 +1,13 @@
+execdir = .
+deterministic = True
+run_obj = quality
+overall_obj = par10
+par_factor = 10
+cost_for_crash = 2147483647.0
+algo_runs_timelimit = inf
+wallclock_limit = inf
+always_race_default = False
+ta_run_limit = 200.0
+initial_incumbent = DEFAULT
+pcs_fn = smac3-output_2022-02-03_15:10:38_116184/run_449858588/configspace.json
+save_instantly = False
