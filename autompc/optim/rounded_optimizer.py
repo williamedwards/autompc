@@ -6,16 +6,16 @@ class RoundedOptimizer(Optimizer):
         self.optimizer = optimizer
         super().__init__(system, "Rounded" + optimizer.name)
 
+    def is_compatible(self, *args, **kwargs):
+        return self.optimizer.is_compatible(*args, **kwargs)
+
     def get_default_config_space(self):
         return self.optimizer.get_default_config_space()
 
     def set_config(self, config):
         self.optimizer.set_config(config)
         
-    def traj_to_state(self, *args, **kwargs):
-        return self.controller.traj_to_state(*args, **kwargs)
-    
-    def run(self, *args, **kwargs):
+    def step(self, *args, **kwargs):
         u = self.optimizer.run(*args, **kwargs)
         return np.around(u)
 

@@ -27,7 +27,7 @@ Iterative Linear Quadratic Regulator (iLQR)
 Direct Transcription (DT)
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: autompc.control.DirectTranscriptionControllerFactory
+.. autoclass:: autompc.optim.DirectTranscription
 
 Model Predictive Path Integral (MPPI)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -9,7 +9,8 @@ from abc import ABC, abstractmethod
 sys.path.insert(0, "..")
 import autompc as ampc
 from autompc.sysid import MLP, ARX
-from autompc.optim import IterativeLQR, MPPI, LQR
+from autompc.optim import (IterativeLQR, MPPI, LQR, DirectTranscription, 
+                           ZeroOptimizer, RoundedOptimizer)
 from autompc.ocp import OCP
 from autompc.costs import QuadCost
 from autompc.benchmarks import DoubleIntegratorBenchmark
@@ -124,6 +125,16 @@ class IterativeLQRTest(GenericOptimTest, unittest.TestCase):
     def get_precomputed_prefix(self):
         return "precomputed/ilqr"
 
+class RoundedIterativeLQRTest(GenericOptimTest, unittest.TestCase):
+    def get_optim(self, system):
+        return RoundedOptimizer(system, IterativeLQR(system))
+
+    def get_configs_to_test(self):
+        return dict()
+
+    def get_precomputed_prefix(self):
+        return "precomputed/rounded-ilqr"
+
 class MPPITest(GenericOptimTest, unittest.TestCase):
     def get_optim(self, system):
         return MPPI(system)
@@ -133,6 +144,26 @@ class MPPITest(GenericOptimTest, unittest.TestCase):
 
     def get_precomputed_prefix(self):
         return "precomputed/mppi"
+
+class DirectTranscriptionTest(GenericOptimTest, unittest.TestCase):
+    def get_optim(self, system):
+        return DirectTranscription(system)
+
+    def get_configs_to_test(self):
+        return dict()
+
+    def get_precomputed_prefix(self):
+        return "precomputed/dtrans"
+
+class ZeroTest(GenericOptimTest, unittest.TestCase):
+    def get_optim(self, system):
+        return ZeroOptimizer(system)
+
+    def get_configs_to_test(self):
+        return dict()
+
+    def get_precomputed_prefix(self):
+        return "precomputed/zero"
 
 class LQRTest(GenericOptimTest, unittest.TestCase):
     def get_optim(self, system):
@@ -162,6 +193,12 @@ if __name__ == "__main__":
             test = MPPITest()
         elif sys.argv[2] == "lqr":
             test = LQRTest()
+        elif sys.argv[2] == "dtrans":
+            test = DirectTranscriptionTest()
+        elif sys.argv[2] == "zero":
+            test = ZeroTest()
+        elif sys.argv[2] == "rounded-ilqr":
+            test = RoundedIterativeLQRTest()
         else:
             raise ValueError("Unknown model")
         test.setUp()

@@ -1,45 +1,31 @@
 # Created by William Edwards (wre2@illinois.edu)
 
-from pdb import set_trace
-
+# External library includes
 import numpy as np
+import ConfigSpace as CS
 
-from ConfigSpace import ConfigurationSpace
-from ConfigSpace.hyperparameters import (UniformIntegerHyperparameter, 
-        CategoricalHyperparameter)
-import ConfigSpace.conditions as CSC
+# Internal library includes
+from .optimizer import Optimizer
 
-from .controller import Controller, ControllerFactory
+class ZeroOptimizer(Optimizer):
+    def __init__(self, system):
+        super().__init__(system, "Zero")
 
-class ZeroControllerFactory(ControllerFactory):
-    """
-    The Zero Controller outputs all zero controls and is useful for debugging.
-
-    Hyperparameters: *None*
-    """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.Controller = ZeroController
-        self.name = "ZeroController"
-
-    def get_configuration_space(self):
+    def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         return cs
 
-class ZeroController(Controller):
-    def __init__(self, system, task, model):
-        super().__init__(system, task, model)
+    def set_config(self, config):
+        pass
 
-    @property
-    def state_dim(self):
-        return 0
-
-    def is_compatible(self, system, task, model):
+    def is_compatible(self, model, ocp):
         return True
- 
-    def traj_to_state(self, traj):
-        return np.zeros(0)
 
-    def run(self, state, new_obs):
+    def step(self, state):
+        return np.zeros(self.system.ctrl_dim)
 
-        return np.zeros(self.system.ctrl_dim), state
+    def get_state(self):
+        return dict()
+
+    def set_state(self, state):
+        pass

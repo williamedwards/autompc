@@ -1,10 +1,15 @@
+
+# Standard library includes
 from collections import Iterable
-from .controller import Controller, ControllerFactory
-from pdb import set_trace
+import copy
+
+# External library includes
+import numpy as np
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 
-import numpy as np
+# Internal library includes
+from .optimizer import Optimizer
 
 class TrajOptProblem(object):
     """Just a general interface for nonlinear optimization problems.
@@ -36,9 +41,9 @@ class TrajOptProblem(object):
 class NonLinearMPCProblem(TrajOptProblem):
     """Just write the NonLinear MPC problem in the OptProblem style.
     """
-    def __init__(self, system, model, task, horizon):
+    def __init__(self, system, model, ocp, horizon):
         self.system = system
-        self.task = task
+        self.ocp = ocp
         self.model = model
         self.horizon = horizon
         dc = system.ctrl_dim
@@ -72,7 +77,7 @@ class NonLinearMPCProblem(TrajOptProblem):
 
     def get_cost(self, x):
         # compute the cost function, not sure how it's gonna be written though
-        cost = self.task.get_cost()
+        cost = self.ocp.get_cost()
         self._x[:] = x  # copy contents in
         dt = self.system.dt
         tc = cost.eval_term_obs_cost(self._state[-1, :self.system.obs_dim])
@@ -87,7 +92,7 @@ class NonLinearMPCProblem(TrajOptProblem):
         self._x[:] = x
         self._grad[:] = 0  # reset just in case
         # terminal one
-        cost = self.task.get_cost()
+        cost = self.ocp.get_cost()
         _, gradtc = cost.eval_term_obs_cost_diff(self._state[-1, :self.system.obs_dim])
         self._grad_state[-1, :self.system.obs_dim] = gradtc
         dt = self.system.dt
@@ -118,8 +123,8 @@ class NonLinearMPCProblem(TrajOptProblem):
         statebd = np.zeros((self.obs_dim, 2))
         statebd[:,0] = -np.inf
         statebd[:,1] = np.inf
-        statebd[:self.system.obs_dim, :] = self.task.get_obs_bounds()
-        ctrlbd = self.task.get_ctrl_bounds()
+        statebd[:self.system.obs_dim, :] = self.ocp.get_obs_bounds()
+        ctrlbd = self.ocp.get_ctrl_bounds()
         dc = self.ctrl_dim
         ds = self.obs_dim
         xlb, xub = np.zeros((2, self.dimx))
@@ -209,7 +214,7 @@ class IpoptWrapper:
         x = np.zeros(self.prob.dimx)
         return self.prob.get_jacobian(x, True)
 
-class DirectTranscriptionControllerFactory(ControllerFactory):
+class DirectTranscription(Optimizer):
     """
     Direct Transcription (DT) is a method to discretize an optimal control problem which is inherently continuous.
     Such discretization is usually necessary in order to get an optimization problem of finite dimensionality.
@@ -219,46 +224,39 @@ class DirectTranscriptionControllerFactory(ControllerFactory):
     DT uses first-order Euler integration to approximate the constraints of system dynamics.
     The details can be found in `An Introduction to Trajectory Optimization: How to Do Your Own Direct Collocation <https://epubs.siam.org/doi/pdf/10.1137/16M1062569>`_.
 
-    Hyperparameter:
-    - *horizon* (Type: int, Lower: 1, High: 30, Default: 10): Control Horizon
+    Parameters:
+
+    - **max_iters** *(Type: int, Default: 10)*: Maximum number of ipopt iterations for optimization
+    - **print_level** *(Type: int, Default: 0)*: Controls IPOPT print level.
+
+    Hyperparameters:
+
+    - **horizon** *(Type: int, Lower: 1, High: 30, Default: 10)*: Control Horizon
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, system, max_iters=10, print_level=0):
+        super().__init__(system, "DirectTranscription")
+        global cyipopt
         try:
             import cyipopt
         except:
             raise ImportError("Missing dependency for Direct Transcription Controller")
-        super().__init__(*args, **kwargs)
-        self.Controller = DirectTranscriptionController
-        self.name = "DirectTranscription"
+        self.max_iters = max_iters
+        self.print_level = print_level
 
-    def get_configuration_space(self):
+    def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         horizon = CSH.UniformIntegerHyperparameter(name="horizon",
                 lower=1, upper=30, default_value=10)
         cs.add_hyperparameter(horizon)
         return cs
 
-class DirectTranscriptionController(Controller):
-    """
-    Implementation of the linear controller. For this very basic version, it accepts some linear models and compute output.
-    constraints is a dict of constraints we have to consider, it has two keys: path and terminal. The items are list of Constraints.
-    cost is a Cost instance to compute fitness of a trajectory
-    """
-    def __init__(self, system, model, task, horizon):
-        global cyipopt
-        try:
-            import cyipopt
-        except:
-            raise ImportError("Missing dependency for Direct Transcription Controller")
-        Controller.__init__(self, system, model, task)
-        self.horizon = int(np.ceil(horizon / system.dt))
-        self._built = False
-        self._guess = None
-        self._x_dim = (self.horizon + 1) * system.obs_dim + self.horizon * system.ctrl_dim
-
     def reset(self):
-        self._built = False
         self._guess = None
+        self._x_dim = (self.horizon + 1) * self.system.obs_dim + self.horizon * self.system.ctrl_dim
+        self._build_problem()
+
+    def set_config(self, config):
+        self.horizon = config["horizon"]
 
     def set_guess(self, guess):
         if guess.size != self._xdim:
@@ -267,15 +265,11 @@ class DirectTranscriptionController(Controller):
 
     def _build_problem(self):
         """Use cvxpy to construct the problem"""
-        self._built = True
-        self.problem = NonLinearMPCProblem(self.system, self.model, self.task, self.horizon)
+        self.problem = NonLinearMPCProblem(self.system, self.model, self.ocp, self.horizon)
         self.wrapper = IpoptWrapper(self.problem)
 
     def _update_problem_and_solve(self, x0):
         """Solve the problem"""
-        if not self._built:
-            self._build_problem()
-
         dims = self.model.state_dim
         lb, ub = self.problem.get_variable_bounds()
         cl, cu = self.problem.get_constr_bounds()
@@ -294,24 +288,16 @@ class DirectTranscriptionController(Controller):
         else:
             guess = self._guess
 
-        ipopt_prob.add_option("max_iter", 10)
+        ipopt_prob.add_option("max_iter", self.max_iters)
+        ipopt_prob.add_option("print_level", self.print_level)
         sol, info = ipopt_prob.solve(guess)
         return sol, info
 
-    @property
-    def state_dim(self):
-        return self.model.state_dim + self.model.ctrl_dim
-
-    def is_compatible(self, system, task, model):
-        return (model.is_diff and task.get_cost().is_diff)
+    def is_compatible(self, model, ocp):
+        return (model.is_diff and ocp.get_cost().is_diff)
  
-    def traj_to_state(self, traj):
-        return np.concatenate([self.model.traj_to_state(traj),
-                traj[-1].ctrl])
-
-    def run(self, state, new_obs):
-        x = self.model.update_state(state[:-self.system.ctrl_dim],
-                state[-self.system.ctrl_dim:], new_obs)
+    def step(self, state):
+        x = state
         self._x_cache = x
         sol, info = self._update_problem_and_solve(x)
 
@@ -321,6 +307,11 @@ class DirectTranscriptionController(Controller):
         dimu = self.problem.ctrl_dim
         idx0 = dims * (self.horizon + 1)
         u = sol[idx0: idx0 + dimu]
-        statenew = np.concatenate([x, u])
 
-        return u, statenew
+        return u
+
+    def get_state(self):
+        return {"guess" : copy.deepcopy(self._guess)}
+
+    def set_state(self, state):
+        self._guess = copy.deepcopy(state["guess"])
