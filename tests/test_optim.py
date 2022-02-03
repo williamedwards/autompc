@@ -89,6 +89,7 @@ class GenericOptimTest(ABC):
 
         for label, config in configs.items():
             optim = self.optim.clone()
+            self.assertTrue(optim.is_compatible(self.model, self.ocp))
             optim.set_config(config)
             optim.set_ocp(self.ocp)
             optim.set_model(self.model)
