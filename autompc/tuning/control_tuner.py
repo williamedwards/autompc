@@ -11,6 +11,7 @@ import os, sys, glob, shutil
 
 # Internal project includes
 from .. import zeros
+from ..task import Task
 from ..utils import simulate
 from ..evaluation import HoldoutModelEvaluator
 from .model_tuner import ModelTuner
@@ -218,7 +219,8 @@ class CfgRunner:
 class ControlTuner:
     # TODO Add autotune and autoselect surrogate modes.
     """
-    This class tunes SysID+MPC pipelines.
+    This class tunes controllers, searching over the hyperparameters for both
+    model, optimizer, and ocp_factory.
     """
     def __init__(self, surrogate_mode="default", surrogate_split=None, 
             surrogate_cfg=None, evaluation_quantile=0.5, surrogate=None,
@@ -398,8 +400,8 @@ class ControlTuner:
         controller : Controller
             Controller to tune.
 
-        tasks : Task
-            TODO Update Entry
+        tasks : Task or [Task]
+            Tasks which specify the tuning problem.
 
         trajs : List of Trajectory
             Trajectory training set.
@@ -473,7 +475,13 @@ class ControlTuner:
         if surrogate is None:
             surrogate = self.surrogate
 
+        if isinstance(tasks, Task):
+            tasks = [tasks]
+
+
         if not restore_dir:
+            controller = controller.clone()
+            controller.set_ocp(tasks[0].get_ocp())
             tuning_data = self._get_tuning_data(controller, tasks, trajs, truedyn, rng, 
                 surrogate, surrogate_tune_iters)
             with open(os.path.join(run_dir, "tuning_data.pkl"), "wb") as f:

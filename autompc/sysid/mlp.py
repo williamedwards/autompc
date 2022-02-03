@@ -165,47 +165,61 @@ class MLP(Model):
             self.hidden_sizes, self.nonlintype)
         self.net = self.net.double().to(self._device)
 
-    def train(self, trajs, silent=False, seed=100):
+    def _set_pairs(self, XU, dY):
+        self.XU = XU
+        self.dY = dY
+
+    def _prepare_data(self):
+        self.xu_means = np.mean(self.XU, axis=0)
+        self.xu_std = np.std(self.XU, axis=0)
+        XUt = transform_input(self.xu_means, self.xu_std, self.XU)
+        self.dy_means = np.mean(self.dY, axis=0)
+        self.dy_std = np.std(self.dY, axis=0)
+        dYt = transform_input(self.dy_means, self.dy_std, self.dY)
+        feedX = XUt
+        predY = dYt
+        dataset = SimpleDataset(feedX, predY)
+        self.dataloader = DataLoader(dataset, batch_size=self.n_batch, shuffle=True)
+
+    def _init_train(self, seed):
         self._init_net(seed)
         torch.manual_seed(seed)
+
+        self.net.train()
+        for param in self.net.parameters():
+            param.requires_grad_(True)
+        self.optim = torch.optim.Adam(self.net.parameters(), lr=self.lr)
+        self.lossfun = torch.nn.SmoothL1Loss()
+
+    def _step_train(self):
+        cum_loss = 0.0
+        for i, (x, y) in enumerate(self.dataloader):
+            self.optim.zero_grad()
+            x = x.to(self._device)
+            predy = self.net(x)
+            loss = self.lossfun(predy, y.to(self._device))
+            loss.backward()
+            cum_loss += loss.item()
+            self.optim.step()
+
+    def _finish_train():
+        self.net.eval()
+        for param in self.net.parameters():
+            param.requires_grad_(False)
+
+    def train(self, trajs, silent=False, seed=100):
+        self._init_train(seed)
+
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
         XU = np.concatenate((X, U), axis = 1) # stack X and U together
-        self.xu_means = np.mean(XU, axis=0)
-        self.xu_std = np.std(XU, axis=0)
-        XUt = transform_input(self.xu_means, self.xu_std, XU)
+        self._set_pairs(XU, dY)
+        self._prepare_data()
 
-        self.dy_means = np.mean(dY, axis=0)
-        self.dy_std = np.std(dY, axis=0)
-        dYt = transform_input(self.dy_means, self.dy_std, dY)
-        # concatenate data
-        feedX = XUt
-        predY = dYt
-        dataset = SimpleDataset(feedX, predY)
-        dataloader = DataLoader(dataset, batch_size=self.n_batch, shuffle=True)
-        # now I can perform training... using torch default dataset holder
-        self.net.train()
-        for param in self.net.parameters():
-            param.requires_grad_(True)
-        optim = torch.optim.Adam(self.net.parameters(), lr=self.lr)
-        lossfun = torch.nn.SmoothL1Loss()
-        best_loss = float("inf")
-        best_params = None
         print("Training MLP: ", end="")
         for i in tqdm(range(self.n_train_iters), file=sys.stdout):
-            cum_loss = 0.0
-            for i, (x, y) in enumerate(dataloader):
-                optim.zero_grad()
-                x = x.to(self._device)
-                predy = self.net(x)
-                loss = lossfun(predy, y.to(self._device))
-                loss.backward()
-                cum_loss += loss.item()
-                optim.step()
-        self.net.eval()
-        for param in self.net.parameters():
-            param.requires_grad_(False)
+            self._step_train()
 
     def pred(self, state, ctrl):
         X = np.concatenate([state, ctrl])

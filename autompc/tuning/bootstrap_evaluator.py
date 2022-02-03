@@ -5,21 +5,14 @@ from ..utils import simulate
 
 
 class BootstrapSurrogateEvaluator(SurrogateEvaluator):
-    def __init__(self, system, task, trajs, surrogate_factory, rng, n_bootstraps=10, surrogate_cfg=None,
+    def __init__(self, system, tasks, trajs, surrogate, rng=None, n_bootstraps=10, surrogate_cfg=None,
                     surrogate_mode="defaultcfg", surrogate_tune_iters=100):
-        ControlEvaluator.__init__(self, system, task, trajs)
+        ControlEvaluator.__init__(self, system, tasks, trajs)
         self.surrogate_mode = surrogate_mode
         self.surrogate_factory = surrogate_factory
         self.surr_trajs = trajs
 
-        bootstrap_sets = []
-
-        if surrogate_mode in ["autotune", "autoselect"]:
-            _, self.surr_tune_result = self._get_surrogate(trajs, rng, surrogate_tune_iters)
-            surrogate_cfg = self.surr_tune_result.inc_cfgs[-1]
-        elif surrogate_mode == "defaultcfg":
-            surrogate_cfg = surrogate_factory.get_configuration_space().get_default_configuration()
-        self.surrogate_cfg = surrogate_cfg
+        self._prepare_surrogate(trajs, rng=rng, surrogate_tune_iters=surrogate_tune_iters)
 
         self.bootstrap_models = self._get_bootstrap_models(rng, n_bootstraps)
 
@@ -37,7 +30,8 @@ class BootstrapSurrogateEvaluator(SurrogateEvaluator):
         bootstrap_surrogates = []
         for i in range(n_bootstraps):
             bootstrap_sample = rng.choice(population, len(population), replace=True, axis=0)
-            bootstrap_surrogate = self.surrogate_factory(self.surrogate_cfg, bootstrap_sample)
+            bootstrap_surrogate = self.surrogate.clone()
+            bootstrap_surrogate.train(bootstrap_sample)
             bootstrap_surrogates.append(bootstrap_surrogate)
         return bootstrap_surrogates
 
