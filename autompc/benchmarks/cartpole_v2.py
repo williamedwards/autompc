@@ -62,7 +62,7 @@ class CartpoleSwingupV2Benchmark(Benchmark):
         super().__init__(name, system, task, data_gen_method)
 
     def dynamics(self, x, u):
-        return dt_cartpole_dynamics(x,u,self.system.dt,g=0.8,m=1,L=1,b=1.0)
+        return dt_cartpole_dynamics(x,u,self.system.dt,g=9.8,m=1,L=1,b=1.0)
 
     def visualize(self, fig, ax, traj, margin=5.0):
         """
