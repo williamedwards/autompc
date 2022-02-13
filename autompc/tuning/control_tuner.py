@@ -537,6 +537,7 @@ class ControlTuner:
 
         # Generate final model and controller
         tuned_controller = controller.clone()
+        tuned_controller.set_ocp(tasks[0].get_ocp())
         tuned_controller.set_trajs(tuning_data["sysid_trajs"])
         tuned_controller.set_config(inc_cfg)
         tuned_controller.build()
