@@ -10,6 +10,7 @@ from ConfigSpace.hyperparameters import (
     Hyperparameter,
     Constant,
     FloatHyperparameter,
+    IntegerHyperparameter,
     NumericalHyperparameter,
     UniformFloatHyperparameter,
     UniformIntegerHyperparameter,
@@ -252,3 +253,25 @@ def get_hyper_str(config, name, default=None):
         return val
     else:
         raise ValueError("Unknown type for string hyperparameter")
+
+def coerce_hyper_vals(cs, values):
+    coerced_values = dict()
+
+    for name, value in values.items():
+        hyper = cs.get_hyperparameter(name)
+        if isinstance(hyper, FloatHyperparameter):
+            cvalue = float(value)
+        if isinstance(hyper, IntegerHyperparameter):
+            cvalue = int(value)
+        if isinstance(hyper, CategoricalHyperparameter):
+            if value in hyper.choices:
+                cvalue = value
+            elif str(value) in hyper.choices:
+                cvalue = str(value)
+            elif str(value).lower() in hyper.choices:
+                cvalue = str(value).lower()
+            else:
+                cvalue = value
+        coerced_values[name] = cvalue
+    
+    return coerced_values

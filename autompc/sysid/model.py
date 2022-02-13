@@ -1,11 +1,16 @@
 # Created by William Edwards (wre2@illinois.edu)
 
-import numpy as np
-
+# Standard library includes
 from abc import ABC, abstractmethod
 import copy
 
+# External library includes
+import numpy as np
+from ConfigSpace import Configuration
+
+# Internal library includes
 from ..trajectory import zeros
+from ..utils.cs_utils import coerce_hyper_vals
 
 class Model(ABC):
     def __init__(self, system, name):
@@ -30,6 +35,13 @@ class Model(ABC):
     @abstractmethod
     def set_config(self, config):
         raise NotImplementedError
+
+    def set_hyper_values(self, **kwargs):
+        cs = self.get_config_space()
+        values = {hyper.name : hyper.default_value 
+            for hyper in cs.get_hyperparameters()}
+        values.update(kwargs)
+        self.set_config(values)
 
     def clone(self):
         return copy.deepcopy(self)

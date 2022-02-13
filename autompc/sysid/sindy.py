@@ -51,7 +51,7 @@ class SINDy(Model):
       (Conditioned on trig_basis="true")
     - **trig_interaction** *(Type: bool)*: Whether to include cross-multiplication terms between trig functions
       and other state variables.
-    """ #TODO Consider whether to remove Lasso
+    """
     def __init__(self, system, allow_cross_terms=False):
         self.allow_cross_terms = allow_cross_terms
         super().__init__(system, "SINDy")
