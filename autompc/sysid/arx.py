@@ -138,9 +138,11 @@ class ARX(Model):
         B[2*n : 2*n + l, :] = np.eye(l)
 
         self.A, self.B = A, B
+        self.is_trained = True
 
     def clear(self):
         self.A, self.B = None, None
+        self.is_trained = False
 
     def pred(self, state, ctrl):
         statenew = self.A @ state + self.B @ ctrl

@@ -21,6 +21,17 @@ class Optimizer(ABC):
         return self.get_config_space().get_default_configuration()
 
     @abstractmethod
+    def set_config(self):
+        raise NotImplementedError
+
+    def set_hyper_values(self, **kwargs):
+        cs = self.get_config_space()
+        values = {hyper.name : hyper.default_value 
+            for hyper in cs.get_hyperparameters()}
+        values.update(kwargs)
+        self.set_config(values)
+
+    @abstractmethod
     def step(self, state):
         """
         Run the controller for a given time step

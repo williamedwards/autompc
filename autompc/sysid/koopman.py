@@ -184,10 +184,12 @@ class Koopman(Model):
             B = np.real(B)
 
         self.A, self.B = A, B
+        self.is_trained = True
 
     def clear(self):
         self.A = None
         self.B = None
+        self.is_trained = False
 
     def pred(self, state, ctrl):
         xpred = self.A @ state + self.B @ ctrl

@@ -1,6 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 # Standard libary includes
+import copy
 
 # External libary includes
 import numpy as np
@@ -30,6 +31,9 @@ class OCP:
         for i in range(system.ctrl_dim):
             self._ctrl_bounds[i, 0] = -np.inf
             self._ctrl_bounds[i, 1] = np.inf
+
+    def clone(self):
+        return copy.deepcopy(self)
 
     def set_cost(self, cost):
         """

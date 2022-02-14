@@ -31,7 +31,7 @@ class PolyBasisFunction:
         return x**self.degree
 
     def grad_func(self, x):
-        degree * x**(self.degree-1)
+        self.degree * x**(self.degree-1)
 
     def name_func(self, x):
         return "{}**{}".format(x,self.degree)
@@ -92,7 +92,7 @@ class SineBasisFunction:
         return np.sin(self.freq * x)
 
     def grad_func(self, x):
-        return freq * np.cos(self.freq * x)
+        return self.freq * np.cos(self.freq * x)
 
     def name_func(self, x):
         return "sin({} {})".format(self.freq, x)
@@ -107,7 +107,7 @@ class CosineBasisFunction:
         return np.cos(self.freq * x)
 
     def grad_func(self, x):
-        return -freq * np.sin(self.freq * x)
+        return -self.freq * np.sin(self.freq * x)
 
     def name_func(self, x):
         return "cos({} {})".format(self.freq, x)
@@ -130,7 +130,10 @@ class SineInteractionTerm:
     def grad_func(self, x, y):
         if self.swap_args:
             x, y = y, x
-        return [np.sin(self.freq * y), x * self.freq * np.cos(self.freq * y)]
+        grad = [np.sin(self.freq * y), x * self.freq * np.cos(self.freq * y)]
+        if self.swap_args:
+            grad[0], grad[1] = grad[1], grad[0]
+        return grad
 
     def name_func(self, x, y):
         if self.swap_args:
@@ -152,7 +155,10 @@ class CosineInteractionTerm:
     def grad_func(self, x, y):
         if self.swap_args:
             x, y = y, x
-        return [np.cos(freq * y), x * -self.freq * np.sin(self.freq * y)]
+        grad = [np.cos(self.freq * y), x * -self.freq * np.sin(self.freq * y)]
+        if self.swap_args:
+            grad[0], grad[1] = grad[1], grad[0]
+        return grad
 
     def name_func(self, x, y):
         if self.swap_args:

@@ -14,6 +14,7 @@ from .utils.configuration_space import ControllerConfigurationSpace
 from . import sysid
 from . import optim
 from . import ocp
+from .ocp.identity_factory import IdentityFactory
 
 class ControllerStateError(Exception):
     pass
@@ -23,9 +24,10 @@ class Controller:
         self.system = system
         self.models = []
         self.optimizers = []
-        self.ocp_factories = []
+        self.ocp_factories = [IdentityFactory(system)]
         self.model = None
         self.optimizer = None
+        self.ocp_factory = None
         self.ocp = None
         self.trajs = None
         self.config = None
@@ -81,6 +83,13 @@ class Controller:
             cs = ControllerConfigurationSpace(self)
         else:
             cs = CS.ConfigurationSpace()
+
+        if not self.models:
+            raise ControllerStateError("Must add model before config space can be generated")
+        if not self.optimizer:
+            raise ControllerStateError("Must add optimizer before config space can be generated")
+        if not self.ocp_factories:
+            raise ControllerStateError("Must add OCP factory before config space can be generated")
         
         self._add_config_space(cs, "model", self.models)
         self._add_config_space(cs, "optimizer", self.optimizers)
@@ -88,27 +97,26 @@ class Controller:
 
         return cs
 
-    def _get_choice_from_config(self, label, choices, config):
-        choice_name = config[label]
+    def _get_choice_by_name(self, choices, name):
         for choice in choices:
-            if choice.name == choice_name:
+            if choice.name == name:
                 return choice
-        raise ValueError(f"Unrecognized config value for {label}")
+        return None
 
     def _get_model_from_config(self, config=None):
         if config is None:
             config = self.config
-        return self._get_choice_from_config("model", self.models, config)
+        return self._get_choice_by_name(self.models, config["model"])
 
     def _get_optimizer_from_config(self, config=None):
         if config is None:
             config = self.config
-        return self._get_choice_from_config("optimizer", self.optimizers, config)
+        return self._get_choice_by_name(self.optimizers, config["optimizer"])
 
     def _get_ocp_factory_from_config(self, config=None):
         if config is None:
             config = self.config
-        return self._get_choice_from_config("ocp_factory", self.ocp_factories, config)
+        return self._get_choice_by_name(self.ocp_factories, config["optimizer"])
 
     def _get_choice_config(self, label, choices, config):
         choice_name = config[label]
@@ -137,7 +145,72 @@ class Controller:
     def set_config(self, config):
         if not self.check_config(config):
             raise ValueError("Controller config is incompatible")
-        self.config = copy.deepcopy(config)
+        self._set_model_config(config)
+        self._set_optimizer_config(config)
+        self._set_ocp_factory_config(config)
+
+    def _set_model_config(self, config):
+        model = self._get_choice_by_name(self.models, config["model"])
+        if model is None:
+            raise ValueError("Unrecognized model choice in config")
+        self.model = model
+        model_cfg = self._get_model_config(config)
+        self.model.set_config(config)
+
+    def _set_optimizer_config(self, config):
+        optimizer = self._get_choice_by_name(self.optimizer, config["optimizer"])
+        if optimizer is None:
+            raise ValueError("Unrecognized optimizer choice in config")
+        self.optimizer = optimizer
+        optim_cfg = self._get_optimizer_config(config)
+        self.optimizer.set_config(optim_cfg)
+
+    def _set_ocp_factory_config(self, config):
+        ocp_factory = self._get_choice_by_name(self.ocp_factories, config["ocp_factory"])
+        if ocp_factory is None:
+            raise ValueError("Unrecognized ocp_factory choice in config")
+        self.ocp_factory = ocp_factory
+        ocp_factory_cfg = self._get_ocp_factory_from_config(config)
+        self.ocp_factory.set_config(config)
+
+    def set_model_hyper_values(self, name=None, **kwargs):
+        if len(self.models) == 0:
+            raise ControllerStateError("Must add a model before setting hyper values")
+        if name is None and len(self.models) == 1:
+            name = self.models[0].name
+        elif name is None:
+            raise ValueError("Multiple models are present so name must be specified")
+        model = self._get_choice_by_name(self.models, name)
+        if model is None:
+            raise ValueError("Unrecognized model name")
+        self.model = model
+        self.model.set_hyper_values(**kwargs)
+
+    def set_optimizer_hyper_values(self, name=None, **kwargs):
+        if len(self.optimizers) == 0:
+            raise ControllerStateError("Must add an optimizer before setting hyper values")
+        if name is None and len(self.optimizers) == 1:
+            name = self.optimizers[0].name
+        elif name is None:
+            raise ValueError("Multiple optimizers are present so name must be specified")
+        optimizer = self._get_choice_by_name(self.optimizers, name)
+        if optimizer is None:
+            raise ValueError("Unrecognized optimizer name")
+        self.optimizer = optimizer
+        self.optimizer.set_hyper_values(**kwargs)
+
+    def set_ocp_factory_hyper_values(self, name=None, **kwargs):
+        if len(self.ocp_factories) == 0:
+            raise ControllerStateError("Must add an ocp_factory before setting hyper values")
+        if name is None and len(self.ocp_factories) == 1:
+            name = self.ocp_factories[0].name
+        elif name is None:
+            raise ValueError("Multiple ocp_factories are present so name must be specified")
+        ocp_factory = self._get_choice_by_name(self.ocp_factories, name)
+        if ocp_factory is None:
+            raise ValueError("Unrecognized ocp_factory name")
+        self.ocp_factory = ocp_factory
+        self.ocp_factory.set_hyper_values(**kwargs)
 
     def check_config(self, config, ocp=None):
         if ocp is None:
@@ -173,37 +246,25 @@ class Controller:
     def build(self):
         if not self.ocp:
             raise ControllerStateError("Must call set_ocp() before build()")
-        if self.model:
-            self.clear_model()
-        if not self.config:
-            self.config = self.get_default_config()
-        model = self._get_model_from_config()
-        optimizer = self._get_optimizer_from_config()
-        ocp_factory = self._get_ocp_factory_from_config()
-        if model:
-            model.set_config(self._get_model_config())
-        else:
-            raise ControllerStateError("No model specified.  Please add a model before calling build().")
-        if optimizer:
-            optimizer.set_config(self._get_optimizer_config())
-        else:
-            raise ControllerStateError("No optimizer specified.  Please add an optimizer before calling build().")
-        if ocp_factory:
-            ocp_factory.set_config(self._get_ocp_factory_config())
-        if model.trainable:
+        if not self.model:
+            self.model = self._get_model_from_config(self.get_default_config())
+        if not self.optimizer:
+            self.optimizer = self._get_optimizer_from_config(self.get_default_config())
+        if not self.ocp_factory:
+            self.ocp_factory = self._get_ocp_factory_from_config(self.get_default_config())
+        if self.model.trainable:
             if self.trajs:
-                model.train(self.trajs)
+                self.model.clear_model()
+                self.model.train(self.trajs)
+            elif self.model.is_trained:
+                pass
             else:
                 raise ControllerStateError("Specified model requires trajectories.  Please call set_trajs() before build().")
-        if ocp_factory and ocp_factory.trainable:
+        if self.ocp_factory and self.ocp_factory.trainable:
             if self.trajs:
-                ocp_factory.train(self.trajs)
+                self.ocp_factory.train(self.trajs)
             else:
                 raise ControllerStateError("Specified OCP Factory requires trajectories.  Please call set_trajs() before build().")
-
-        self.model = model
-        self.optimizer = optimizer
-        self.ocp_factory = ocp_factory
 
         self.reset()
 
@@ -235,7 +296,10 @@ class Controller:
         """
         self.model_state = self.model.traj_to_state(history)
 
-    def run(self, obs):
+    def run(self, *args, **kwargs):
+        return self.step(*args, **kwargs)
+
+    def step(self, obs):
         # Returns control, handles model state updates
         if not self.model or not self.optimizer or not self.transformed_ocp:
             raise ControllerStateError("Must call build() before run()")
@@ -245,7 +309,7 @@ class Controller:
             self.model_state = self.model.update_state(self.model_state, 
                     self.last_control, obs)
         
-        control = self.optimizer.run(self.model_state)
+        control = self.optimizer.step(self.model_state)
         self.last_control = control
 
         return control

@@ -16,6 +16,17 @@ class OCPFactory(ABC):
     def get_default_config_space(self):
         raise NotImplementedError
 
+    @abstractmethod
+    def set_config(self):
+        raise NotImplementedError
+
+    def set_hyper_values(self, **kwargs):
+        cs = self.get_config_space()
+        values = {hyper.name : hyper.default_value 
+            for hyper in cs.get_hyperparameters()}
+        values.update(kwargs)
+        self.set_config(values)
+
     def train(self):
         raise NotImplementedError
 

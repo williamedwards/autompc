@@ -17,6 +17,7 @@ class Model(ABC):
         self.system = system
         self.name = name
         self.set_config(self.get_default_config())
+        self.is_trained = False
 
     def get_config_space(self):
         return self.get_default_config_space()

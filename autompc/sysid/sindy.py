@@ -116,6 +116,7 @@ class SINDy(Model):
 
     def clear(self):
         self.model = None
+        self.is_trained = False
 
     @property
     def state_dim(self):
@@ -163,6 +164,8 @@ class SINDy(Model):
                     t=self.system.dt, x_dot=xdot)
         elif self.time_mode == "discrete":
             self.model.fit(X, u=U, multiple_trajectories=True)
+
+        self.is_trained = True
 
     def pred(self, state, ctrl):
         xpred = self.pred_batch(state.reshape((1,state.size)), 

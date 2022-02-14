@@ -113,6 +113,7 @@ class ApproximateGPModel(Model):
 
     def clear(self):
         self.gpmodel = None
+        self.is_trained = False
 
     def _set_pairs(self, XU, dY):
         self.XU = XU
@@ -172,6 +173,7 @@ class ApproximateGPModel(Model):
         self.gpmodel.eval()
         self.likelihood.eval()
         self.gpmodel.likelihood = self.likelihood
+        self.is_trained = True
 
     def train(self, trajs, silent=False, seed=100):
         """Given collected trajectories, train the GP to approximate the actual dynamics"""

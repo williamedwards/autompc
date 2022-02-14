@@ -144,6 +144,7 @@ class MLP(Model):
 
     def clear(self):
         self.net = None
+        self.is_trained = False
 
     def traj_to_state(self, traj):
         return traj[-1].obs.copy()
@@ -202,10 +203,11 @@ class MLP(Model):
             cum_loss += loss.item()
             self.optim.step()
 
-    def _finish_train():
+    def _finish_train(self):
         self.net.eval()
         for param in self.net.parameters():
             param.requires_grad_(False)
+        self.is_trained = True
 
     def train(self, trajs, silent=False, seed=100):
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
@@ -216,10 +218,11 @@ class MLP(Model):
         self._prepare_data()
         self._init_train(seed)
 
-
         print("Training MLP: ", end="")
         for i in tqdm(range(self.n_train_iters), file=sys.stdout):
             self._step_train()
+
+        self._finish_train()
 
     def pred(self, state, ctrl):
         X = np.concatenate([state, ctrl])
