@@ -1,15 +1,15 @@
 # Table of Contents
-0. Main Demo [Pending Full Run]
+0. Main Demo [Done]
 
 1. Basics [Done]
 
 2. Models [Done]
 
-3. Controllers and Tasks [TODO]
+3. Controllers [Done]
  
 4. Hyperparameters and Configuration Spaces [TODO]
 
-5. Model Tuning [Pending Full Run]
+5. Model Tuning [Mostly Done]
 
 6. Controller Tuning [TODO]
 
