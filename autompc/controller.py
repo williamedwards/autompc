@@ -86,7 +86,7 @@ class Controller:
 
         if not self.models:
             raise ControllerStateError("Must add model before config space can be generated")
-        if not self.optimizer:
+        if not self.optimizers:
             raise ControllerStateError("Must add optimizer before config space can be generated")
         if not self.ocp_factories:
             raise ControllerStateError("Must add OCP factory before config space can be generated")
@@ -116,11 +116,11 @@ class Controller:
     def _get_ocp_factory_from_config(self, config=None):
         if config is None:
             config = self.config
-        return self._get_choice_by_name(self.ocp_factories, config["optimizer"])
+        return self._get_choice_by_name(self.ocp_factories, config["ocp_factory"])
 
     def _get_choice_config(self, label, choices, config):
         choice_name = config[label]
-        choice = self._get_choice_from_config(label, choices, config)
+        choice = self._get_choice_by_name(choices, choice_name)
         return create_subspace_configuration(config, choice_name, 
             choice.get_config_space(), allow_inactive_with_values=True)
 
@@ -155,10 +155,10 @@ class Controller:
             raise ValueError("Unrecognized model choice in config")
         self.model = model
         model_cfg = self._get_model_config(config)
-        self.model.set_config(config)
+        self.model.set_config(model_cfg)
 
     def _set_optimizer_config(self, config):
-        optimizer = self._get_choice_by_name(self.optimizer, config["optimizer"])
+        optimizer = self._get_choice_by_name(self.optimizers, config["optimizer"])
         if optimizer is None:
             raise ValueError("Unrecognized optimizer choice in config")
         self.optimizer = optimizer
@@ -170,8 +170,8 @@ class Controller:
         if ocp_factory is None:
             raise ValueError("Unrecognized ocp_factory choice in config")
         self.ocp_factory = ocp_factory
-        ocp_factory_cfg = self._get_ocp_factory_from_config(config)
-        self.ocp_factory.set_config(config)
+        ocp_factory_cfg = self._get_ocp_factory_config(config)
+        self.ocp_factory.set_config(ocp_factory_cfg)
 
     def set_model_hyper_values(self, name=None, **kwargs):
         if len(self.models) == 0:
@@ -221,9 +221,12 @@ class Controller:
 
         ocp_factory = self._get_ocp_factory_from_config(config)
         ocp_config = self._get_ocp_factory_config(config)
-        if not ocp_factory.is_compatible(ocp):
-            return False
-        ocp_ptype = ocp_factory.get_prototype(ocp_config, ocp)
+        if ocp_factory:
+            if not ocp_factory.is_compatible(ocp):
+                return False
+            ocp_ptype = ocp_factory.get_prototype(ocp_config, ocp)
+        else:
+            ocp_ptype = ocp
 
         optim = self._get_optimizer_from_config(config)
         return optim.is_compatible(model_ptype, ocp_ptype)
@@ -254,7 +257,7 @@ class Controller:
             self.ocp_factory = self._get_ocp_factory_from_config(self.get_default_config())
         if self.model.trainable:
             if self.trajs:
-                self.model.clear_model()
+                self.model.clear()
                 self.model.train(self.trajs)
             elif self.model.is_trained:
                 pass
