@@ -253,7 +253,9 @@ class MLP(Model):
         xin.requires_grad_(True)
         yout = self.net(xin)
         # compute gradient...
-        yout.backward(torch.eye(n_out).to(self._device))
+        eye_val = torch.eye(n_out).to(self._device)
+        eye_val = eye_val.type(yout.dtype)
+        yout.backward(eye_val)
         jac = xin.grad.cpu().data.numpy()
         # properly scale back...
         jac = jac / self.xu_std[None] * self.dy_std[:, np.newaxis]
@@ -274,7 +276,9 @@ class MLP(Model):
         TsrXt = TsrXt.repeat(obs_dim, 1, 1).permute(1,0,2).flatten(0,1)
         TsrXt.requires_grad_(True)
         predy = self.net(TsrXt)
-        predy.backward(torch.eye(obs_dim).to(self._device).repeat(m,1), retain_graph=True)
+        eye_val = torch.eye(obs_dim).to(self._device).repeat(m,1)
+        eye_val = eye_val.type(predy.dtype)
+        predy.backward(eye_val, retain_graph=True)
         predy = predy.reshape((m, obs_dim, obs_dim))
         #predy.backward(retain_graph=True)
         jac = TsrXt.grad.cpu().data.numpy()
