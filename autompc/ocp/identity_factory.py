@@ -12,6 +12,7 @@ import ConfigSpace.conditions as CSC
 
 # Internal library includes
 from .ocp_factory import OCPFactory
+from .ocp import PrototypeOCP
 
 class IdentityFactory(OCPFactory):
     """

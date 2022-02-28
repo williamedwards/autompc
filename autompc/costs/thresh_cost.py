@@ -32,10 +32,13 @@ class ThresholdCost(Cost):
         """
         super().__init__(system)
         self._threshold = np.copy(threshold)
+        self._obs_idxs = None
         if obs_range is not None:
             self._obs_idxs = list(range(obs_range[0], obs_range[1]))
         if observations is not None:
             self._obs_idxs = [system.observations.index(obs) for obs in observations]
+        if self._obs_idxs is None:
+            self._obs_idxs = list(range(0, system.obs_dim))
         self.set_goal(goal)
 
         self._is_quad = False
