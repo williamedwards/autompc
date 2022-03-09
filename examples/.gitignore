@@ -3,4 +3,5 @@ example_data
 out
 autompc-output_*
 smac3-output_*
+*/run_*/*
 .ipynb_checkpoints
