@@ -20,24 +20,47 @@ class Model(ABC):
         self.is_trained = False
 
     def get_config_space(self):
+        """
+        Returns the model configuration space.
+        """
         return self.get_default_config_space()
 
     @abstractmethod
     def get_default_config_space(self):
+        """
+        Returns the default configuration space, prior to any user modifications.
+        """
         raise NotImplementedError
 
     def get_default_config(self):
+        """
+        Returns the default configuration.
+        """
         return self.get_config_space().get_default_configuration()
 
     @abstractmethod
     def clear(self):
+        """
+        Clears all trained parameters.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def set_config(self, config):
+        """
+        Set the model configuration.
+
+        Parameters
+        ----------
+            config : Configuration
+                Configuration to set.
+        """
         raise NotImplementedError
 
     def set_hyper_values(self, **kwargs):
+        """
+        Set hyperparameter values as keyword arguments.
+        """
         cs = self.get_config_space()
         values = {hyper.name : hyper.default_value 
             for hyper in cs.get_hyperparameters()}
@@ -45,6 +68,9 @@ class Model(ABC):
         self.set_config(values)
 
     def clone(self):
+        """
+        Returns a deep copy of the mdoel.
+        """
         return copy.deepcopy(self)
 
     @abstractmethod
@@ -63,8 +89,16 @@ class Model(ABC):
 
     def init_state(self, obs):
         """
+        Returns model state for an initial observation.
+
         Parameters
         ----------
+            obs : numpy array of size self.system.obs_dim
+                Initial observation.
+        Returns
+        -------
+            state : numpy array of size self.state_dim
+                Initial state.
         """
         traj = zeros(self.system, 1)
         traj[0].obs[:] = obs
