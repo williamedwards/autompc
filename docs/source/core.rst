@@ -30,7 +30,10 @@ extend
 ------
 .. autofunction:: autompc.extend
 
-Pipeline
-^^^^^^^^
-.. autoclass:: autompc.Pipeline
-   :members: __init__, get_configuration_space, __call__
+Controller
+^^^^^^^^^^
+.. autoclass:: autompc.Controller
+   :members:
+
+.. autoclass:: autompc.AutoSelectController
+   :members:

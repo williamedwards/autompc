@@ -11,20 +11,38 @@ class Optimizer(ABC):
         self.set_config(self.get_default_config())
 
     def get_config_space(self):
+        """
+        Returns the optimizer configuration space.
+        """
         return self.get_default_config_space()
 
     @abstractmethod
     def get_default_config_space(self):
+        """
+        Returns the optimize configuraiton space, prior
+        to any user modifications.
+        """
         raise NotImplementedError
 
     def get_default_config(self):
         return self.get_config_space().get_default_configuration()
 
     @abstractmethod
-    def set_config(self):
+    def set_config(self, config):
+        """
+        Set the model configuration.
+
+        Parameters
+        ----------
+            config : Configuration
+                Configuration to set.
+        """
         raise NotImplementedError
 
     def set_hyper_values(self, **kwargs):
+        """
+        Set hyperparameter values as keyword arguments.
+        """
         cs = self.get_config_space()
         values = {hyper.name : hyper.default_value 
             for hyper in cs.get_hyperparameters()}
@@ -34,7 +52,7 @@ class Optimizer(ABC):
     @abstractmethod
     def step(self, state):
         """
-        Run the controller for a given time step
+        Run the optimizer for a given time step
 
         Parameters
         ----------
@@ -51,7 +69,7 @@ class Optimizer(ABC):
     def is_compatible(self, model, ocp):
         """
         Check if an optimizer is compatible with a given model
-        or ocp/ocp factory.
+        and ocp.
 
         Parameters
         ----------
@@ -78,18 +96,33 @@ class Optimizer(ABC):
         pass
 
     def set_model(self, model):
+        """
+        Set the model to be used for optimization.
+        """
         self.model = model
     
     def set_ocp(self, ocp):
+        """
+        Set the OCP to be solved.
+        """
         self.ocp = ocp
 
     @abstractmethod
     def get_state(self):
+        """
+        Returns a representatation of the optimizers internal state.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def set_state(self, state):
+        """
+        Set the optimizers internal state.
+        """
         raise NotImplementedError
 
     def clone(self):
+        """
+        Returns a deep copy of the optimizer.
+        """
         return copy.deepcopy(self)

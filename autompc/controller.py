@@ -20,6 +20,12 @@ class ControllerStateError(Exception):
     pass
 
 class Controller:
+    """
+    Controller is the core class of AutoMPC, representing all components
+    of a tunable, data-driven model predictive controller, including 
+    system ID model, optimizer, and control problem, as well as all
+    associated hyperparameters.
+    """
     def __init__(self, system, check_config_in_cs=False):
         self.system = system
         self.models = []
@@ -35,36 +41,119 @@ class Controller:
         self._check_config_in_cs = check_config_in_cs
 
     def set_model(self, model):
+        """
+        Set the controller to use a single system ID model.
+
+        Parameters
+        ----------
+            model : Model
+                System ID model to set.
+        """
         self.models = [model]
         
     def set_models(self, models):
+        """
+        Set the available system ID models.
+
+        Parameters
+        ----------
+            models : List[Model]
+                Set of System ID models which can be selected.
+        """
         self.models = models[:]
 
     def add_model(self, model):
+        """
+        Add an available system ID model to the existing list.
+
+        Parameters
+        ----------
+            model : Model
+                System ID model to be added.
+        """
         self.models.append(model)
 
     def set_optimizer(self, optimizer):
+        """
+        Set the controller to use a single optimizer.
+
+        Parameters
+        ----------
+            optimizer : Optimizer
+                Optimizer to set.
+        """
         self.optimizers = [optimizer]
 
     def set_optimizers(self, optimizers):
+        """
+        Set the available optimizers.
+
+        Parameters
+        ----------
+            optimizers : List[Optimizer]
+                Set of optimizers which can be selected.
+        """
         self.optimizers = optimizers[:]
 
     def add_optimizer(self, optimizer):
+        """
+        Add an available optimizer to the existing list.
+
+        Parameters
+        ----------
+            optimizer : Optimizer
+                Optimizer to be added.
+        """
         self.optimizers.append(optimizer)
 
     def set_ocp_factory(self, ocp_factory):
+        """
+        Set the controller to use a single OCP factory.
+
+        Parameters
+        ----------
+            ocp_factory : OCPFactory
+                OCPFactory to set.
+        """
         self.ocp_factories = [ocp_factory]
 
     def set_ocp_factories(self, ocp_factories):
+        """
+        Set the available OCP factories.
+
+        Parameters
+        ----------
+            ocp_factories : List[OCPFactory]
+                Set of OCP factories which can be selected.
+        """
         self.ocp_factories = ocp_factories
 
     def add_ocp_factory(self, ocp_factory):
+        """
+        Add an available OCP Factory to the existing list.
+
+        Parameters
+        ----------
+            ocp_factory : OCPFactory
+                OCP Factory to be added.
+        """
         self.ocp_factories.append(ocp_factory)
 
     def set_ocp(self, ocp):
+        """
+        Set the OCP
+        """
         self.ocp = ocp
 
     def set_trajs(self, trajs):
+        """
+        Set the trajectory training set.
+
+        Parameters
+        ----------
+            trajs : List[Trajectory]
+                Trajectory training set.
+        """
         self.trajs = trajs[:]
 
     def _add_config_space(self, cs, label, choices):
@@ -79,6 +168,9 @@ class Controller:
                 )
 
     def get_config_space(self):
+        """
+        Returns the joint controller configuration space.
+        """
         if self._check_config_in_cs:
             cs = ControllerConfigurationSpace(self)
         else:
@@ -140,9 +232,20 @@ class Controller:
         return self._get_choice_config("ocp_factory", self.ocp_factories, config)
 
     def get_default_config(self):
+        """
+        Returns the default controller configuration.
+        """
         return self.get_config_space().get_default_configuration()
 
     def set_config(self, config):
+        """
+        Set the controller configuration.
+
+        Parameters
+        ----------
+            config : Configuration
+                Configuration to set.
+        """
         if not self.check_config(config):
             raise ValueError("Controller config is incompatible")
         self._set_model_config(config)
@@ -174,6 +277,16 @@ class Controller:
         self.ocp_factory.set_config(ocp_factory_cfg)
 
     def set_model_hyper_values(self, name=None, **kwargs):
+        """
+        Set model and model hyperparameters by keyword argument.
+
+        Parameters
+        ---------- 
+            name : str
+                Name of model to set
+            **kwargs
+                Model hyperparameter values
+        """
         if len(self.models) == 0:
             raise ControllerStateError("Must add a model before setting hyper values")
         if name is None and len(self.models) == 1:
@@ -187,6 +300,16 @@ class Controller:
         self.model.set_hyper_values(**kwargs)
 
     def set_optimizer_hyper_values(self, name=None, **kwargs):
+        """
+        Set optimizer and optimizer hyperparameters by keyword argument.
+
+        Parameters
+        ---------- 
+            name : str
+                Name of optimizer to set
+            **kwargs
+                Optimizer hyperparameter values
+        """
         if len(self.optimizers) == 0:
             raise ControllerStateError("Must add an optimizer before setting hyper values")
         if name is None and len(self.optimizers) == 1:
@@ -200,6 +323,16 @@ class Controller:
         self.optimizer.set_hyper_values(**kwargs)
 
     def set_ocp_factory_hyper_values(self, name=None, **kwargs):
+        """
+        Set OCP factory and hyperparameters by keyword argument.
+
+        Parameters
+        ---------- 
+            name : str
+                Name of OCP Factory to set
+            **kwargs
+                OCP Factory hyperparameter values
+        """
         if len(self.ocp_factories) == 0:
             raise ControllerStateError("Must add an ocp_factory before setting hyper values")
         if name is None and len(self.ocp_factories) == 1:
@@ -213,6 +346,17 @@ class Controller:
         self.ocp_factory.set_hyper_values(**kwargs)
 
     def check_config(self, config, ocp=None):
+        """
+        Check if config is compatible.
+
+        Parameters
+        ----------
+            config : Configuration
+                Configuration to check.
+            ocp : OCP
+                OCP to use for compatibility checking. If None,
+                will use preset controller OCP.
+        """
         if ocp is None:
             ocp = self.ocp
         model = self._get_model_from_config(config)
@@ -232,21 +376,38 @@ class Controller:
         return optim.is_compatible(model_ptype, ocp_ptype)
 
     def clear_trajs(self):
+        """
+        Clear the trajectory training set.
+        """
         self.trajs = None
 
     def clear_model(self):
+        """
+        Clear learned model parameters.
+        """
         self.model.clear()
 
     def clear(self):
+        """
+        Clears the trajectory training set, model parameters, and
+        current config selection.
+        """
         self.reset()
         self.clear_trajs()
         self.clear_model()
-        self.mode, self.optimizer, self.ocp_factory = None, None, None
+        self.model, self.optimizer, self.ocp_factory = None, None, None
 
     def clone(self):
+        """
+        Returns a deep copy of the controller.
+        """
         return copy.deepcopy(self)
 
     def build(self):
+        """
+        Build the controller from the current configuration.  This includes
+        training the model, constructing the OPC, and initializing the optimizer.
+        """
         if not self.ocp:
             raise ControllerStateError("Must call set_ocp() before build()")
         if not self.model:
@@ -272,13 +433,24 @@ class Controller:
         self.reset()
 
     def reset(self):
+        """
+        Resets the the optimizer state and model history.
+        """
         self.reset_optimizer()
         self.reset_history()
 
     def reset_history(self):
+        """
+        Resets the model history.  This prevents historical observations
+        from influencing current model predictions.
+        """
         self.model_state = None
 
     def reset_optimizer(self):
+        """
+        Re-initialize the optimizer and regenerates the OCP.
+        This clears any internal optimizer states such as a trajectory guess.
+        """
         # Instantiate optimizer and transformed ocp
         if self.ocp_factory:
             self.transformed_ocp = self.ocp_factory(self.ocp)
@@ -300,9 +472,24 @@ class Controller:
         self.model_state = self.model.traj_to_state(history)
 
     def run(self, *args, **kwargs):
+        """
+        Alias of step() for backwards compatibility.
+        """
         return self.step(*args, **kwargs)
 
     def step(self, obs):
+        """
+        Pass the controller a new observation and generate a new control.
+
+        Parameters
+        ----------
+            obs : numpy array of size self.system.obs_dim
+                New observation
+        Returns
+        -------
+            control : numpy array of size self.system.ctrl_dim
+                Generated control
+        """
         # Returns control, handles model state updates
         if not self.model or not self.optimizer or not self.transformed_ocp:
             raise ControllerStateError("Must call build() before run()")
@@ -318,14 +505,17 @@ class Controller:
         return control
 
     def get_state(self):
-        # Returns pickleable state object
-        # combining model and optimizer state
+        """
+        Returns a representation of the controller state.
+        """
         return {"model_state" : self.model_state,
             "last_control" : self.last_control,
             "optimizer_state" : self.optimizer.get_state()}
 
     def set_state(self, state):
-        # Sets controller (model/optimizer) state
+        """
+        Sets the current controller state.
+        """
         self.model_state = state["model_state"]
         self.last_control = state["last_control"]
         self.optimizer.set_state(state["optimizer_state"])
@@ -333,7 +523,26 @@ class Controller:
 class AutoSelectController(Controller):
     """
     A version of the controller which comes with a default selection
-    of models, optimizer, and OCP factories.
+    of models, optimizer, and OCP factories.  Current list is
+
+    **Models**
+     - MLP
+     - ApproximateGP
+     - SINDy
+     - ARX
+     - Koopman
+    
+    **Optimizers**
+     - IterativeLQR
+     - MPPI
+     - LQR
+     - DirectTranscription
+
+    **OCP Factories**
+     - IdentityFactory
+     - QuadCostFactory
+
+    Note that this list may change in future versions as new algorithms are added to AutoMPC.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
