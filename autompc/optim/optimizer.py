@@ -114,6 +114,12 @@ class Optimizer(ABC):
         """
         raise NotImplementedError
 
+    def get_traj(self):
+        """
+        Returns the last optimized trajectory, if available.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def set_state(self, state):
         """

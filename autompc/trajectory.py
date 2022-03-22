@@ -199,3 +199,6 @@ class Trajectory:
         if ctrls.shape != (self._size, self._system.ctrl_dim):
             raise ValueError("ctrls is wrong shape")
         self._ctrls = ctrls[:]
+
+    def clone(self):
+        return Trajectory(self.system, self.size, np.copy(self.obs), np.copy(self.ctrls))

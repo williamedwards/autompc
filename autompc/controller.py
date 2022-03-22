@@ -520,6 +520,12 @@ class Controller:
         self.last_control = state["last_control"]
         self.optimizer.set_state(state["optimizer_state"])
 
+    def get_optimized_traj(self):
+        """
+        Returns the last optimized trajectory, if available.
+        """
+        return self.optimizer.get_traj()
+
 class AutoSelectController(Controller):
     """
     A version of the controller which comes with a default selection

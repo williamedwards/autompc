@@ -10,6 +10,7 @@ from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
 # Internal libary includes
 from .optimizer import Optimizer
+from ..trajectory import Trajectory
 
 class IterativeLQR(Optimizer):
     """
@@ -42,6 +43,7 @@ class IterativeLQR(Optimizer):
 
     def reset(self):
         self._guess = None
+        self._traj = None
 
     def set_ocp(self, ocp):
         super().set_ocp(ocp)
@@ -221,4 +223,9 @@ class IterativeLQR(Optimizer):
         converged, states, ctrls, Ks, ks = self.compute_ilqr(state, self._guess,
                 silent=silent)
         self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
+        self._traj = Trajectory(self.system, states.shape[0], states, 
+            np.vstack([ctrls, np.zeros(self.system.ctrl_dim)]))
         return ctrls[0]
+
+    def get_traj(self):
+        return self._traj.clone()
