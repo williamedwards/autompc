@@ -51,19 +51,19 @@ class LogBarrierCost(Cost):
     # - b * ln ( a - x ) upper limit
     # - b * ln ( a + x ) lower limit
     def eval_obs_cost(self, obs):
-        return -self.scale * np.log( self.limit - (self.direction * obs[self._obs_id]))
+        return -self._scale * np.log( self._limit - (self._direction * obs[self._obs_id]))
 
     #Jacobian:
     # b / (a - x) upper limit
     # -b / (a - x) lower limit
     def eval_obs_cost_diff(self, obs):
-        return self.direction * self.scale / (self.limit - obs[self._obs_id])
+        return self.direction * self._scale / (self._limit - obs[self._obs_id])
 
     #Hessian:
     # b / (a - x)^2 upper limit
     # b / (a - x)^2 lower limit
     def eval_obs_cost_hess(self, obs):
-        return self.scale / ((self.limit - obs[self._obs_id])**2)
+        return self._scale / ((self._limit - obs[self._obs_id])**2)
 
     def eval_ctrl_cost(self, ctrl):
         return 0
