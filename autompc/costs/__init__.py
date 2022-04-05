@@ -6,3 +6,4 @@ from .sum_cost import SumCost
 from .sum_cost_factory import SumCostFactory
 from .cost import Cost
 from .cost_factory import CostFactory
+from .barrier_cost import LogBarrierCost
