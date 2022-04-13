@@ -5,6 +5,7 @@ import sys, time
 
 # External library includes
 import numpy as np
+import mujoco_py
 
 # Project includes
 from .benchmark import Benchmark
@@ -82,7 +83,7 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
             action = env.action_space.sample()
             traj[j-1].ctrl[:] = action
             #obs, reward, done, info = env.step(action)
-            obs = halfcheetah_dynamics(traj[j-1].obs[:], action)
+            obs = halfcheetah_dynamics(env, traj[j-1].obs[:], action)
             traj[j].obs[:] = obs
         trajs.append(traj)
     return trajs
