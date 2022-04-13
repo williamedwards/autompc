@@ -48,6 +48,8 @@ class CartpoleSwingupV2Benchmark(Benchmark):
         system.dt = 0.05
 
         limits = np.array([[-0.2, 0.2], [-0.2, 0.2], [-10.0, 10.0], [-np.inf, np.inf]])
+        system.limits = limits
+        
         cost = BoxThresholdCost(system, limits, goal=np.zeros(4)) 
         task = Task(system)
         task.set_cost(cost)

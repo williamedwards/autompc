@@ -6,7 +6,7 @@ class System:
     control and observation dimensions and the labels for each control
     and observation variable.
     """
-    def __init__(self, observations, controls, dt=None):
+    def __init__(self, observations, controls, dt=None, limit=None):
         """
         Parameters
         ----------
@@ -34,6 +34,8 @@ class System:
         self._observations = observations[:]
 
         self.dt = dt
+
+        self.limit = limit
 
     def __eq__(self, other):
         return ((self.controls == other.controls) 
