@@ -1,4 +1,5 @@
 from collections.abc import Iterable, Callable
+from multiprocessing.pool import Pool
 import numpy as np
 from .control_evaluator import ControlEvaluator, ConstantDistribution
 from ..utils import simulate
@@ -89,10 +90,38 @@ class SurrogateEvaluator(ControlEvaluator):
         else:
             info = {"task_infos" : []}
             costs = []
-            for i, task in enumerate(self.tasks):
-                print(f"Evaluating Task {i}")
-                task_cost, task_info = self._evaluate_for_task(controller, task)
-                info["task_infos"].append(task_info)
-                costs.append(task_cost)
+
+            # Parallel Result Does Not Have Clear Debug Printout
+            parallel = True
+            results = []
+
+            if(parallel):
+                def setupTask(controllerIn, taskIn):
+                    return self._evaluate_for_task(controllerIn, taskIn)
+
+                pool = Pool()
+                for i, task in enumerate(self.tasks):
+                    print(f"Evaluating Task {i}")
+                    results.append(pool.apply_async(func=setupTask, args=(controller,task)))
+                    
+                for res in results:
+                    try:
+                        output = res.get(timeout=1)
+                    except TimeoutError:
+                        print("TimeoutError In Surrogate Task Evaluation")
+                    info["task_infos"].append(output[1])
+                    costs.append(output[0])
+                
+                pool.close()
+                pool.join()
+
+            else:
+                for i, task in enumerate(self.tasks):
+                    print(f"Evaluating Task {i}")
+                    task_cost, task_info = self._evaluate_for_task(controller, task)
+                    info["task_infos"].append(task_info)
+                    costs.append(task_cost)
+
+                
             distribution = ConstantDistribution(np.mean(costs))
             return distribution, info
