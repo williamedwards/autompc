@@ -6,9 +6,10 @@ import numpy.linalg as la
 from .cost import Cost
 
 class LogBarrierCost(Cost):
-    def __init__(self, system, boundedState):#TODO: Add controls cost
+    def __init__(self, system, boundedStates):
         """
         Create barrier cost that approximates an inequality constraint.
+        Is twice differentiable but does not exist outside the limit.
         where : - b * ln ( a - x ) for upper limit
                 - b * ln ( a + x ) for lower limit
 
@@ -20,13 +21,13 @@ class LogBarrierCost(Cost):
         boundedState : dict
             Dictionary of { "observation or control name" : (limit, scale, upper)}
 
-            observation : String
-                Observation name for which limit is specified.
+            observation/control (x) : String
+                Observation/control name for which limit is specified.
 
-            limit : double
+            limit (a) : double
                 limit value a that barrier is placed at.
 
-            scale : double
+            scale (b) : double
                 Positive scaler to magnify the cost function.
                 scale: (0, inf)
 
@@ -36,22 +37,20 @@ class LogBarrierCost(Cost):
         """
         super().__init__(system)
         self.obsConfiguration = []
-        self.ctrlConfiguration = []
+        self.ctrlsConfiguration = []
 
-        for variable in boundedState.keys():
+        for variable in boundedStates.keys():
             if(variable in system.observations):
-                obs_id = system.observations.index(variable)
-                self.obsConfiguration.append([obs_id, boundedState[variable]])
+                self.obsConfiguration.append([variable, boundedStates[variable]])
             if(variable in system.controls):
-                obs_id = system.controls.index(variable)
-                self.obsConfiguration.append([obs_id, boundedState[variable]])
+                self.ctrlsConfiguration.append([variable, boundedStates[variable]])
         
         # Configs
         self._is_quad = False
         self._is_convex = False     #TODO: Not sure
         self._is_diff = True
         self._is_twice_diff = True
-        self._has_goal = False      #TODO: Probably not
+        self._has_goal = False
 
     #Cost Function:
     # - b * ln ( a - x ) upper limit
@@ -59,11 +58,12 @@ class LogBarrierCost(Cost):
     def eval_obs_cost(self, obs):
         sum = 0
         for boundedObs in self.obsConfiguration:
+            index = self.system.observations.index(boundedObs[0])
             limit, scale, upper = boundedObs[1]
             self._direction = -1
             if(upper):
                 direction = 1
-            sum = sum + -scale * np.log(limit - (direction * obs[boundedObs[0]]))
+            sum = sum + -scale * np.log(limit - (direction * obs[index]))
         return sum
 
     #Jacobian:
@@ -72,11 +72,12 @@ class LogBarrierCost(Cost):
     def eval_obs_cost_diff(self, obs):
         jacobian = np.zeros(self.system.obs_dim)
         for boundedObs in self.obsConfiguration:
+            index = self.system.observations.index(boundedObs[0])
             limit, scale, upper = boundedObs[1]
             self._direction = -1
             if(upper):
                 direction = 1
-            jacobian[boundedObs[0]] = direction * scale / (limit - obs[boundedObs[0]])
+            jacobian[boundedObs[0]] = direction * scale / (limit - obs[index])
         return jacobian
 
     #Hessian:
@@ -85,35 +86,39 @@ class LogBarrierCost(Cost):
     def eval_obs_cost_hess(self, obs):
         hessian = np.zeros((self.system.obs_dim, self.system.obs_dim))
         for boundedObs in self.obsConfiguration:
+            index = self.system.observations.index(boundedObs[0])
             limit, scale, upper = boundedObs[1]
-            hessian[boundedObs[0]][boundedObs[0]] = scale / ((limit - obs[boundedObs[0]])**2)
+            hessian[boundedObs[0]][boundedObs[0]] = scale / ((limit - obs[index])**2)
         return hessian
 
     def eval_ctrl_cost(self, ctrl):
         sum = 0
-        for boundedCtrl in self.ctrlConfiguration:
+        for boundedCtrl in self.ctrlsConfiguration:
+            index = self.system.controls.index(boundedCtrl[0])
             limit, scale, upper = boundedCtrl[1]
             self._direction = -1
             if(upper):
                 direction = 1
-            sum = sum + -scale * np.log(limit - (direction * ctrl[boundedCtrl[0]]))
+            sum = sum + -scale * np.log(limit - (direction * ctrl[index]))
         return sum
     
     def eval_ctrl_cost_diff(self, ctrl):
         jacobian = np.zeros(self.system.ctrl_dim)
-        for boundedCtrl in self.obsConfiguration:
+        for boundedCtrl in self.ctrlsConfiguration:
+            index = self.system.controls.index(boundedCtrl[0])
             limit, scale, upper = boundedCtrl[1]
             self._direction = -1
             if(upper):
                 direction = 1
-            jacobian[boundedCtrl[0]] = direction * scale / (limit - ctrl[boundedCtrl[0]])
+            jacobian[boundedCtrl[0]] = direction * scale / (limit - ctrl[index])
         return jacobian
 
     def eval_ctrl_cost_hess(self, ctrl):
-        hessian = np.zeros((self.system.obs_dim, self.system.obs_dim))
-        for boundedCtrl in self.obsConfiguration:
+        hessian = np.zeros((self.system.ctrl_dim, self.system.ctrl_dim))
+        for boundedCtrl in self.ctrlsConfiguration:
+            index = self.system.controls.index(boundedCtrl[0])
             limit, scale, upper = boundedCtrl[1]
-            hessian[boundedCtrl[0]][boundedCtrl[0]] = scale / ((limit - ctrl[boundedCtrl[0]])**2)
+            hessian[boundedCtrl[0]][boundedCtrl[0]] = scale / ((limit - ctrl[index])**2)
         return hessian
 
     def eval_term_obs_cost(self, obs):
