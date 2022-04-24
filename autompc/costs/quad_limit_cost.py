@@ -88,7 +88,7 @@ class QuadLimitCost(Cost):
             self._direction = -1
             if(upper):
                 direction = 1
-            jacobian[boundedObs[0]] = direction * scale / (limit - obs[index])
+            jacobian[index] = direction * scale / (limit - obs[index])
 
         obst = obs - self._goal
         quadCost = (self._Q + self._Q.T) @ obst
@@ -100,9 +100,9 @@ class QuadLimitCost(Cost):
     def eval_obs_cost_hess(self, obs):
         hessian = np.zeros((self.system.obs_dim, self.system.obs_dim))
         for boundedObs in self.obsConfiguration:
-            index = self.system.observations.index(boundedObs[0])
+            index = self.systemw.observations.index(boundedObs[0])
             limit, scale, upper = boundedObs[1]
-            hessian[boundedObs[0]][boundedObs[0]] = scale / ((limit - obs[index])**2)
+            hessian[index][index] = scale / ((limit - obs[index])**2)
         obst = obs - self._goal
         quadCost = self._Q + self._Q.T
         return hessian + quadCost
@@ -127,7 +127,7 @@ class QuadLimitCost(Cost):
             self._direction = -1
             if(upper):
                 direction = 1
-            jacobian[boundedCtrl[0]] = direction * scale / (limit - ctrl[index])
+            jacobian[index] = direction * scale / (limit - ctrl[index])
         quadCost = (self._R + self._R.T) @ ctrl
         return jacobian + quadCost
 
@@ -136,7 +136,7 @@ class QuadLimitCost(Cost):
         for boundedCtrl in self.ctrlsConfiguration:
             index = self.system.controls.index(boundedCtrl[0])
             limit, scale, upper = boundedCtrl[1]
-            hessian[boundedCtrl[0]][boundedCtrl[0]] = scale / ((limit - ctrl[index])**2)
+            hessian[index][index] = scale / ((limit - ctrl[index])**2)
         quadCost = self._R + self._R.T
         return hessian + quadCost
 
