@@ -100,7 +100,7 @@ class QuadLimitCost(Cost):
     def eval_obs_cost_hess(self, obs):
         hessian = np.zeros((self.system.obs_dim, self.system.obs_dim))
         for boundedObs in self.obsConfiguration:
-            index = self.systemw.observations.index(boundedObs[0])
+            index = self.system.observations.index(boundedObs[0])
             limit, scale, upper = boundedObs[1]
             hessian[index][index] = scale / ((limit - obs[index])**2)
         obst = obs - self._goal
