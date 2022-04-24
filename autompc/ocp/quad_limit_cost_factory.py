@@ -18,7 +18,7 @@ import ConfigSpace.conditions as CSC
 def construct_default_bounds():
     return (1e-3, 1e4, 1.0, True)
 
-class QuadCostFactory(OCPFactory):
+class QuadLimitCostFactory(OCPFactory):
     """
     Factory to produce quadratic cost.  This cost has the form
 
