@@ -54,8 +54,8 @@ class QuadLimitCostFactory(OCPFactory):
         self._goal_tunable = dict() # Key: obsname, Value: (lower, upper, default, log_scale)
 
         self._scale_bounds = defaultdict(construct_default_bounds) # Key: obsname, Value: (lower, upper, default, log_scale)
-        self._limits = [] # Key: obs/ctrlname, Value: (limit, upper)
-        self._scale_fixed = [] # Key: obs/ctrlname, Value: limit
+        self._limits = dict() # Key: obs/ctrlname, Value: (limit, upper)
+        self._scale_fixed = dict() # Key: obs/ctrlname, Value: limit
         super().__init__(system, "QuadLimitCostFactory")
 
     def set_tunable_goal(self, obsname, lower_bound, upper_bound, default, log=False):
@@ -284,7 +284,7 @@ class QuadLimitCostFactory(OCPFactory):
                 if(not upper):
                     upper_string = "Lower"
                 hyper_name = f"{name}_{upper_string}_{label}"
-                scale = cfg(hyper_name)
+                scale = cfg[hyper_name]
                 boundedStates[name] = (limit, scale, upper)
         return boundedStates
 
