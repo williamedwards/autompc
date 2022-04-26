@@ -47,3 +47,10 @@ class OCPFactory(ABC):
         Returns a prototype of the output OCP for compatibility checking.
         """
         raise NotImplementedError
+
+    def __add__(self, other):
+        from .sum_factory import SumFactory
+        if isinstance(other, SumFactory):
+            return other.__radd__(self)
+        else:
+            return SumFactory(self.system, [self, other])

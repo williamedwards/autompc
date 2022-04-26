@@ -189,6 +189,7 @@ class PrototypeOCP:
     overhead as possible.
     """
     def __init__(self, ocp, cost=None):
+        self.system = ocp.system
         self.are_obs_bounded = ocp.are_obs_bounded
         self.are_ctrl_bounded = ocp.are_ctrl_bounded
         if cost is None:

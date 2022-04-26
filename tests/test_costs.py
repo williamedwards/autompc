@@ -5,10 +5,10 @@ import unittest
 
 # Internal library includes
 import autompc as ampc
-from autompc.sysid import ARX, ARXFactory
-from autompc.costs import QuadCostFactory, QuadCost, GaussRegFactory, SumCost
-from autompc.tasks import Task
-from autompc.control import IterativeLQR, IterativeLQRFactory
+from autompc.sysid import ARX
+from autompc.costs import QuadCost, SumCost
+from autompc.ocp import OCP, QuadCostFactory, GaussRegFactory
+from autompc.optim import IterativeLQR
 
 # External library includes
 import numpy as np
@@ -54,23 +54,20 @@ class QuadCostFactoryTest(unittest.TestCase):
     def setUp(self):
         simple_sys = ampc.System(["x", "y"], ["u"])
         self.system = simple_sys
-        self.model_factory = ARXFactory(self.system)
-        self.model_cs = self.model_factory.get_configuration_space()
-        self.model_cfg = self.model_cs.get_default_configuration()
-        self.model = self.model_factory(self.model_cfg, None, skip_train_model=True)
+        self.model = ARX(self.system)
 
-        # Initialize task
+        # Initialize OCP
         Q = np.eye(2)
         R = np.eye(1)
         F = np.eye(2)
         cost = QuadCost(self.system, Q, R, F, goal=[-1,0])
-        self.task = Task(self.system)
-        self.task.set_cost(cost)
-        self.task.set_ctrl_bound("u", -20.0, 20.0)
+        self.ocp = OCP(self.system)
+        self.ocp.set_cost(cost)
+        self.ocp.set_ctrl_bound("u", -20.0, 20.0)
 
     def test_config_space(self):
         factory = QuadCostFactory(self.system)
-        cs = factory.get_configuration_space()
+        cs = factory.get_config_space()
         self.assertIsInstance(cs, CS.ConfigurationSpace)
 
         hyper_names = cs.get_hyperparameter_names()
@@ -82,7 +79,7 @@ class QuadCostFactoryTest(unittest.TestCase):
         factory.fix_Q_value("x", 0.0)
         factory.fix_F_value("y", 1.5)
         factory.fix_R_value("u", 2.0)
-        cs = factory.get_configuration_space()
+        cs = factory.get_config_space()
         self.assertIsInstance(cs, CS.ConfigurationSpace)
 
         hyper_names = cs.get_hyperparameter_names()
@@ -91,7 +88,9 @@ class QuadCostFactoryTest(unittest.TestCase):
 
         cfg = cs.get_default_configuration()
 
-        cost = factory(cfg, self.task, None)
+        factory.set_config(cfg)
+        transformed_ocp = factory(self.ocp)
+        cost = transformed_ocp.get_cost()
 
         self.assertIsInstance(cost, QuadCost)
         Q, R, F = cost.get_cost_matrices()
@@ -105,7 +104,7 @@ class QuadCostFactoryTest(unittest.TestCase):
         factory.set_Q_bounds("x", 0.01, 50.0, 2.0, False)
         factory.set_F_bounds("y", 0.05, 25.0, 0.5, True)
         factory.set_R_bounds("u", 10.0, 20.0, 15.0, False)
-        cs = factory.get_configuration_space()
+        cs = factory.get_config_space()
         self.assertIsInstance(cs, CS.ConfigurationSpace)
         self.assertEqual(cs.get_hyperparameter("x_Q").lower, 0.01)
         self.assertEqual(cs.get_hyperparameter("x_Q").upper, 50.0)
@@ -127,7 +126,7 @@ class QuadCostFactoryTest(unittest.TestCase):
     def test_tunable_goal(self):
         factory = QuadCostFactory(self.system, goal=np.zeros(self.system.obs_dim))
         factory.set_tunable_goal("x", -10.0, 20.0, 10.0, False)
-        cs = factory.get_configuration_space()
+        cs = factory.get_config_space()
         self.assertIsInstance(cs, CS.ConfigurationSpace)
         self.assertEqual(cs.get_hyperparameter("x_Goal").lower, -10.0)
         self.assertEqual(cs.get_hyperparameter("x_Goal").upper, 20.0)
@@ -136,15 +135,19 @@ class QuadCostFactoryTest(unittest.TestCase):
 
         cfg = cs.get_default_configuration()
         cfg["x_Goal"] = 5.0
-        cost = factory(cfg, self.task, None)
+        factory.set_config(cfg)
+        transformed_ocp = factory(self.ocp)
+        cost = transformed_ocp.get_cost()
         self.assertTrue(np.allclose(cost._goal, np.array([5.0, 0.0])))
 
     def test_call_factory(self):
         factory = QuadCostFactory(self.system)
-        cs = factory.get_configuration_space()
+        cs = factory.get_config_space()
         cfg = cs.get_default_configuration()
 
-        cost = factory(cfg, self.task, None)
+        factory.set_config(cfg)
+        ocp = factory(self.ocp)
+        cost = ocp.get_cost()
 
         self.assertIsInstance(cost, QuadCost)
         Q, R, F = cost.get_cost_matrices()
@@ -152,54 +155,6 @@ class QuadCostFactoryTest(unittest.TestCase):
         self.assertTrue((Q == np.eye(self.system.obs_dim)).all())
         self.assertTrue((F == np.eye(self.system.obs_dim)).all())
         self.assertTrue((R == np.eye(self.system.ctrl_dim)).all())
-
-class GaussRegFactoryTest(unittest.TestCase):
-    def setUp(self):
-        double_int = ampc.System(["x", "y"], ["u"])
-        self.system = double_int
-        self.model_factory = ARXFactory(self.system)
-        self.model_cs = self.model_factory.get_configuration_space()
-        self.model_cfg = self.model_cs.get_default_configuration()
-        self.model = self.model_factory(self.model_cfg, None, skip_train_model=True)
-
-        # Initialize task
-        Q = np.eye(2)
-        R = np.eye(1)
-        F = np.eye(2)
-        cost = QuadCost(self.system, Q, R, F, goal=[-1,0])
-        self.task = Task(self.system)
-        self.task.set_cost(cost)
-        self.task.set_ctrl_bound("u", -20.0, 20.0)
-
-        # Generate trajectories
-        self.trajs = uniform_random_generate(double_int, self.task,
-                lambda y,u: dt_doubleint_dynamics(y,u,dt=0.05),
-                np.random.default_rng(42), init_min=[-1.0, -1.0],
-                init_max=[1.0, 1.0], traj_len=20, n_trajs=20)
-
-    def test_config_space(self):
-        factory = GaussRegFactory(self.system)
-        cs = factory.get_configuration_space()
-        self.assertIsInstance(cs, CS.ConfigurationSpace)
-
-        hyper_names = cs.get_hyperparameter_names()
-        target_hyper_names = ["reg_weight"]
-        self.assertEqual(set(hyper_names), set(target_hyper_names))
-
-    def test_call_factory(self):
-        factory = GaussRegFactory(self.system)
-        cs = factory.get_configuration_space()
-        cfg = cs.get_default_configuration()
-
-        cost = factory(cfg, self.task, self.trajs)
-
-        self.assertIsInstance(cost, QuadCost)
-        Q, R, F = cost.get_cost_matrices()
-
-        self.assertEqual(Q.shape, (self.system.obs_dim, self.system.obs_dim))
-        self.assertTrue((F == np.zeros((self.system.obs_dim, self.system.obs_dim))).all())
-        self.assertTrue((R == np.zeros((self.system.ctrl_dim, 
-            self.system.ctrl_dim))).all())
 
 class SumCostTest(unittest.TestCase):
     def setUp(self):
@@ -270,23 +225,19 @@ class SumCostFactoryTest(unittest.TestCase):
     def setUp(self):
         double_int = ampc.System(["x", "y"], ["u"])
         self.system = double_int
-        self.model_factory = ARXFactory(self.system)
-        self.model_cs = self.model_factory.get_configuration_space()
-        self.model_cfg = self.model_cs.get_default_configuration()
-        self.model = self.model_factory(self.model_cfg, None, skip_train_model=True)
-        self.Model = ARX
+        self.model = ARX(self.system)
 
-        # Initialize task
+        # Initialize ocp
         Q = np.eye(2)
         R = np.eye(1)
         F = np.eye(2)
         cost = QuadCost(self.system, Q, R, F, goal=[-1,0])
-        self.task = Task(self.system)
-        self.task.set_cost(cost)
-        self.task.set_ctrl_bound("u", -20.0, 20.0)
+        self.ocp = OCP(self.system)
+        self.ocp.set_cost(cost)
+        self.ocp.set_ctrl_bound("u", -20.0, 20.0)
 
         # Generate trajectories
-        self.trajs = uniform_random_generate(double_int, self.task,
+        self.trajs = uniform_random_generate(double_int, self.ocp,
                 lambda y,u: dt_doubleint_dynamics(y,u,dt=0.05),
                 np.random.default_rng(42), init_min=[-1.0, -1.0],
                 init_max=[1.0, 1.0], traj_len=20, n_trajs=20)
@@ -296,7 +247,7 @@ class SumCostFactoryTest(unittest.TestCase):
         factory2 = GaussRegFactory(self.system)
 
         sum_factory = factory1 + factory2
-        cs = sum_factory.get_configuration_space()
+        cs = sum_factory.get_config_space()
         self.assertIsInstance(cs, CS.ConfigurationSpace)
 
         cfg = cs.get_default_configuration()
@@ -310,10 +261,8 @@ class SumCostFactoryTest(unittest.TestCase):
                     extr_key = key.split(":")[1]
                     extr_dict[extr_key] = val
             extr_dicts.append(extr_dict)
-        cs1 = factory1.get_configuration_space()
-        cs2 = factory2.get_configuration_space()
-        cfg1_dict = cs1.get_default_configuration().get_dictionary()
-        cfg2_dict = cs2.get_default_configuration().get_dictionary()
+        cfg1_dict = factory1.get_default_config().get_dictionary()
+        cfg2_dict = factory2.get_default_config().get_dictionary()
         self.assertEqual(extr_dicts[0], cfg1_dict)
         self.assertEqual(extr_dicts[1], cfg2_dict)
 
@@ -322,16 +271,17 @@ class SumCostFactoryTest(unittest.TestCase):
         factory2 = GaussRegFactory(self.system)
         sum_factory = factory1 + factory2
 
-        cs = sum_factory.get_configuration_space()
-        cfg = cs.get_default_configuration()
-        cs1 = factory1.get_configuration_space()
-        cfg1 = cs1.get_default_configuration()
-        cs2 = factory2.get_configuration_space()
-        cfg2 = cs2.get_default_configuration()
+        cfg = sum_factory.get_default_config()
+        cfg1 = factory1.get_default_config()
+        cfg2 = factory2.get_default_config()
 
-        cost = sum_factory(cfg, self.task, self.trajs)
-        cost1 = factory1(cfg1, self.task, self.trajs)
-        cost2 = factory2(cfg2, self.task, self.trajs)
+        sum_factory.set_config(cfg)
+        factory1.set_config(cfg1)
+        factory2.set_config(cfg2)
+        factory2.train(self.trajs)
+        cost = sum_factory(self.ocp).get_cost()
+        cost1 = factory1(self.ocp).get_cost()
+        cost2 = factory2(self.ocp).get_cost()
 
         self.assertIsInstance(cost, SumCost)
 
@@ -341,55 +291,3 @@ class SumCostFactoryTest(unittest.TestCase):
         val2 = cost2.eval_obs_cost(obs)
 
         self.assertEqual(val, val1+val2)
-
-class PipelineTest(unittest.TestCase):
-    def setUp(self):
-        double_int = ampc.System(["x", "y"], ["u"])
-        self.system = double_int
-        self.Model = ARX
-        self.controller_factory = IterativeLQRFactory(self.system)
-        self.model_factory = ARXFactory(self.system)
-        self.model_cs = self.model_factory.get_configuration_space()
-        self.model_cfg = self.model_cs.get_default_configuration()
-        self.model = self.model_factory(self.model_cfg, None, skip_train_model=True)
-        self.cost_factory = QuadCostFactory(self.system)
-
-        # Initialize task
-        Q = np.eye(2)
-        R = np.eye(1)
-        F = np.eye(2)
-        cost = QuadCost(self.system, Q, R, F, goal=[-1,0])
-        self.task = Task(self.system)
-        self.task.set_cost(cost)
-        self.task.set_ctrl_bound("u", -20.0, 20.0)
-
-        # Generate trajectories
-        self.trajs = uniform_random_generate(double_int, self.task,
-                lambda y,u: dt_doubleint_dynamics(y,u,dt=0.05),
-                np.random.default_rng(42), init_min=[-1.0, -1.0],
-                init_max=[1.0, 1.0], traj_len=20, n_trajs=20)
-
-    def test_config_space(self):
-        pipeline = ampc.Pipeline(self.system, self.task, self.model_factory, self.controller_factory, self.cost_factory)
-        cs = pipeline.get_configuration_space()
-        self.assertIsInstance(cs, CS.ConfigurationSpace)
-
-        cfg = cs.get_default_configuration()
-        cfg_dict = cfg.get_dictionary()
-        extr_dicts = []
-        for prfx in ["_model", "_ctrlr", "_cost"]:
-            extr_dict = dict()
-            for key, val in cfg_dict.items():
-                if key.startswith(prfx):
-                    extr_key = ":".join(key.split(":")[1:])
-                    extr_dict[extr_key] = val
-            extr_dicts.append(extr_dict)
-        model_cs = self.model_factory.get_configuration_space()
-        ctrlr_cs = self.controller_factory.get_configuration_space()
-        cost_fact_cs = self.cost_factory.get_configuration_space()
-        cfg1_dict = model_cs.get_default_configuration().get_dictionary()
-        cfg2_dict = ctrlr_cs.get_default_configuration().get_dictionary()
-        cfg3_dict = cost_fact_cs.get_default_configuration().get_dictionary()
-        self.assertEqual(extr_dicts[0], cfg1_dict)
-        self.assertEqual(extr_dicts[1], cfg2_dict)
-        self.assertEqual(extr_dicts[2], cfg3_dict)
