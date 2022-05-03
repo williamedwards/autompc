@@ -33,4 +33,8 @@ class RoundedOptimizer(Optimizer):
 
     def set_state(self, state):
         self.optimizer.set_state(state)
-    
+
+    def get_traj(self): #TODO: Update for other possible returns like a list of trajectories
+        traj = self.optimizer.get_traj()
+        traj.ctrls = np.around(traj.ctrls)
+        return traj
