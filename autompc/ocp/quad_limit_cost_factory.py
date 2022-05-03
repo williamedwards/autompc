@@ -18,6 +18,9 @@ import ConfigSpace.conditions as CSC
 def construct_default_bounds():
     return (1e-3, 1e4, 1.0, True)
 
+def construct_default_log_bounds():
+    return (1e-3, 1e1, 1.0, True)
+
 class QuadLimitCostFactory(OCPFactory):
     """
     Factory to produce quadratic cost.  This cost has the form
@@ -53,7 +56,7 @@ class QuadLimitCostFactory(OCPFactory):
         self._F_fixed = dict() # Key: obsname, Value: fixed_value
         self._goal_tunable = dict() # Key: obsname, Value: (lower, upper, default, log_scale)
 
-        self._scale_bounds = defaultdict(construct_default_bounds) # Key: obsname, Value: (lower, upper, default, log_scale)
+        self._scale_bounds = defaultdict(construct_default_log_bounds) # Key: obsname, Value: (lower, upper, default, log_scale)
         self._limits = dict() # Key: obs/ctrlname, Value: (limit, upper)
         self._scale_fixed = dict() # Key: obs/ctrlname, Value: limit
         super().__init__(system, "QuadLimitCostFactory")
