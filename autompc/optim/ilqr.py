@@ -109,7 +109,9 @@ class IterativeLQR(Optimizer):
             if self.verbose:
                 print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
-            _, cost_jac, cost_hess = cost.eval_term_obs_cost_hess(states[H, :obsdim])
+            #_, cost_jac, cost_hess = cost.eval_term_obs_cost_hess(states[H, :obsdim]) //TODO: Discuss change
+            cost_hess = cost.eval_term_obs_cost_hess(states[H, :obsdim])
+            cost_jac = cost.eval_term_obs_cost_diff(states[H, :obsdim])
             Vn = np.zeros((dimx, dimx))
             vn = np.zeros(dimx)
             Vn[:obsdim, :obsdim] = cost_hess
@@ -119,8 +121,12 @@ class IterativeLQR(Optimizer):
                 # first assemble Ct and ct, they are linearized at current state
                 Q  = np.zeros((dimx, dimx))
                 Qx = np.zeros(dimx)
-                _, Qx[:obsdim], Q[:obsdim, :obsdim] = cost.eval_obs_cost_hess(states[t - 1, :obsdim])
-                _, Ru, R = cost.eval_ctrl_cost_hess(ctrls[t - 1])
+                #_, Qx[:obsdim], Q[:obsdim, :obsdim] = cost.eval_obs_cost_hess(states[t - 1, :obsdim])
+                Qx[:obsdim] = cost.eval_obs_cost_diff(states[t - 1, :obsdim])
+                Q[:obsdim, :obsdim] = cost.eval_obs_cost_hess(states[t - 1, :obsdim])
+                #_, Ru, R = cost.eval_ctrl_cost_hess(ctrls[t - 1])
+                Ru = cost.eval_ctrl_cost_diff(ctrls[t - 1])
+                R = cost.eval_ctrl_cost_hess(ctrls[t - 1])
                 Ct[:dimx, :dimx] = Q * dt
                 Ct[dimx:, dimx:] = R * dt
                 ct[:dimx] = Qx * dt
