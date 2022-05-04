@@ -47,12 +47,7 @@ class DistanceCost(Cost):
         self._is_convex = False
         self._is_diff = False
         self._is_twice_diff = False
-
-        if goal_state is None:
-            self._has_goal = False
-        else:
-            self._goal = np.copy(goal_state)
-            self._has_goal = True
+        self._has_goal = True
 
     def set_goal(self, goal):
         if len(goal) < self.system.obs_dim:
@@ -62,7 +57,7 @@ class DistanceCost(Cost):
             self._goal = np.copy(goal)
 
     def eval_obs_cost(self, obs):
-        return la.norm(obs[self._obs_idxs] - self._goal[self._obs_idxs], np.inf)
+        return la.norm(obs[self._obs_idxs] - self._goal[self._obs_idxs])
 
     def eval_ctrl_cost(self, ctrl):
         return 0.0
