@@ -10,6 +10,7 @@ import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
+
 # Internal library includes
 from .utils.cs_utils import *
 from .utils.exceptions import OptionalDependencyException
@@ -169,6 +170,8 @@ class Controller:
             choices=[choice.name for choice in choices])
         cs.add_hyperparameter(choice_hyper)
         for choice in choices:
+            print("Configuration space for",choice.name,":")
+            print(choice.get_config_space())
             add_configuration_space(cs, choice.name,
                 choice.get_config_space(),
                 parent_hyperparameter={"parent" : choice_hyper,
@@ -589,29 +592,34 @@ class AutoSelectController(Controller):
         self._add_if_available(self.add_ocp_transformer, ocp, "QuadCostTransformer")
         self._add_if_available(self.add_ocp_transformer, ocp, "DeleteBoundsTransformer")
     
-    def set_ocp(self,ocp):
-        super().set_ocp(ocp)
-        self._check_constraints(ocp)
-
-    def _check_constraints(self,ocp : OCP) -> None:
-        cost = ocp.get_cost()
+    def get_config_space(self):
+        cs = super().get_config_space()
+        hyperparameters = cs.get_hyperparameters_dict()
         for opt in self.optimizers:
             try:
                 reqs = opt.model_requirements()
                 for prop,value in reqs.items():
                     for model in self.models:
                         if getattr(model,prop) != value:
-                            print("Should exclude model",model.name,"from being used with",opt.name,"due to property",prop)
+                            print("Forbidding model",model.name,"to be used with",opt.name,"due to property",prop)
+                            model_match = CS.ForbiddenEqualsClause(hyperparameters['model'],model.name)
+                            opt_match = CS.ForbiddenEqualsClause(hyperparameters['optimizer'],opt.name)
+                            model_and_opt = CS.ForbiddenAndConjunction(model_match,opt_match)
+                            cs.add_forbidden_clause(model_and_opt)
             except NotImplementedError:
                 pass
-            try:
-                ocp_reqs = opt.ocp_requirements()
-                cost_reqs = opt.cost_requirements()
-                for prop,value in ocp_reqs.items():
-                    if getattr(ocp,prop) != value:
-                        print("Should include bound transformer for ocp to be used with",opt.name,"due to property",prop)
-                for prop,value in cost_reqs.items():
-                    if getattr(cost,prop) != value:
-                        print("Should include cost transformer for ocp to be used with",opt.name,"due to property",prop)
-            except NotImplementedError:
-                pass
+        if self.ocp is not None:
+            cost = self.ocp.get_cost()
+            for opt in self.optimizers:
+                try:
+                    ocp_reqs = opt.ocp_requirements()
+                    cost_reqs = opt.cost_requirements()
+                    for prop,value in ocp_reqs.items():
+                        if getattr(self.ocp,prop) != value:
+                            print("Should include bound transformer for ocp to be used with",opt.name,"due to property",prop)
+                    for prop,value in cost_reqs.items():
+                        if getattr(cost,prop) != value:
+                            print("Should include cost transformer for ocp to be used with",opt.name,"due to property",prop)
+                except NotImplementedError:
+                    pass
+        return cs

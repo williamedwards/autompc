@@ -62,7 +62,7 @@ class QuadCostTransformer(OCPTransformer):
         - *obsname* (str): Name of observation dimension 
         - *value* (float): Fixed value for matrix entry
         """
-        args = {'Q_'+obsname:value}
+        args = {obsname+'_Q':value}
         self.fix_hyperparameters(**args)
 
     def fix_R_value(self, ctrlname, value):
@@ -73,7 +73,7 @@ class QuadCostTransformer(OCPTransformer):
         - *ctrlname* (str): Name of observation dimension 
         - *value* (float): Fixed value for matrix entry
         """
-        args = {'R_'+ctrlname:value}
+        args = {ctrlname+'_R':value}
         self.fix_hyperparameters(**args)
 
     def fix_F_value(self, obsname, value):
@@ -84,7 +84,7 @@ class QuadCostTransformer(OCPTransformer):
         - *obsname* (str): Name of observation dimension 
         - *value* (float): Fixed value for matrix entry
         """
-        args = {'F_'+obsname:value}
+        args = {obsname+'_F':value}
         self.fix_hyperparameters(**args)
 
     def set_Q_bounds(self, obsname, lower_bound, upper_bound, default, log=False):
@@ -99,9 +99,9 @@ class QuadCostTransformer(OCPTransformer):
         - *default* (float): Default value for the hyperparameter.
         - *log* (bool): Whether hyperparameter should use logarithmic scale.  (Default: False)
         """
-        args = {'Q_'+obsname:(lower_bound,upper_bound)}
+        args = {obsname+'_Q':(lower_bound,upper_bound)}
         self.set_hyperparameter_bounds(**args)
-        args['Q_'+obsname] = default
+        args[obsname+'_Q'] = default
         self.set_hyperparameter_defaults(**args)
 
     def set_R_bounds(self, ctrlname, lower_bound, upper_bound, default, log=False):
@@ -116,9 +116,9 @@ class QuadCostTransformer(OCPTransformer):
         - *default* (float): Default value for the hyperparameter.
         - *log* (bool): Whether hyperparameter should use logarithmic scale.  (Default: False)
         """
-        args = {'R_'+ctrlname:(lower_bound,upper_bound)}
+        args = {ctrlname+'_R':(lower_bound,upper_bound)}
         self.set_hyperparameter_bounds(**args)
-        args['R_'+ctrlname] = default
+        args[ctrlname+'_R'] = default
         self.set_hyperparameter_defaults(**args)
 
     def set_F_bounds(self, obsname, lower_bound, upper_bound, default, log=False):
@@ -133,9 +133,9 @@ class QuadCostTransformer(OCPTransformer):
         - *default* (float): Default value for the hyperparameter.
         - *log* (bool): Whether hyperparameter should use logarithmic scale.  (Default: False)
         """
-        args = {'F_'+obsname:(lower_bound,upper_bound)}
+        args = {obsname+'_F':(lower_bound,upper_bound)}
         self.set_hyperparameter_bounds(**args)
-        args['F_'+obsname] = default
+        args[obsname+'_F'] = default
         self.set_hyperparameter_defaults(**args)
 
     def get_default_config_space(self):
@@ -148,7 +148,7 @@ class QuadCostTransformer(OCPTransformer):
             hyper = CSH.UniformFloatHyperparameter(name+"_R",
                     lower=QUAD_COST_DEFAULT_BOUNDS[0], upper=QUAD_COST_DEFAULT_BOUNDS[1], default_value=QUAD_COST_DEFAULT_VALUE, log=QUAD_COST_DEFAULT_LOG)
             cs.add_hyperparameter(hyper)
-        for name in self.system.controls:
+        for name in self.system.observations:
             hyper = CSH.UniformFloatHyperparameter(name+"_F",
                     lower=QUAD_COST_DEFAULT_BOUNDS[0], upper=QUAD_COST_DEFAULT_BOUNDS[1], default_value=QUAD_COST_DEFAULT_VALUE, log=QUAD_COST_DEFAULT_LOG)
             cs.add_hyperparameter(hyper)

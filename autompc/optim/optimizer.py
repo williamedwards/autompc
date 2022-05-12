@@ -34,7 +34,8 @@ class Optimizer(Tunable):
     def is_compatible(self, model : Model, ocp : OCP) -> bool:
         """
         Check if an optimizer is compatible with a given model
-        and ocp.
+        and ocp.  Overridable if model_requirements, ocp_requirements, and
+        cost_requirements aren't set.
 
         Parameters
         ----------
