@@ -1,80 +1,42 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 # Standard library includes
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import copy
+from ConfigSpace import Configuration
 
 # External library includes
 import numpy as np
-from ConfigSpace import Configuration
 
 # Internal library includes
-from ..trajectory import zeros
+from ..tunable import Tunable
+from ..trajectory import zeros,Trajectory
 from ..utils.cs_utils import coerce_hyper_vals
+from typing import List,Tuple,Any
 
-class Model(ABC):
+class Model(Tunable):
     def __init__(self, system, name):
+        Tunable.__init__(self)
         self.system = system
         self.name = name
         self.set_config(self.get_default_config())
         self.is_trained = False
 
-    def get_config_space(self):
-        """
-        Returns the model configuration space.
-        """
-        return self.get_default_config_space()
-
     @abstractmethod
-    def get_default_config_space(self):
-        """
-        Returns the default configuration space, prior to any user modifications.
-        """
-        raise NotImplementedError
-
-    def get_default_config(self):
-        """
-        Returns the default configuration.
-        """
-        return self.get_config_space().get_default_configuration()
-
-    @abstractmethod
-    def clear(self):
+    def clear(self) -> None:
         """
         Clears all trained parameters.
         """
         raise NotImplementedError
 
-    @abstractmethod
-    def set_config(self, config):
-        """
-        Set the model configuration.
-
-        Parameters
-        ----------
-            config : Configuration
-                Configuration to set.
-        """
-        raise NotImplementedError
-
-    def set_hyper_values(self, **kwargs):
-        """
-        Set hyperparameter values as keyword arguments.
-        """
-        cs = self.get_config_space()
-        values = {hyper.name : hyper.default_value 
-            for hyper in cs.get_hyperparameters()}
-        values.update(kwargs)
-        self.set_config(values)
-
-    def clone(self):
+    def clone(self) -> 'Model':
         """
         Returns a deep copy of the mdoel.
         """
         return copy.deepcopy(self)
 
     @abstractmethod
-    def traj_to_state(self, traj):
+    def traj_to_state(self, traj : Trajectory):
         """
         Parameters
         ----------
@@ -87,7 +49,7 @@ class Model(ABC):
         """
         raise NotImplementedError
 
-    def init_state(self, obs):
+    def init_state(self, obs : np.ndarray) -> np.ndarray:
         """
         Returns model state for an initial observation.
 
@@ -105,7 +67,7 @@ class Model(ABC):
         return self.traj_to_state(traj)
 
     @abstractmethod
-    def update_state(self, state, new_ctrl, new_obs):
+    def update_state(self, state : np.ndarray, new_ctrl : np.ndarray, new_obs : np.ndarray) -> np.ndarray:
         """
         Parameters
         ----------
@@ -123,7 +85,7 @@ class Model(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def pred(self, state, ctrl):
+    def pred(self, state : np.ndarray, ctrl : np.ndarray) -> np.ndarray:
         """
         Run model prediction.
 
@@ -140,7 +102,7 @@ class Model(ABC):
         """
         raise NotImplementedError
 
-    def pred_batch(self, states, ctrls):
+    def pred_batch(self, states : np.ndarray, ctrls : np.ndarray) -> np.ndarray:
         """
         Run batch model predictions.  Depending on the model, this can
         be much faster than repeatedly calling pred.
@@ -163,7 +125,7 @@ class Model(ABC):
             out[i,:] = self.pred(states[i,:], ctrls[i,:])
         return out
 
-    def pred_diff(self, state, ctrl):
+    def pred_diff(self, state : np.ndarray, ctrl : np.ndarray) -> Tuple[np.ndarray,np.ndarray,np.ndarray]:
         """
         Run model prediction and compute gradients.
 
@@ -186,7 +148,7 @@ class Model(ABC):
         """
         raise NotImplementedError
 
-    def pred_diff_batch(self, states, ctrls):
+    def pred_diff_batch(self, states : np.ndarray, ctrls : np.ndarray) -> Tuple[np.ndarray,np.ndarray,np.ndarray]:
         """
         Run model prediction and compute gradients in batch.
 
@@ -218,7 +180,7 @@ class Model(ABC):
         return out, state_jacs, ctrl_jacs
 
 
-    def to_linear(self):
+    def to_linear(self) -> Tuple[np.ndarray,np.ndarray,Any,Any]:
         """
         Returns: (A, B, state_func, cost_func)
             A, B -- Linear system matrices as Numpy arrays.
@@ -226,7 +188,7 @@ class Model(ABC):
         """
         raise NotImplementedError
 
-    def train(self, trajs, silent=False):
+    def train(self, trajs : List[Tuple], silent=False) -> None:
         """
         Parameters
         ----------
@@ -246,7 +208,7 @@ class Model(ABC):
         """
         raise NotImplementedError
 
-    def set_parameters(self, params):
+    def set_parameters(self, params)  -> None:
         """
         Sets trainable model parameters from dict.
 
@@ -256,35 +218,34 @@ class Model(ABC):
 
     @property
     @abstractmethod
-    def state_dim(self):
+    def state_dim(self) -> int:
         """
         Returns the size of the model state
         """
         raise NotImplementedError
 
-
     @property
-    def is_linear(self):
+    def is_linear(self) -> bool:
         """
         Returns true for linear models
         """
         return not self.to_linear.__func__ is Model.to_linear
 
     @property
-    def is_diff(self):
+    def is_diff(self) -> bool:
         """
         Returns true for differentiable models.
         """
         return not self.pred_diff.__func__ is Model.pred_diff
 
     @property
-    def trainable(self):
+    def trainable(self) -> bool:
         """
         Returns true for trainable models.
         """
         return not self.train.__func__ is Model.train
 
-    def get_prototype(self, config):
+    def get_prototype(self, config : Configuration) -> 'Model':
         """
         Returns a prototype of the model to be used for compatibility checking.
         It's only necessary to override this function when the compatibility

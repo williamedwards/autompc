@@ -12,7 +12,7 @@ from scipy.integrate import solve_ivp
 from .benchmark import Benchmark
 from ..utils.data_generation import *
 from .. import System
-from ..tasks import Task
+from ..task import Task
 from ..costs import ThresholdCost
 
 def pendulum_dynamics(y,u,g=9.8,m=1,L=1,b=0.1):
@@ -38,18 +38,13 @@ class PendulumSwingupBenchmark(Benchmark):
 
         cost = ThresholdCost(system, goal=np.zeros(2), threshold=0.1, 
                 obs_range=(0,2))
-        task = Task(system)
-        task.set_cost(cost)
+        task = Task(system,cost)
         task.set_ctrl_bound("torque", -10.0, 10.0)
         init_obs = np.array([3.1, 0.0])
         task.set_init_obs(init_obs)
         task.set_num_steps(200)
 
         super().__init__(name, system, task,  data_gen_method) 
-
-    def perf_metric(self, traj):
-        return threshold_metric(goal=np.zeros(2), threshold=0.1, obs_range=(0,2),
-                traj=traj)
 
     def dynamics(self, x, u):
         return dt_pendulum_dynamics(x,u,self.system.dt,g=9.8,m=1,L=1,b=0.1)

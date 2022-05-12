@@ -75,15 +75,11 @@ class MPPI(Optimizer):
         super().set_ocp(ocp)
         cost = ocp.get_cost()
         def cost_eqn(path, actions):
-            costs = np.zeros(path.shape[0])
-            for i in range(path.shape[0]):
-                costs[i] += cost.eval_obs_cost(path[i,:self.system.obs_dim])
-                costs[i] += cost.eval_ctrl_cost(actions[i,:])
+            costs = np.array([cost.incremental(path[i,:self.system.obs_dim],actions[i,:])*self.system.dt for i in range(path.shape[0])])
             return costs
         def terminal_cost(path):
-            last_obs = path[-1, :self.system.obs_dim]
-            term_cost = cost.eval_term_obs_cost(last_obs)
-            return term_cost
+            term_costs = np.array([cost.terminal(path[i, :self.system.obs_dim]) for i in range(path.shape[0])])
+            return term_costs
         self.cost_eqn = cost_eqn
         self.terminal_cost = terminal_cost
 

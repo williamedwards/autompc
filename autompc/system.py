@@ -1,12 +1,13 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+from typing import List, Tuple, Optional
 class System:
     """
     The System object defines a robot system, including the size of the
     control and observation dimensions and the labels for each control
     and observation variable.
     """
-    def __init__(self, observations, controls, dt=None):
+    def __init__(self, observations : List[str], controls : List[str], dt : Optional[float]=None):
         """
         Parameters
         ----------
@@ -51,28 +52,28 @@ class System:
 
 
     @property
-    def controls(self):
+    def controls(self) -> List[str]:
         """
         Names of each control dimension
         """
         return self._controls[:]
 
     @property
-    def observations(self):
+    def observations(self) -> List[str]:
         """
         Names of each observation dimension
         """
         return self._observations[:]
 
     @property
-    def ctrl_dim(self):
+    def ctrl_dim(self) -> int:
         """
         Size of control dimensions
         """
         return len(self._controls)
 
     @property
-    def obs_dim(self):
+    def obs_dim(self) -> int:
         """
         Size of observation dimensions
         """

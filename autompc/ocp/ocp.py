@@ -6,36 +6,40 @@ import copy
 # External libary includes
 import numpy as np
 
+# Internal module includes
+from ..system import System
+from ..costs.cost import Cost
+from ..trajectory import Trajectory
+
 class OCP:
     """
     Defines an optimal control problem to be solved.
     """
-    def __init__(self, system):
+    def __init__(self, system : System, cost : Cost = None):
         """
-        Task constructor
-
         Parameters
         ----------
-        sytem : System
-            Robot system for which task is defined.
+        system : System
+            Dynamical system for which the task is defined.
+        cost : Cost
+            Cost specifying trajectory preferences (lower is better).
         """
         self.system = system
+        self.cost = cost
 
         # Initialize obs and control bounds
         self._obs_bounds = np.zeros((system.obs_dim, 2))
-        for i in range(system.obs_dim):
-            self._obs_bounds[i, 0] = -np.inf
-            self._obs_bounds[i, 1] = np.inf
+        self._obs_bounds[:,0] = -np.inf
+        self._obs_bounds[:,1] = np.inf
 
         self._ctrl_bounds = np.zeros((system.ctrl_dim, 2))
-        for i in range(system.ctrl_dim):
-            self._ctrl_bounds[i, 0] = -np.inf
-            self._ctrl_bounds[i, 1] = np.inf
+        self._ctrl_bounds[:, 0] = -np.inf
+        self._ctrl_bounds[:, 1] = np.inf
 
-    def clone(self):
+    def clone(self) -> 'OCP':
         return copy.deepcopy(self)
 
-    def set_cost(self, cost):
+    def set_cost(self, cost : Cost) -> None:
         """
         Sets the task cost
 
@@ -46,7 +50,7 @@ class OCP:
         """
         self.cost = cost
 
-    def get_cost(self):
+    def get_cost(self) -> Cost:
         """
         Get the task cost
 
@@ -58,7 +62,7 @@ class OCP:
         return self.cost
 
     # Handle bounds
-    def set_obs_bound(self, obs_label, lower, upper):
+    def set_obs_bound(self, obs_label : str, lower : float, upper :float) -> None:
         """
         Set a bound for one dimension of  the observation
 
@@ -76,7 +80,7 @@ class OCP:
         idx = self.system.observations.index(obs_label)
         self._obs_bounds[idx,:] = [lower, upper]
 
-    def set_obs_bounds(self, lowers, uppers):
+    def set_obs_bounds(self, lowers : np.ndarray, uppers : np.ndarray) -> None:
         """
         Set bound for all observation dimensions
 
@@ -91,7 +95,7 @@ class OCP:
         self._obs_bounds[:,0] = lowers
         self._obs_bounds[:,1] = uppers
 
-    def set_ctrl_bound(self, ctrl_label, lower, upper):
+    def set_ctrl_bound(self, ctrl_label : str, lower : np.ndarray, upper : np.ndarray) -> None:
         """
         Set a bound for one dimension of the control
 
@@ -109,7 +113,7 @@ class OCP:
         idx = self.system.controls.index(ctrl_label)
         self._ctrl_bounds[idx,:] = [lower, upper]
 
-    def set_ctrl_bounds(self, lowers, uppers):
+    def set_ctrl_bounds(self, lowers : np.ndarray, uppers : np.ndarray) -> None:
         """
         Set bound for all control dimensions
 
@@ -125,7 +129,7 @@ class OCP:
         self._ctrl_bounds[:,1] = uppers
 
     @property
-    def are_obs_bounded(self):
+    def are_obs_bounded(self) -> bool:
         """
         Check whether task has observation bounds
 
@@ -141,7 +145,7 @@ class OCP:
         return False
 
     @property
-    def are_ctrl_bounded(self):
+    def are_ctrl_bounded(self) -> bool:
         """
         Check whether task has control bounds
 
@@ -156,7 +160,7 @@ class OCP:
                 return True
         return False
 
-    def get_obs_bounds(self):
+    def get_obs_bounds(self) -> np.ndarray:
         """
         Get observation bounds. If unbounded, lower and upper bound
         are -np.inf and +np.inf respectively.
@@ -167,7 +171,7 @@ class OCP:
         """
         return self._obs_bounds.copy()
 
-    def get_ctrl_bounds(self):
+    def get_ctrl_bounds(self) -> np.ndarray:
         """
         Get control bounds. If unbounded, lower and upper bound
         are -np.inf and +np.inf respectively.
@@ -178,28 +182,29 @@ class OCP:
         """
         return self._ctrl_bounds.copy()
 
-class PrototypeCost:
-    def __init__(self):
-        pass
+    def is_feasible(self, traj : Trajectory) -> bool:
+        """Returns True if the trajectory is feasible"""
+        for i in range(len(traj.obs)):
+            if any(traj.obs[i] < self._obs_bounds[:,0] | traj.obs[i] > self._obs_bounds[:,1]): return False
+        for i in range(len(traj.ctrls)):
+            if any(traj.ctrls[i] < self._ctrl_bounds[:,0] | traj.ctrls[i] > self._ctrl_bounds[:,1]): return False
+        return True
 
-class PrototypeOCP:
-    """
-    PrototypeOCP represents only the compatibility properties of
-    an OCP.  This is used for checking compatibility with as a little
-    overhead as possible.
-    """
-    def __init__(self, ocp, cost=None):
-        self.system = ocp.system
-        self.are_obs_bounded = ocp.are_obs_bounded
-        self.are_ctrl_bounded = ocp.are_ctrl_bounded
-        if cost is None:
-            cost = ocp.cost
-        self.cost = PrototypeCost()
-        self.cost.is_quad = cost.is_quad
-        self.cost.is_convex = cost.is_convex
-        self.cost.is_diff = cost.is_diff
-        self.cost.is_twice_diff = cost.is_twice_diff
-        self.cost.has_goal = cost.has_goal
+    def project_obs(self, obs : np.ndarray) -> np.ndarray:
+        """Returns an observation projected into the observation bounds.
+        """
+        return np.clip(obs,self._obs_bounds[:,0],self._obs_bounds[:,1])
 
-    def get_cost(self):
-        return self.cost
+    def project_control(self, ctrl : np.ndarray) -> np.ndarray:
+        """Returns a control projected into the control bounds.
+        """
+        return np.clip(ctrl,self._ctrl_bounds[:,0],self._ctrl_bounds[:,1])
+
+    def project_controls(self, traj : Trajectory) -> Trajectory:
+        """Returns a trajectory with all controls feasible.
+        Note: does not do anything with the states.
+        """
+        newctrls = []
+        for i in range(len(traj.ctrls)):
+            newctrls.append(np.clip(traj.ctrls[i],self._ctrl_bounds[:,0],self._ctrl_bounds[:,1]))
+        return Trajectory(traj.system.traj.size,traj.obs,np.array(newctrls))

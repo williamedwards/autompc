@@ -6,10 +6,10 @@ import copy
 
 # Internal library includes
 import autompc as ampc
-from autompc.tasks import Task, StaticGoalTask
-from autompc.sysid import SINDyFactory
-from autompc.costs import QuadCostFactory, QuadCost
-from autompc.control import IterativeLQRFactory
+from autompc.task import Task, StaticGoalTask
+from autompc.sysid import SINDy
+from autompc.costs import QuadCost, ThresholdCost
+from autompc.optim import IterativeLQR
 
 # External library includes
 import numpy as np
@@ -58,7 +58,7 @@ class StaticGoalTaskTest(unittest.TestCase):
         self.system = simple_sys
 
     def create_task(self):
-        task = StaticGoalTask(self.system)
+        task = Task(self.system)
         task.set_ctrl_bound("u", -5, 10)
         cost = ThresholdCost(self.system, threshold=0.5)
         task.set_cost(cost)
@@ -66,13 +66,13 @@ class StaticGoalTaskTest(unittest.TestCase):
         task.set_init_obs([0.0, -1.0])
 
         ret_cost = task.get_cost()
-        cost_val1 = ret_cost.eval_obs_cost([2.4, 3.1])
-        cost_val2 = ret_cost.eval_obs_cost([4.4, 3.6])
+        cost_val1 = ret_cost.incremental([2.4, 3.1],[0])
+        cost_val2 = ret_cost.incremental([4.4, 3.6],[0])
 
         task.set_goal([4.0, 4.0])
         ret_cost2 = task.get_cost()
-        cost_val3 = ret_cost.eval_obs_cost([2.4, 3.1])
-        cost_val4 = ret_cost.eval_obs_cost([4.4, 3.6])
+        cost_val3 = ret_cost.incremental([2.4, 3.1],[0])
+        cost_val4 = ret_cost.incremental([4.4, 3.6],[0])
 
         self.assertEqual(cost_val1, 0)
         self.assertEqual(cost_val2, 1)
@@ -112,16 +112,16 @@ class UpdateTaskParametersTest(unittest.TestCase):
         simple_sys = ampc.System(["x", "y"], ["u"])
         simple_sys.dt = 0.05
         self.system = simple_sys
-        self.model_factory = SINDyFactory(self.system)
-        self.cost_factory = QuadCostFactory(self.system)
-        self.controller_factory = IterativeLQRFactory(self.system)
+        self.model_factory = SINDy(self.system)
+        self.cost = QuadCost(self.system)
+        self.optimizer = IterativeLQR(self.system)
 
         # Initialize task
         Q = np.eye(2)
         R = np.eye(1)
         F = np.eye(2)
         cost = QuadCost(self.system, Q, R, F)
-        self.task = StaticGoalTask(self.system)
+        self.task = Task(self.system)
         self.task.set_cost(cost)
         self.task.set_ctrl_bound("u", -20.0, 20.0)
         self.task.set_goal([-1.0, 0.0])

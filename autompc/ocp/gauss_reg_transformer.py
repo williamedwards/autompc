@@ -12,25 +12,24 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 # Internal library includes
-from .ocp_factory import OCPFactory
-from .ocp import PrototypeOCP
+from .ocp_transformer import OCPTransformer,PrototypeOCP
 from ..costs.quad_cost import QuadCost
 
 def construct_default_bounds():
     return (1e-3, 1e4, 1.0, True)
 
-class GaussRegFactory(OCPFactory):
+class GaussRegTransformer(OCPTransformer):
     """
-    Cost factory for Gaussian regularization cost. This cost encourages the controller
+    Cost Transformer for Gaussian regularization cost. This cost encourages the controller
     to stick close to the distribution of the training set, and is typically used in
-    combination with another cost function. The factory returns a quadratic cost
+    combination with another cost function. The Transformer returns a quadratic cost
     with :math:`Q= w \\Sigma_x^{-1}` and goal = :math:`\mu_x`.
 
     Hyperparameters:
      - *reg_weight* (float, Lower: 10^-3, Upper: 10^4): Weight of regularization term.
     """
     def __init__(self, system):
-        super().__init__(system, "GaussRegFactory")
+        super().__init__(system, "GaussRegTransformer")
         self._mean = None
         self._cov = None
 
@@ -57,7 +56,7 @@ class GaussRegFactory(OCPFactory):
 
     def __call__(self, ocp):
         if self._mean is None or self._cov is None:
-            raise RuntimeError("GaussRegFactory must be trained before calling.")
+            raise RuntimeError("GaussRegTransformer must be trained before calling.")
 
         Q = self.config["reg_weight"] * la.inv(self._cov)
         F = np.zeros_like(Q)

@@ -41,12 +41,6 @@ class ThresholdCost(Cost):
             self._obs_idxs = list(range(0, system.obs_dim))
         self.set_goal(goal)
 
-        self._is_quad = False
-        self._is_convex = False
-        self._is_diff = False
-        self._is_twice_diff = False
-        self._has_goal = True
-
     def set_goal(self, goal):
         if len(goal) < self.system.obs_dim:
             self._goal = np.zeros(self.system.obs_dim)
@@ -54,19 +48,16 @@ class ThresholdCost(Cost):
         else:
             self._goal = np.copy(goal)
 
-
-    def eval_obs_cost(self, obs):
+    def incremental(self, obs, ctrl):
         if (la.norm(obs[self._obs_idxs] - self._goal[self._obs_idxs], np.inf) 
                 > self._threshold):
             return 1.0
         else:
             return 0.0
 
-    def eval_ctrl_cost(self, ctrl):
+    def terminal(self, obs):
         return 0.0
 
-    def eval_term_obs_cost(self, obs):
-        return 0.0
 
 class BoxThresholdCost(Cost):
     def __init__(self, system, limits, goal=None):
@@ -90,25 +81,14 @@ class BoxThresholdCost(Cost):
         super().__init__(system)
         self._limits = np.copy(limits)
 
-        self._is_quad = False
-        self._is_convex = False
-        self._is_diff = False
-        self._is_twice_diff = False
+        if goal is not None:
+            self.properties['goal'] = np.copy(goal)
 
-        if goal is None:
-            self._has_goal = False
-        else:
-            self._goal = np.copy(goal)
-            self._has_goal = True
-
-    def eval_obs_cost(self, obs):
+    def incremental(self, obs, ctrl):
         if (obs < self._limits[:,0]).any() or (obs > self._limits[:,1]).any():
             return 1.0
         else:
             return 0.0
 
-    def eval_ctrl_cost(self, ctrl):
-        return 0.0
-
-    def eval_term_obs_cost(self, obs):
+    def terminal(self, obs):
         return 0.0

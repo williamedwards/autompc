@@ -12,7 +12,6 @@ from .benchmark import Benchmark
 from ..utils.data_generation import *
 from .. import System
 from ..task import Task
-from ..ocp.ocp import OCP
 from ..costs import ThresholdCost
 
 def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
@@ -50,11 +49,8 @@ class CartpoleSwingupBenchmark(Benchmark):
         system.dt = 0.05
 
         cost = ThresholdCost(system, goal=np.zeros(4), threshold=0.2, obs_range=(0,3))
-        ocp = OCP(system)
-        ocp.set_cost(cost)
-        ocp.set_ctrl_bound("u", -20.0, 20.0)
-        task = Task(system)
-        task.set_ocp(ocp)
+        task = Task(system,cost)
+        task.set_ctrl_bound("u", -20.0, 20.0)
         init_obs = np.array([3.1, 0.0, 0.0, 0.0])
         task.set_init_obs(init_obs)
         task.set_num_steps(200)

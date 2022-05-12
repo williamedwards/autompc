@@ -2,6 +2,9 @@
 
 import copy
 import numpy as np
+from .system import System
+from .ocp import OCP
+from .costs import Cost
 
 class NumStepsTermCond:
     def __init__(self, num_steps):
@@ -10,21 +13,27 @@ class NumStepsTermCond:
     def __call__(self, traj):
         return len(traj) >= self.num_steps
 
-class Task:
+class Task(OCP):
     """
-    Defines a control task to be solved
+    Defines a finite-horizon control task for the tuner.  This generalizes
+    an OCP in that 1) it specifies a start state, 2) a trial is terminated
+    at a fixed horizon or when a termination criterion is reached.
+    A Task is something evaluatable, whereas an OCP simply specifies the
+    constraints and preferences for the system behavior.
     """
-    def __init__(self, system):
+    def __init__(self, system : System, cost : Cost = None):
         """
         Task constructor
 
         Parameters
         ----------
-        sytem : System
+        system : System
             Robot system for which task is defined.
+        cost : Cost
+            The objective function.
         """
-        self.system = system
-
+        super().__init__(system,cost)
+        
         self._term_cond = None
         self._num_steps = None
         self._init_obs  = None
@@ -85,12 +94,28 @@ class Task:
 
         Parameters
         ----------
-        term_cond : Function, Trajectory -> bool
+        term_cond : Function(Trajectory) -> bool
             Termination condition function.
         """
         self._term_cond = term_cond
 
-    def set_ocp(self, ocp):
+    def set_goal(self, goal) -> None:
+        """
+        Set the task's goal state.
+
+        Parameters
+        ----------
+        goal: numpy array of size system.obs_dim.
+        """
+        self.get_cost().goal = goal
+    
+    def get_goal(self):
+        """
+        Retrieves the task's goal state.
+        """
+        return self.get_cost().goal
+
+    def set_ocp(self, ocp : OCP) -> None:
         """
         Sets the task ocp
 
@@ -99,18 +124,23 @@ class Task:
         ocp : OCP
             Control problem to be solved
         """
-        self.ocp = ocp
+        self.set_cost(ocp.get_cost())
+        self.set_ctrl_bounds(ocp.get_ctrl_bounds())
+        self.set_obs_bounds(ocp.get_obs_bounds())
 
-    def get_ocp(self):
+    def get_ocp(self) -> OCP:
         """
-        Get the task cost
+        Get the task ocp
 
         Returns 
         -------
         : OCP
             Task ocp
         """
-        return self.ocp
+        res = OCP(self.system,self.cost)
+        res.set_obs_bounds(self.get_obs_bounds())
+        res.set_ctrl_bounds(self.get_ctrl_bounds())
+        return res
 
     def set_init_obs(self, init_obs):
         """

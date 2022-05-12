@@ -11,7 +11,7 @@ import mujoco_py
 from .benchmark import Benchmark
 from ..utils.data_generation import *
 from .. import System
-from ..tasks import Task
+from ..task import Task
 from ..costs import Cost, QuadCostFactory
 
 def viz_halfcheetah_traj(env, traj, repeat):
@@ -46,11 +46,7 @@ def halfcheetah_dynamics(env, x, u, n_frames=5):
 
 class HalfcheetahCost(Cost):
     def __init__(self, env):
-        self._is_quad = False
-        self._is_convex = False
-        self._is_diff = False
-        self._is_twice_diff = False
-        self._has_goal = False
+        Cost.__init__(self,None)
         self.env = env
 
     def __call__(self, traj):
@@ -61,14 +57,12 @@ class HalfcheetahCost(Cost):
             cum_reward += reward_ctrl + reward_run
         return 200 - cum_reward
 
-    def eval_obs_cost(self):
+    def incremental(self,obs,ctrl):
         raise NotImplementedError
 
-    def eval_term_obs_cost(self):
+    def terminal(self,obs):
         raise NotImplementedError
 
-    def eval_ctrl_cost(self):
-        raise NotImplementedError
 
 def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     rng = np.random.default_rng(seed)
@@ -106,8 +100,7 @@ class HalfcheetahBenchmark(Benchmark):
 
         system.dt = env.dt
         cost = HalfcheetahCost(env)
-        task = Task(system)
-        task.set_cost(cost)
+        task = Task(system,cost)
         task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
         init_obs = np.concatenate([env.init_qpos, env.init_qvel])
         task.set_init_obs(init_obs)

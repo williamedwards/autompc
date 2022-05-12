@@ -2,14 +2,14 @@
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from .model_metrics import get_model_rmse
+from .model_metrics import get_model_rmse,get_model_rmsmens
 
 class ModelEvaluator(ABC):
     """
     The ModelEvaluator class evaluates models by prediction accuracy.
     """
     def __init__(self, system, trajs, metric, rng, horizon=1):
-        """
+        """s
         Parameters
         ----------
         system : System

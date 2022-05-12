@@ -11,20 +11,16 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 # Internal library includes
-from .ocp_factory import OCPFactory
-from .ocp import PrototypeOCP
+from .ocp_transformer import OCPTransformer,PrototypeOCP
 from ..costs.quad_cost import QuadCost
 
-def construct_default_bounds():
-    return (1e-3, 1e4, 1.0, True)
-
-class QuadCostFactory(OCPFactory):
+QUAD_COST_DEFAULT_BOUNDS = (1e-3, 1e4)
+QUAD_COST_DEFAULT_VALUE = 1.0
+QUAD_COST_DEFAULT_LOG = True
+class QuadCostTransformer(OCPTransformer):
     """
-    Factory to produce quadratic cost.  This cost has the form
-
-    .. math::
-
-        x_N^T (F - x_g) x_N  + \\sum_{t=0}^{N} (x_t^T (Q - x_g) x_t + u_t^T R u_t)
+    Transformer to throw out original OCP's cost and produce quadratic cost. 
+    See :class:`QuadCost`.
 
     Parameters:
      - *goal* (numpy array of size system.obs_dim): Goal state. Default is
@@ -39,18 +35,7 @@ class QuadCostFactory(OCPFactory):
      - * **x**_F* (float, Lower: 10^-3, Upper: 10^4): Digaonal F matrix value
         corresponding to ovservation dimension with label **x**
     """
-    def __init__(self, system, goal=None):
-        if goal is None:
-            self.goal = None
-        else:
-            self.goal = goal[:]
-
-        self._Q_bounds = defaultdict(construct_default_bounds) # Key: obsname, Value: (lower, upper, default, log_scale)
-        self._R_bounds = defaultdict(construct_default_bounds)
-        self._F_bounds = defaultdict(construct_default_bounds)
-        self._Q_fixed = dict() # Key: obsname, Value: fixed_value
-        self._R_fixed = dict() # Key: obsname, Value: fixed_value
-        self._F_fixed = dict() # Key: obsname, Value: fixed_value
+    def __init__(self, system):
         self._goal_tunable = dict() # Key: obsname, Value: (lower, upper, default, log_scale)
         super().__init__(system, "QuadCostFactory")
 
@@ -69,24 +54,6 @@ class QuadCostFactory(OCPFactory):
             raise ValueError("obsname not recognized")
         self._goal_tunable[obsname] = (lower_bound, upper_bound, default, log)
 
-    def _fix_value(self, value_dict, allowed_names, dim_name, value):
-        if not dim_name is None:
-            if not dim_name in allowed_names:
-                raise ValueError(f"{dim_name} is not in the system")
-            value_dict[dim_name] = value
-        else:
-            for name in allowed_names:
-                value_dict[name] = value
-
-    def _set_bounds(self, value_dict, allowed_names, dim_name, lower_bound, upper_bound, default, log):
-        if not dim_name is None:
-            if not dim_name in allowed_names:
-                raise ValueError(f"{dim_name} is not in the system")
-            value_dict[dim_name] = (lower_bound, upper_bound, default, log)
-        else:
-            for name in allowed_names:
-                value_dict[name] = (lower_bound, upper_bound, default, log)
-
     def fix_Q_value(self, obsname, value):
         """
         Fix an entry in the Q matrix to a constant value.
@@ -95,7 +62,8 @@ class QuadCostFactory(OCPFactory):
         - *obsname* (str): Name of observation dimension 
         - *value* (float): Fixed value for matrix entry
         """
-        self._fix_value(self._Q_fixed, self.system.observations, obsname, value)
+        args = {'Q_'+obsname:value}
+        self.fix_hyperparameters(**args)
 
     def fix_R_value(self, ctrlname, value):
         """
@@ -105,7 +73,8 @@ class QuadCostFactory(OCPFactory):
         - *ctrlname* (str): Name of observation dimension 
         - *value* (float): Fixed value for matrix entry
         """
-        self._fix_value(self._R_fixed, self.system.controls, ctrlname, value)
+        args = {'R_'+ctrlname:value}
+        self.fix_hyperparameters(**args)
 
     def fix_F_value(self, obsname, value):
         """
@@ -115,7 +84,8 @@ class QuadCostFactory(OCPFactory):
         - *obsname* (str): Name of observation dimension 
         - *value* (float): Fixed value for matrix entry
         """
-        self._fix_value(self._F_fixed, self.system.observations, obsname, value)
+        args = {'F_'+obsname:value}
+        self.fix_hyperparameters(**args)
 
     def set_Q_bounds(self, obsname, lower_bound, upper_bound, default, log=False):
         """
@@ -129,8 +99,10 @@ class QuadCostFactory(OCPFactory):
         - *default* (float): Default value for the hyperparameter.
         - *log* (bool): Whether hyperparameter should use logarithmic scale.  (Default: False)
         """
-        self._set_bounds(self._Q_bounds, self.system.observations, obsname,
-            lower_bound, upper_bound, default, log)
+        args = {'Q_'+obsname:(lower_bound,upper_bound)}
+        self.set_hyperparameter_bounds(**args)
+        args['Q_'+obsname] = default
+        self.set_hyperparameter_defaults(**args)
 
     def set_R_bounds(self, ctrlname, lower_bound, upper_bound, default, log=False):
         """
@@ -144,8 +116,10 @@ class QuadCostFactory(OCPFactory):
         - *default* (float): Default value for the hyperparameter.
         - *log* (bool): Whether hyperparameter should use logarithmic scale.  (Default: False)
         """
-        self._set_bounds(self._R_bounds, self.system.controls, ctrlname,
-            lower_bound, upper_bound, default, log)
+        args = {'R_'+ctrlname:(lower_bound,upper_bound)}
+        self.set_hyperparameter_bounds(**args)
+        args['R_'+ctrlname] = default
+        self.set_hyperparameter_defaults(**args)
 
     def set_F_bounds(self, obsname, lower_bound, upper_bound, default, log=False):
         """
@@ -159,79 +133,62 @@ class QuadCostFactory(OCPFactory):
         - *default* (float): Default value for the hyperparameter.
         - *log* (bool): Whether hyperparameter should use logarithmic scale.  (Default: False)
         """
-        self._set_bounds(self._F_bounds, self.system.observations, obsname,
-            lower_bound, upper_bound, default, log)
-
-    def _get_hyperparameters(self, label, bounds_dict, fixed_dict, dim_names):
-        hyperparameters = []
-        for name in dim_names:
-            if name in fixed_dict:
-                continue
-            lower, upper, default, log = bounds_dict[name]
-            hyper = CSH.UniformFloatHyperparameter("{}_{}".format(name, label),
-                    lower=lower, upper=upper, default_value=default, log=log)
-            hyperparameters.append(hyper)
-        return hyperparameters
+        args = {'F_'+obsname:(lower_bound,upper_bound)}
+        self.set_hyperparameter_bounds(**args)
+        args['F_'+obsname] = default
+        self.set_hyperparameter_defaults(**args)
 
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
-        Q_hypers = self._get_hyperparameters("Q", self._Q_bounds, self._Q_fixed, self.system.observations)
-        R_hypers = self._get_hyperparameters("R", self._R_bounds, self._R_fixed, self.system.controls)
-        F_hypers = self._get_hyperparameters("F", self._F_bounds, self._F_fixed, self.system.observations)
-        fixed_goal = set(self.system.observations)
+        for name in self.system.observations:
+            hyper = CSH.UniformFloatHyperparameter(name+"_Q",
+                    lower=QUAD_COST_DEFAULT_BOUNDS[0], upper=QUAD_COST_DEFAULT_BOUNDS[1], default_value=QUAD_COST_DEFAULT_VALUE, log=QUAD_COST_DEFAULT_LOG)
+            cs.add_hyperparameter(hyper)
+        for name in self.system.controls:
+            hyper = CSH.UniformFloatHyperparameter(name+"_R",
+                    lower=QUAD_COST_DEFAULT_BOUNDS[0], upper=QUAD_COST_DEFAULT_BOUNDS[1], default_value=QUAD_COST_DEFAULT_VALUE, log=QUAD_COST_DEFAULT_LOG)
+            cs.add_hyperparameter(hyper)
+        for name in self.system.controls:
+            hyper = CSH.UniformFloatHyperparameter(name+"_F",
+                    lower=QUAD_COST_DEFAULT_BOUNDS[0], upper=QUAD_COST_DEFAULT_BOUNDS[1], default_value=QUAD_COST_DEFAULT_VALUE, log=QUAD_COST_DEFAULT_LOG)
+            cs.add_hyperparameter(hyper)
         for obs_name in self._goal_tunable.keys():
-            fixed_goal.remove(obs_name)
-        goal_hypers = self._get_hyperparameters("Goal", self._goal_tunable, fixed_goal, self.system.observations)
-        cs.add_hyperparameters(Q_hypers + R_hypers + F_hypers + goal_hypers)
+            (lower,upper,defaults,log) = self._goal_tunable[name]
+            hyper = CSH.UniformFloatHyperparameter(name+"_Goal",
+                    lower=lower, upper=upper, default_value=defaults, log=log)
+            cs.add_hyperparameter(hyper)
         return cs
 
     def is_compatible(self, ocp):
-        if self.goal:
-            return True
-        else:
-            return ocp.get_cost().has_goal
+        return True
 
     def _get_matrix(self, cfg, label, fixed_dict, dim_names):
         mat = np.zeros((len(dim_names), len(dim_names)))
         for i, name in enumerate(dim_names):
             hyper_name = f"{name}_{label}"
-            if name in fixed_dict:
-                mat[i,i] = fixed_dict[name]
-            elif hyper_name in cfg:
-                mat[i,i] = cfg[hyper_name]
-            else:
-                mat[i,i] = 0.0
+            assert hyper_name in cfg
+            mat[i,i] = cfg[hyper_name]
         return mat
 
-    def _get_goal(self, cfg, ocp):
-        if self.goal is None and ocp.get_cost().has_goal:
-            goal = ocp.get_cost().get_goal()
-        elif self.goal is not None: 
-            goal = self.goal
-        else:
-            raise ValueError("QuadCostFactory requires goal")
-
-        goal = np.nan_to_num(goal, nan=0.0)
-        for obs_name in self._goal_tunable.keys():
-            hyper_name = f"{obs_name}_Goal"
-            goal[self.system.observations.index(obs_name)] = cfg[hyper_name]
-        
-        return goal
-
-    def set_config(self, config):
-        self.config = config
-        
     def get_prototype(self, config, ocp):
         return PrototypeOCP(ocp, cost=QuadCost)
 
     def __call__(self, ocp):
-        Q = self._get_matrix(self.config, "Q", self._Q_fixed, self.system.observations)
-        R = self._get_matrix(self.config, "R", self._R_fixed, self.system.controls)
-        F = self._get_matrix(self.config, "F", self._F_fixed, self.system.observations)
-        goal = self._get_goal(self.config, ocp)
+        self.set_hyper_values(**self._fixed_configuration_space_parameters)
+        config = self.get_config()
+        Qdiag = [config[name+"_Q"] for name in self.system.observations]
+        Rdiag = [config[name+"_R"] for name in self.system.controls]
+        Fdiag = [config[name+"_F"] for name in self.system.observations]
+        Q = np.diag(Qdiag)
+        R = np.diag(Rdiag)
+        F = np.diag(Fdiag)
+        goal = ocp.goal
+        if len(self._goal_tunable)>0:
+            for key in self._goal_tunable:
+                index = self.system.observations.index(key)
+                goal[index] = config[key+"_goal"]
 
         new_cost = QuadCost(self.system, Q, R, F, goal=goal)
         new_ocp = copy.deepcopy(ocp)
         new_ocp.set_cost(new_cost)
-
         return  new_ocp

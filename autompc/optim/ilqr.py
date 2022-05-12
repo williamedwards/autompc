@@ -56,15 +56,19 @@ class IterativeLQR(Optimizer):
     def get_state(self):
         return {"guess" : copy.deepcopy(self._guess) }
 
-    def is_compatible(self, model, ocp):
-        return (model.is_diff
-                and ocp.get_cost().is_twice_diff
-                and not ocp.are_obs_bounded)
+    def model_requirements(self):
+        return {'is_diff':True}
+    
+    def ocp_requirements(self):
+        return {'are_obs_bounded':False}
+
+    def cost_requirements(self):
+        return {'is_twice_diff':True}
 
     def set_state(self, state):
         self._guess = copy.deepcopy(state["guess"])
 
-    def compute_ilqr(self, state, uguess, u_threshold=1e-3, max_iter=50, 
+    def compute_ilqr(self, x0, uguess, u_threshold=1e-3, max_iter=50, 
             ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=False):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
@@ -77,8 +81,8 @@ class IterativeLQR(Optimizer):
         def eval_obj(xs, us):
             obj = 0
             for i in range(H):
-                obj += dt * (cost.eval_obs_cost(xs[i, :self.system.obs_dim]) + cost.eval_ctrl_cost(us[i]))
-            obj += cost.eval_term_obs_cost(xs[-1, :self.system.obs_dim])
+                obj += dt * cost.incremental(xs[i, :self.system.obs_dim],us[i])
+            obj += cost.terminal(xs[-1, :self.system.obs_dim])
             return obj
 
         dimx, dimu = self.model.state_dim, self.system.ctrl_dim
@@ -92,7 +96,7 @@ class IterativeLQR(Optimizer):
         ks = np.zeros((H, dimu))
         Jacs = np.zeros((H, dimx, dimx + dimu))  # Jacobian from dynamics...
         # first forward simulation
-        states[0] = state
+        states[0] = x0
         ctrls[:] = uguess
         for i in range(H):
             states[i + 1], jx, ju = self.model.pred_diff(states[i], ctrls[i])
@@ -109,7 +113,7 @@ class IterativeLQR(Optimizer):
             if self.verbose:
                 print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
-            _, cost_jac, cost_hess = cost.eval_term_obs_cost_hess(states[H, :obsdim])
+            _, cost_jac, cost_hess = cost.terminal_hess(states[H, :obsdim])
             Vn = np.zeros((dimx, dimx))
             vn = np.zeros(dimx)
             Vn[:obsdim, :obsdim] = cost_hess
@@ -119,8 +123,7 @@ class IterativeLQR(Optimizer):
                 # first assemble Ct and ct, they are linearized at current state
                 Q  = np.zeros((dimx, dimx))
                 Qx = np.zeros(dimx)
-                _, Qx[:obsdim], Q[:obsdim, :obsdim] = cost.eval_obs_cost_hess(states[t - 1, :obsdim])
-                _, Ru, R = cost.eval_ctrl_cost_hess(ctrls[t - 1])
+                _, Qx[:obsdim], Ru, Q[:obsdim, :obsdim], _, R = cost.incremental_hess(states[t - 1, :obsdim],ctrls[t - 1])
                 Ct[:dimx, :dimx] = Q * dt
                 Ct[dimx:, dimx:] = R * dt
                 ct[:dimx] = Qx * dt
@@ -149,7 +152,7 @@ class IterativeLQR(Optimizer):
             # Compute rollout for all possible alphas
             alphas = np.array([ls_discount**i for i in range(ls_max_iter)])
             for i in range(ls_max_iter):
-                ls_states[i,0,:] = state
+                ls_states[i,0,:] = x0
             for i in range(H):
                 for j, alpha in enumerate(alphas):
                     ls_ctrls[j, i, :] = alpha * ks[i] + ctrls[i] + Ks[i] @ (ls_states[j, i, :] - states[i, :])
@@ -217,10 +220,10 @@ class IterativeLQR(Optimizer):
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks, ks
 
-    def step(self, state, silent=True):
+    def step(self, obs, silent=True):
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
-        converged, states, ctrls, Ks, ks = self.compute_ilqr(state, self._guess,
+        converged, states, ctrls, Ks, ks = self.compute_ilqr(obs, self._guess,
                 silent=silent)
         self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
         self._traj = Trajectory(self.system, states.shape[0], states, 

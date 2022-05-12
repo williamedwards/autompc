@@ -13,7 +13,6 @@ from .benchmark import Benchmark
 from ..utils.data_generation import *
 from .. import System
 from ..task import Task
-from ..ocp import OCP
 from ..costs import ThresholdCost
 
 def doubleint_dynamics(y, u):
@@ -42,11 +41,8 @@ class DoubleIntegratorBenchmark(Benchmark):
 
         cost = ThresholdCost(system, goal=np.zeros(2), threshold=0.1, 
                 obs_range=(0,2))
-        ocp = OCP(system)
-        ocp.set_cost(cost)
-        ocp.set_ctrl_bound("u", -10.0, 10.0)
-        task = Task(system)
-        task.set_ocp(ocp)
+        task = Task(system,cost)
+        task.set_ctrl_bound("u", -10.0, 10.0)
         init_obs = np.array([10.0, 0.0])
         task.set_init_obs(init_obs)
         task.set_num_steps(200)

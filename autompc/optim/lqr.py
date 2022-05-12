@@ -84,11 +84,14 @@ class LQR(Optimizer):
         self.finite_horizon = get_hyper_bool(config, "finite_horizon")
         self.horizon = get_hyper_int(config, "horizon")
 
-    def is_compatible(self, model, ocp):
-        return (model.is_linear 
-                and ocp.get_cost().is_quad
-                and not ocp.are_obs_bounded
-                )
+    def model_requirements(self):
+        return {'is_linear':True}
+    
+    def ocp_requirements(self):
+        return {'are_obs_bounded':False}
+
+    def cost_requirements(self):
+        return {'is_quad':True}
 
     def reset(self):
         A, B = self.model.to_linear()

@@ -1,63 +1,29 @@
 # Created by William Edwards (wre2@illinois.edu)
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import copy
-from pdb import set_trace
+import numpy as np
+from ..tunable import Tunable
+from ..system import System
+from ..sysid.model import Model
+from ..ocp.ocp import OCP
+from ..trajectory import Trajectory
 
-class Optimizer(ABC):
-    def __init__(self, system, name):
+class Optimizer(Tunable):
+    def __init__(self, system : System, name : str):
         self.system = system
         self.name = name
-        self.set_config(self.get_default_config())
-
-    def get_config_space(self):
-        """
-        Returns the optimizer configuration space.
-        """
-        return self.get_default_config_space()
+        Tunable.__init__(self)
 
     @abstractmethod
-    def get_default_config_space(self):
-        """
-        Returns the optimize configuraiton space, prior
-        to any user modifications.
-        """
-        raise NotImplementedError
-
-    def get_default_config(self):
-        return self.get_config_space().get_default_configuration()
-
-    @abstractmethod
-    def set_config(self, config):
-        """
-        Set the model configuration.
-
-        Parameters
-        ----------
-            config : Configuration
-                Configuration to set.
-        """
-        raise NotImplementedError
-
-    def set_hyper_values(self, **kwargs):
-        """
-        Set hyperparameter values as keyword arguments.
-        """
-        cs = self.get_config_space()
-        values = {hyper.name : hyper.default_value 
-            for hyper in cs.get_hyperparameters()}
-        values.update(kwargs)
-        self.set_config(values)
-
-    @abstractmethod
-    def step(self, state):
+    def step(self, obs : np.ndarray) -> np.ndarray:
         """
         Run the optimizer for a given time step
 
         Parameters
         ----------
-            state : numpy array of size self.state_dim
-                Current controller state
+            obs : numpy array of size self.system.obs_dim
+                Current observation
         Returns
         -------
             ctrl : numpy array of size self.system.ctrl_dim
@@ -65,8 +31,7 @@ class Optimizer(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
-    def is_compatible(self, model, ocp):
+    def is_compatible(self, model : Model, ocp : OCP) -> bool:
         """
         Check if an optimizer is compatible with a given model
         and ocp.
@@ -79,6 +44,41 @@ class Optimizer(ABC):
         ocp : OCP
             OCP to check compatibility
         """
+        model_reqs = self.model_requirements()
+        ocp_reqs = self.ocp_requirements()
+        cost_reqs = self.cost_requirements()
+        for key,value in model_reqs.items():
+            if getattr(model,key) != value:
+                return False
+        for key,value in ocp_reqs.items():
+            if getattr(ocp,key) != value:
+                return False
+        cost = ocp.cost
+        for key,value in cost_reqs.items():
+            if getattr(cost,key) != value:
+                return False
+        return True
+    
+    def model_requirements(self) -> dict:
+        """Returns a set of model properties that must hold for this optimizer
+        to work.  For example `{'is_linear':True}` specifies that this optimizer
+        requires a linear model.
+        """
+        raise NotImplementedError
+    
+    def ocp_requirements(self) -> dict:
+        """Returns a set of ocp properties that must hold for this optimizer
+        to work.  For example
+        `{'are_obs_bounded':False,'are_ctrl_bounded':False}` specifies that
+        this optimizer does not support bounds.
+        """
+        raise NotImplementedError
+
+    def cost_requirements(self) -> dict:
+        """Returns a set of cost properties that must hold for this optimizer
+        to work.  For example `{'is_quad':True}` specifies that this
+        optimizer only works with quadratic costs.
+        """
         raise NotImplementedError
 
     def run(self, *args, **kwargs):
@@ -87,7 +87,7 @@ class Optimizer(ABC):
         """
         return self.step(*args, **kwargs)
 
-    def reset(self):
+    def reset(self) -> None:
         """
         Re-initialize the optimizer. For optimizers which
         cache previous results to warm-start optimization, this
@@ -95,26 +95,26 @@ class Optimizer(ABC):
         """
         pass
 
-    def set_model(self, model):
+    def set_model(self, model : Model) -> None:
         """
         Set the model to be used for optimization.
         """
         self.model = model
     
-    def set_ocp(self, ocp):
+    def set_ocp(self, ocp : OCP) -> None:
         """
         Set the OCP to be solved.
         """
         self.ocp = ocp
 
     @abstractmethod
-    def get_state(self):
+    def get_state(self) -> np.ndarray:
         """
         Returns a representatation of the optimizers internal state.
         """
         raise NotImplementedError
 
-    def get_traj(self):
+    def get_traj(self) -> Trajectory:
         """
         Returns the last optimized trajectory, if available.
         """
@@ -127,7 +127,7 @@ class Optimizer(ABC):
         """
         raise NotImplementedError
 
-    def clone(self):
+    def clone(self) -> 'Optimizer':
         """
         Returns a deep copy of the optimizer.
         """

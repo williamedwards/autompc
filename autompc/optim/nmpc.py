@@ -80,11 +80,9 @@ class NonLinearMPCProblem(TrajOptProblem):
         cost = self.ocp.get_cost()
         self._x[:] = x  # copy contents in
         dt = self.system.dt
-        tc = cost.eval_term_obs_cost(self._state[-1, :self.system.obs_dim])
-        for i in range(self.horizon + 1):
-            tc += cost.eval_obs_cost(self._state[i, :self.system.obs_dim]) * dt
+        tc = cost.terminal(self._state[-1, :self.system.obs_dim])
         for i in range(self.horizon):
-            tc += cost.eval_ctrl_cost(self._ctrl[i]) * dt
+            tc += cost.incremental(self._state[i, :self.system.obs_dim],self._ctrl[i]) * dt
         return tc
 
     def get_gradient(self, x):
@@ -93,14 +91,12 @@ class NonLinearMPCProblem(TrajOptProblem):
         self._grad[:] = 0  # reset just in case
         # terminal one
         cost = self.ocp.get_cost()
-        _, gradtc = cost.eval_term_obs_cost_diff(self._state[-1, :self.system.obs_dim])
+        _, gradtc = cost.terminal_diff(self._state[-1, :self.system.obs_dim])
         self._grad_state[-1, :self.system.obs_dim] = gradtc
         dt = self.system.dt
-        for i in range(self.horizon + 1):
-            _, gradx = cost.eval_obs_cost_diff(self._state[i, :self.system.obs_dim])
-            self._grad_state[i, :self.system.obs_dim] += gradx * dt
         for i in range(self.horizon):
-            _, gradu = cost.eval_ctrl_cost_diff(self._ctrl[i])
+            _, gradx, gradu = cost.incremental_diff(self._state[i, :self.system.obs_dim],self._ctrl[i])
+            self._grad_state[i, :self.system.obs_dim] += gradx * dt
             self._grad_ctrl[i] = gradu * dt
         return self._grad
 
@@ -296,10 +292,9 @@ class DirectTranscription(Optimizer):
     def is_compatible(self, model, ocp):
         return (model.is_diff and ocp.get_cost().is_diff)
  
-    def step(self, state):
-        x = state
-        self._x_cache = x
-        sol, info = self._update_problem_and_solve(x)
+    def step(self, obs):
+        self._x_cache = obs
+        sol, info = self._update_problem_and_solve(obs)
 
         # update guess
         self._guess = sol.copy()

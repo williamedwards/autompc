@@ -7,6 +7,7 @@ import ConfigSpace as CS
 # Internal library includes
 from .optimizer import Optimizer
 
+
 class ZeroOptimizer(Optimizer):
     """
     The Zero otpimizer is a simple optimizer which always returns
