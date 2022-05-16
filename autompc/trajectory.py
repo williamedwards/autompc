@@ -2,62 +2,9 @@
 
 import numpy as np
 from collections import namedtuple
+from .system import System
 
-def zeros(system, size):
-    """
-    Create an all zeros trajectory.
 
-    Parameters
-    ----------
-    system : System
-        System for trajectory
-
-    size : int
-        Size of trajectory
-    """
-    obs = np.zeros((size, system.obs_dim))
-    ctrls = np.zeros((size, system.ctrl_dim))
-    return Trajectory(system, size, obs, ctrls)
-
-def empty(system, size):
-    """
-    Create a trajectory with uninitialized states
-    and controls. If not initialized, states/controls
-    will be non-deterministic.
-
-    Parameters
-    ----------
-    system : System
-        System for trajectory
-
-    size : int
-        Size of trajectory
-    """
-    obs = np.empty((size, system.obs_dim))
-    ctrls = np.empty((size, system.ctrl_dim))
-    return Trajectory(system, size, obs, ctrls)
-
-def extend(traj, obs, ctrls):
-    """
-    Create a new trajectory which extends an existing trajectory
-    by one or more timestep.
-
-    Parameters
-    ----------
-    traj : Trajectory
-        Trajectory to extend
-
-    obs : numpy array of shape (N, system.obs_dim)
-        New observations
-
-    ctrls : numpy array of shape (N, system.ctrl_dim)
-        New controls
-    """
-    newobs = np.concatenate([traj.obs, obs])
-    newctrls = np.concatenate([traj.ctrls, ctrls])
-    newtraj = Trajectory(traj.system, newobs.shape[0],
-            newobs, newctrls)
-    return newtraj
 
 TimeStep = namedtuple("TimeStep", "obs ctrl")
 """
@@ -75,8 +22,14 @@ class Trajectory:
     """
     The Trajectory object represents a discrete-time state and control
     trajectory.
+
+    The time steps are interpreted such that obs[i] is the state (more
+    precisely, the observation) at the i'th time step and ctrls[i] is
+    the control executed at that time step.
+
+    You can also access a TimeStep object using the [i] operator.
     """
-    def __init__(self, system, size, obs, ctrls):
+    def __init__(self, system : System, size : int, obs : np.ndarray, ctrls : np.ndarray):
         """
         Parameters
         ----------
@@ -97,12 +50,49 @@ class Trajectory:
 
         # Check inputs
         if obs.shape != (size, system.obs_dim):
-            raise ValueError("obs is wrong shape")
+            raise ValueError("obs is wrong shape, should be {}, got {}".format((size,system.obs_dim),obs.shape))
         if ctrls.shape != (size, system.ctrl_dim):
-            raise ValueError("ctrls is wrong shape")
+            raise ValueError("ctrls is wrong shape, should be {}, got {}".format((size,system.ctrl_dim),ctrls.shape))
 
         self._obs = obs
         self._ctrls = ctrls
+    
+    @staticmethod
+    def zeros(system : System, size : int) -> 'Trajectory':
+        """
+        Create an all zeros trajectory.
+
+        Parameters
+        ----------
+        system : System
+            System for trajectory
+
+        size : int
+            Size of trajectory
+        """
+        obs = np.zeros((size, system.obs_dim))
+        ctrls = np.zeros((size, system.ctrl_dim))
+        return Trajectory(system, size, obs, ctrls)
+
+    @staticmethod
+    def empty(system : System, size : int) -> 'Trajectory':
+        """
+        Create a trajectory with uninitialized states
+        and controls. If not initialized, states/controls
+        will be non-deterministic.
+
+        Parameters
+        ----------
+        system : System
+            System for trajectory
+
+        size : int
+            Size of trajectory
+        """
+        obs = np.empty((size, system.obs_dim))
+        ctrls = np.empty((size, system.ctrl_dim))
+        return Trajectory(system, size, obs, ctrls)
+
 
     def __eq__(self, other):
         return (self._system == other.system
@@ -159,14 +149,14 @@ class Trajectory:
         return "Trajectory, length={}, system={}".format(self._size,self._system)
 
     @property
-    def system(self):
+    def system(self) -> System:
         """
         Get trajectory System object.
         """
         return self._system
 
     @property
-    def size(self):
+    def size(self) -> int:
         """
         Number of time steps in trajectory
         """
@@ -202,3 +192,29 @@ class Trajectory:
 
     def clone(self):
         return Trajectory(self.system, self.size, np.copy(self.obs), np.copy(self.ctrls))
+
+    def extend(self, obs, ctrls) -> 'Trajectory':
+        """
+        Create a new trajectory which extends an existing trajectory
+        by one or more timestep.
+
+        Note: it is expensive O(N^2) to repeatedly extend a trajectory.
+
+        Parameters
+        ----------
+        obs : numpy array of shape (N, system.obs_dim)
+            New observations
+
+        ctrls : numpy array of shape (N, system.ctrl_dim)
+            New controls
+
+        Returns
+        ----------
+        traj : Trajectory
+            The extended trajectory
+        """
+        newobs = np.concatenate([self.obs, obs])
+        newctrls = np.concatenate([self.ctrls, ctrls])
+        newtraj = Trajectory(self.system, newobs.shape[0],
+                newobs, newctrls)
+        return newtraj
