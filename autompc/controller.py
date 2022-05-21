@@ -14,40 +14,46 @@ import ConfigSpace.conditions as CSC
 # Internal library includes
 from .utils.cs_utils import *
 from .utils.exceptions import OptionalDependencyException
-from .utils.configuration_space import ControllerConfigurationSpace
 from . import sysid
 from . import optim
 from . import ocp
 from .ocp.ocp_transformer import OCPTransformer,IdentityTransformer
+from .ocp.sum_transformer import SumTransformer
 from .system import System
 from .sysid.model import Model
 from .optim.optimizer import Optimizer
 from .ocp.ocp import OCP
 from .trajectory import Trajectory
+from .tunable import Tunable,NonTunable,TunablePipeline
+from .dynamics import Dynamics
+from .policy import Policy
 
 class ControllerStateError(Exception):
     pass
 
-class Controller:
+class Controller(TunablePipeline,Policy):
     """
     Controller is the core class of AutoMPC, representing all components
     of a tunable, data-driven model predictive controller, including 
     system ID model, optimizer, and control problem transformer, as well as
     all associated hyperparameters.
     """
-    def __init__(self, system : System, check_config_in_cs=False):
+    def __init__(self, system : System):
+        super().__init__()
         self.system = system
         self.models = []
         self.optimizers = []
         self.ocp_transformers = [IdentityTransformer(system)]
-        self.model = None
-        self.optimizer = None
-        self.ocp_transformer = None
-        self.ocp = None
-        self.trajs = None
-        self.config = None
+        self.model = None                #type: Model
+        self.optimizer = None            #type: Optimizer
+        self.ocp_transformer = None      #type: OCPTransformer
+        self.ocp = None                  #type: OCP
 
-        self._check_config_in_cs = check_config_in_cs
+        self.add_component("model",[])
+        self.add_component("constraint_transformer",[])
+        self.add_component("cost_transformer",[])
+        self.add_component("regularizer",[])
+        self.add_component("optimizer",[])
 
     def set_model(self, model : Model) -> None:
         """
@@ -58,7 +64,14 @@ class Controller:
             model : Model
                 System ID model to set.
         """
-        self.models = [model]
+        if not isinstance(model,Model):
+            if not isinstance(model,Dynamics):
+                raise ValueError("set_model() must be called with a Model or Dynamics object")
+            self.models = []
+            self.model = model
+        else:
+            self.models = [model]
+        self.set_component("model",self.models)
         
     def set_models(self, models : List[Model]) -> None:
         """
@@ -70,6 +83,7 @@ class Controller:
                 Set of System ID models which can be selected.
         """
         self.models = models[:]
+        self.set_component("model",self.models)
 
     def add_model(self, model : Model) -> None:
         """
@@ -81,6 +95,7 @@ class Controller:
                 System ID model to be added.
         """
         self.models.append(model)
+        self.add_component_option("model",model)
 
     def set_optimizer(self, optimizer : Optimizer) -> None:
         """
@@ -92,6 +107,7 @@ class Controller:
                 Optimizer to set.
         """
         self.optimizers = [optimizer]
+        self.set_component("optimizer",self.optimizers)
 
     def set_optimizers(self, optimizers : List[Optimizer]) -> None:
         """
@@ -103,6 +119,7 @@ class Controller:
                 Set of optimizers which can be selected.
         """
         self.optimizers = optimizers[:]
+        self.set_component("optimizer",self.optimizers)
 
     def add_optimizer(self, optimizer : Optimizer) -> None:
         """
@@ -114,6 +131,7 @@ class Controller:
                 Optimizer to be added.
         """
         self.optimizers.append(optimizer)
+        self.add_component_option("optimizer",optimizer)
 
     def set_ocp_transformer(self, ocp_transformer : OCPTransformer) -> None:
         """
@@ -150,103 +168,120 @@ class Controller:
 
     def set_ocp(self, ocp):
         """
-        Set the OCP
+        Set the OCP. If the controller is already running, this will
+        also update the current optimizer's target
         """
         self.ocp = ocp
 
-    def set_trajs(self, trajs):
-        """
-        Set the trajectory training set.
-
-        Parameters
-        ----------
-            trajs : List[Trajectory]
-                Trajectory training set.
-        """
-        self.trajs = trajs[:]
-
-    def _add_config_space(self, cs, label, choices):
-        choice_hyper = CS.CategoricalHyperparameter(label,
-            choices=[choice.name for choice in choices])
-        cs.add_hyperparameter(choice_hyper)
-        for choice in choices:
-            print("Configuration space for",choice.name,":")
-            print(choice.get_config_space())
-            add_configuration_space(cs, choice.name,
-                choice.get_config_space(),
-                parent_hyperparameter={"parent" : choice_hyper,
-                    "value" : choice.name}
-                )
+        if self.ocp_transformer:
+            self.transformed_ocp = self.ocp_transformer(self.ocp)
+        else:
+            self.transformed_ocp = self.ocp
+        if self.optimizer:
+            self.optimizer.set_ocp(self.transformed_ocp)
 
     def get_config_space(self):
         """
         Returns the joint controller configuration space.
         """
-        if self._check_config_in_cs:
-            cs = ControllerConfigurationSpace(self)
-        else:
-            cs = CS.ConfigurationSpace()
-
+        
         if not self.models:
             raise ControllerStateError("Must add model before config space can be generated")
         if not self.optimizers:
             raise ControllerStateError("Must add optimizer before config space can be generated")
         if not self.ocp_transformers:
             raise ControllerStateError("Must add OCP transformer before config space can be generated")
+
+        #transformer pipeline is a little more complex
+        dummy = NonTunable()
+        dummy.name = '_'
+        cost_transformers = []
+        constraint_transformers = [dummy]
+        regularizers = [dummy]
+        for transformer in self.ocp_transformers:
+            if 'Bound' in transformer.name and transformer.name != 'DeleteBoundsTransformer':
+                constraint_transformers.append(transformer)
+            elif 'Reg' in transformer.name:
+                regularizers.append(transformer)
+            elif transformer.name != 'Identity':
+                cost_transformers.append(transformer)
+        cost_transformers.append(dummy)
         
-        self._add_config_space(cs, "model", self.models)
-        self._add_config_space(cs, "optimizer", self.optimizers)
-        self._add_config_space(cs, "ocp_transformer", self.ocp_transformers)
+        if len(cost_transformers) > 1:
+            self.set_component("cost_transformer", cost_transformers)
+        self.set_component("constraint_transformer", constraint_transformers)
+        if len(regularizers) > 1:
+            self.set_component("regularizer", regularizers)
 
+        self._forbid_incompatible_configurations()
+
+        cs = super().get_config_space()
         return cs
+    
+    def _forbid_incompatible_configurations(self):
+        for opt in self.optimizers:
+            try:
+                reqs = opt.model_requirements()
+                for prop,value in reqs.items():
+                    for model in self.models:
+                        if getattr(model,prop) != value:
+                            print("Forbidding model",model.name,"to be used with",opt.name,"due to property",prop)
+                            self.forbid_incompatible_options('model',model.name,'optimizer',opt.name)
+            except NotImplementedError:
+                pass
+        if self.ocp is not None:
+            print("Checking compatibility with OCP")
+            cost = self.ocp.get_cost()
+            if cost.is_quad:  #no need to transform costs into quadratic form
+                print("Quad cost")
+                print([xform.name for xform in self.ocp_transformers])
+                if any(xform.name == 'QuadCostTransformer' for xform in self.ocp_transformers):
+                    print("Forbidding QuadCostTransformer")
+                    self.forbid_option("cost_transformer", 'QuadCostTransformer')
+            if not self.ocp.are_obs_bounded:
+                #Can safely ignore the bounds transformers
+                self.fix_option("constraint_transformer", '_')
+            
+            cost_transformers = []
+            constraint_transformers = []
+            regularizers = []
+            for transformer in self.ocp_transformers:
+                if 'Bound' in transformer.name and transformer.name != 'DeleteBoundsTransformer':
+                    constraint_transformers.append(transformer)
+                elif 'Reg' in transformer.name:
+                    regularizers.append(transformer)
+                elif transformer.name != 'Identity':
+                    cost_transformers.append(transformer)
+            if self.ocp.are_obs_bounded:
+                for xform in constraint_transformers:
+                    if not xform.is_compatible(self.ocp):
+                        self.forbid_option('constraint_transformer',xform.name)
+            for xform in cost_transformers:
+                if not xform.is_compatible(self.ocp):
+                    self.forbid_option('cost_transformer',xform.name)
+            for xform in regularizers:
+                if not xform.is_compatible(self.ocp):
+                    self.forbid_option('regularizer',xform.name)
 
-    def _get_choice_by_name(self, choices, name):
-        for choice in choices:
-            if choice.name == name:
-                return choice
-        return None
-
-    def _get_model_from_config(self, config=None):
-        if config is None:
-            config = self.config
-        return self._get_choice_by_name(self.models, config["model"])
-
-    def _get_optimizer_from_config(self, config=None):
-        if config is None:
-            config = self.config
-        return self._get_choice_by_name(self.optimizers, config["optimizer"])
-
-    def _get_ocp_transformer_from_config(self, config=None):
-        if config is None:
-            config = self.config
-        return self._get_choice_by_name(self.ocp_transformers, config["ocp_transformer"])
-
-    def _get_choice_config(self, label, choices, config):
-        choice_name = config[label]
-        choice = self._get_choice_by_name(choices, choice_name)
-        return create_subspace_configuration(config, choice_name, 
-            choice.get_config_space(), allow_inactive_with_values=True)
-
-    def _get_model_config(self, config=None):
-        if config is None:
-            config = self.config
-        return self._get_choice_config("model", self.models, config)
-
-    def _get_optimizer_config(self, config=None):
-        if config is None:
-            config = self.config
-        return self._get_choice_config("optimizer", self.optimizers, config)
-
-    def _get_ocp_transformer_config(self, config=None):
-        if config is None:
-            config = self.config
-        return self._get_choice_config("ocp_transformer", self.ocp_transformers, config)
-
-    def get_default_config(self) -> Configuration:
-        """
-        Returns the default controller configuration.
-        """
-        return self.get_config_space().get_default_configuration()
+            for opt in self.optimizers:
+                try:
+                    ocp_reqs = opt.ocp_requirements()
+                    failed_requirements = [prop for prop,value in ocp_reqs.items() if getattr(self.ocp,prop) != value]
+                    if failed_requirements:
+                        #not compatible with raw OCP's constraints, need to include a transformer
+                        print("Requiring bound transformer for ocp to be used with",opt.name,"due to property",failed_requirements[0])
+                        self.forbid_incompatible_options('constraint_transformer','_','optimizer',opt.name)
+                        #TODO: check if any other constraint transformers don't make the cut
+                except NotImplementedError:
+                    pass
+                try:
+                    cost_reqs = opt.cost_requirements()
+                    failed_requirements = [prop for prop,value in cost_reqs.items() if getattr(cost,prop) != value]
+                    if failed_requirements:
+                        print("Requiring cost transformer for ocp to be used with",opt.name,"due to property",failed_requirements[0])
+                        self.forbid_incompatible_options('cost_transformer','_','optimizer',opt.name)
+                except NotImplementedError:
+                    pass
 
     def set_config(self, config : Configuration) -> None:
         """
@@ -257,35 +292,23 @@ class Controller:
             config : Configuration
                 Configuration to set.
         """
-        if not self.check_config(config):
-            raise ValueError("Controller config is incompatible")
-        self._set_model_config(config)
-        self._set_optimizer_config(config)
-        self._set_ocp_transformer_config(config)
-
-    def _set_model_config(self, config):
-        model = self._get_choice_by_name(self.models, config["model"])
-        if model is None:
-            raise ValueError("Unrecognized model choice in config")
-        self.model = model
-        model_cfg = self._get_model_config(config)
-        self.model.set_config(model_cfg)
-
-    def _set_optimizer_config(self, config):
-        optimizer = self._get_choice_by_name(self.optimizers, config["optimizer"])
-        if optimizer is None:
-            raise ValueError("Unrecognized optimizer choice in config")
-        self.optimizer = optimizer
-        optim_cfg = self._get_optimizer_config(config)
-        self.optimizer.set_config(optim_cfg)
-
-    def _set_ocp_transformer_config(self, config):
-        ocp_transformer = self._get_choice_by_name(self.ocp_transformers, config["ocp_transformer"])
-        if ocp_transformer is None:
-            raise ValueError("Unrecognized ocp_transformer choice in config")
-        self.ocp_transformer = ocp_transformer
-        ocp_transformer_cfg = self._get_ocp_transformer_config(config)
-        self.ocp_transformer.set_config(ocp_transformer_cfg)
+        super().set_config(config)
+        pipeline = self.get_configured_pipeline()
+        self.model = pipeline[0]
+        self.optimizer = pipeline[-1]
+        assert self.model is not None
+        assert self.optimizer is not None
+        sequence = []
+        for i in range(1,4):
+            if pipeline[i] is not None and pipeline[i].name != '_':
+                assert isinstance(pipeline[i],OCPTransformer)
+                sequence.append(pipeline[i])
+        if len(sequence) > 1:
+            self.ocp_transformer = SumTransformer(sequence[0].system,sequence)
+        elif sequence:
+            self.ocp_transformer = sequence[0]
+        else:
+            self.ocp_transformer = IdentityTransformer(self.system)
 
     def set_model_hyper_values(self, name=None, **kwargs) -> None:
         """
@@ -300,15 +323,7 @@ class Controller:
         """
         if len(self.models) == 0:
             raise ControllerStateError("Must add a model before setting hyper values")
-        if name is None and len(self.models) == 1:
-            name = self.models[0].name
-        elif name is None:
-            raise ValueError("Multiple models are present so name must be specified")
-        model = self._get_choice_by_name(self.models, name)
-        if model is None:
-            raise ValueError("Unrecognized model name")
-        self.model = model
-        self.model.set_hyper_values(**kwargs)
+        return self.set_hyper_values("model",name,**kwargs)
 
     def set_optimizer_hyper_values(self, name=None, **kwargs) -> None:
         """
@@ -323,15 +338,7 @@ class Controller:
         """
         if len(self.optimizers) == 0:
             raise ControllerStateError("Must add an optimizer before setting hyper values")
-        if name is None and len(self.optimizers) == 1:
-            name = self.optimizers[0].name
-        elif name is None:
-            raise ValueError("Multiple optimizers are present so name must be specified")
-        optimizer = self._get_choice_by_name(self.optimizers, name)
-        if optimizer is None:
-            raise ValueError("Unrecognized optimizer name")
-        self.optimizer = optimizer
-        self.optimizer.set_hyper_values(**kwargs)
+        return self.set_hyper_values("optimizer",name,**kwargs)
 
     def set_ocp_transformer_hyper_values(self, name=None, **kwargs) -> None:
         """
@@ -350,10 +357,11 @@ class Controller:
             name = self.ocp_transformers[0].name
         elif name is None:
             raise ValueError("Multiple ocp_transformers are present so name must be specified")
-        ocp_transformer = self._get_choice_by_name(self.ocp_transformers, name)
-        if ocp_transformer is None:
+        matches = [xform for xform in self.ocp_transformers if xform.name==name]
+        if not matches:
             raise ValueError("Unrecognized ocp_transformer name")
-        self.ocp_transformer = ocp_transformer
+        raise NotImplementedError("TODO: override chosen transformer in the config")
+        self.ocp_transformer = matches[0]
         self.ocp_transformer.set_hyper_values(**kwargs)
 
     def check_config(self, config : Configuration, ocp : Optional[OCP]=None) -> bool:
@@ -370,33 +378,31 @@ class Controller:
         """
         if ocp is None:
             ocp = self.ocp
-        model = self._get_model_from_config(config)
-        model_cfg = self._get_model_config(config)
-        model_ptype = model.get_prototype(model_cfg)
-
-        ocp_transformer = self._get_ocp_transformer_from_config(config)
-        ocp_config = self._get_ocp_transformer_config(config)
-        if ocp_transformer:
-            if not ocp_transformer.is_compatible(ocp):
+        old_config = self._config
+        self.set_config(config)
+        if self.ocp_transformer:
+            if not self.ocp_transformer.is_compatible(ocp):
+                if old_config is not None: self.set_config(old_config)
                 return False
-            ocp_ptype = ocp_transformer.get_prototype(ocp_config, ocp)
+            try:
+                ocp_ptype = self.ocp_transformer.get_prototype(self.ocp_transformer.get_config(), ocp)
+            except NotImplementedError:
+                ocp_ptype = self.ocp_transformer(ocp)
         else:
             ocp_ptype = ocp
 
-        optim = self._get_optimizer_from_config(config)
-        return optim.is_compatible(model_ptype, ocp_ptype)
-
-    def clear_trajs(self) -> None:
-        """
-        Clear the trajectory training set.
-        """
-        self.trajs = None
+        if not self.optimizer.is_compatible(self.model, ocp_ptype):
+            if old_config is not None: self.set_config(old_config)
+            return False
+        if old_config is not None: self.set_config(old_config)
+        return True
 
     def clear_model(self) -> None:
         """
         Clear learned model parameters.
         """
-        self.model.clear()
+        if self.model is not None:
+            self.model.clear()
 
     def clear(self) -> None:
         """
@@ -404,7 +410,6 @@ class Controller:
         current config selection.
         """
         self.reset()
-        self.clear_trajs()
         self.clear_model()
         self.model, self.optimizer, self.ocp_transformer = None, None, None
 
@@ -414,34 +419,50 @@ class Controller:
         """
         return copy.deepcopy(self)
 
-    def build(self) -> None:
+    def build(self, trajs : List[Trajectory] = None) -> None:
         """
-        Build the controller from the current configuration.  This includes
+        Builds the controller given its current configuration.  This includes
         training the model, constructing the OPC, and initializing the optimizer.
         """
         if not self.ocp:
             raise ControllerStateError("Must call set_ocp() before build()")
         if not self.model:
-            self.model = self._get_model_from_config(self.get_default_config())
+            if len(self.models)==1:
+                self.model = self.models[0]
+            else:
+                raise ControllerStateError("set_config() must be called before build")
         if not self.optimizer:
-            self.optimizer = self._get_optimizer_from_config(self.get_default_config())
-        if not self.ocp_transformer:
-            self.ocp_transformer = self._get_ocp_transformer_from_config(self.get_default_config())
-        if self.model.trainable:
-            if self.trajs:
+            if len(self.optimizers)==1:
+                self.optimizer = self.optimizers[0]
+            else:
+                raise ControllerStateError("set_config() must be called before build")
+        if hasattr(self.model,'trainable') and self.model.trainable:
+            if trajs:
                 self.model.clear()
-                self.model.train(self.trajs)
+                self.model.train(trajs)
             elif self.model.is_trained:
                 pass
             else:
-                raise ControllerStateError("Specified model requires trajectories.  Please call set_trajs() before build().")
+                raise ControllerStateError("Specified model requires learning from trajectories.")
         if self.ocp_transformer and self.ocp_transformer.trainable:
-            if self.trajs:
-                self.ocp_transformer.train(self.trajs)
+            if trajs:
+                self.ocp_transformer.train(trajs)
             else:
-                raise ControllerStateError("Specified OCP Factory requires trajectories.  Please call set_trajs() before build().")
+                raise ControllerStateError("Specified OCP transformer requires learning from trajectories.")
 
         self.reset()
+    
+    def is_built(self) -> bool:
+        """Returns true if the controller is built."""
+        if self.model is None: return False
+        if self.optimizer is None: return False
+        if hasattr(self.model,'trainable') and self.model.trainable:
+            if not self.model.is_trained:
+                return False
+        if self.ocp_transformer and self.ocp_transformer.trainable:
+            if not self.ocp_transformer.is_trained:
+                return False
+        return True
 
     def reset(self) -> None:
         """
@@ -463,6 +484,8 @@ class Controller:
         This clears any internal optimizer states such as a trajectory guess.
         """
         # Instantiate optimizer and transformed ocp
+        if self.ocp is None:
+            raise ControllerStateError("Need to provide OCP before resetting optimizer")
         if self.ocp_transformer:
             self.transformed_ocp = self.ocp_transformer(self.ocp)
         else:
@@ -502,7 +525,7 @@ class Controller:
                 Generated control
         """
         # Returns control, handles model state updates
-        if not self.model or not self.optimizer or not self.transformed_ocp:
+        if not self.is_built():
             raise ControllerStateError("Must call build() before run()")
         if self.model_state is None:
             self.model_state = self.model.init_state(obs)
@@ -522,8 +545,8 @@ class Controller:
         return {"model_state" : self.model_state,
             "last_control" : self.last_control,
             "optimizer_state" : self.optimizer.get_state()}
-
-    def set_state(self, state : dict) -> None:
+    
+    def set_state(self,state) -> dict:
         """
         Sets the current controller state.
         """
@@ -536,6 +559,7 @@ class Controller:
         Returns the last optimized trajectory, if available.
         """
         return self.optimizer.get_traj()
+
 
 class AutoSelectController(Controller):
     """
@@ -555,9 +579,11 @@ class AutoSelectController(Controller):
      - LQR
      - DirectTranscription
 
-    **OCP Factories**
-     - IdentityFactory
-     - QuadCostFactory
+    **OCP Transformers**
+     - QuadCostTransformer
+     - KeepBoundsTransformer
+     - DeleteBoundsTransformer
+     - GaussRegTransformer
 
     Note that this list may change in future versions as new algorithms are added to AutoMPC.
     """
@@ -590,36 +616,8 @@ class AutoSelectController(Controller):
 
     def _add_ocp_transformers(self):
         self._add_if_available(self.add_ocp_transformer, ocp, "QuadCostTransformer")
+        self._add_if_available(self.add_ocp_transformer, ocp, "KeepBoundsTransformer")
         self._add_if_available(self.add_ocp_transformer, ocp, "DeleteBoundsTransformer")
+        self._add_if_available(self.add_ocp_transformer, ocp, "GaussRegTransformer")
     
-    def get_config_space(self):
-        cs = super().get_config_space()
-        hyperparameters = cs.get_hyperparameters_dict()
-        for opt in self.optimizers:
-            try:
-                reqs = opt.model_requirements()
-                for prop,value in reqs.items():
-                    for model in self.models:
-                        if getattr(model,prop) != value:
-                            print("Forbidding model",model.name,"to be used with",opt.name,"due to property",prop)
-                            model_match = CS.ForbiddenEqualsClause(hyperparameters['model'],model.name)
-                            opt_match = CS.ForbiddenEqualsClause(hyperparameters['optimizer'],opt.name)
-                            model_and_opt = CS.ForbiddenAndConjunction(model_match,opt_match)
-                            cs.add_forbidden_clause(model_and_opt)
-            except NotImplementedError:
-                pass
-        if self.ocp is not None:
-            cost = self.ocp.get_cost()
-            for opt in self.optimizers:
-                try:
-                    ocp_reqs = opt.ocp_requirements()
-                    cost_reqs = opt.cost_requirements()
-                    for prop,value in ocp_reqs.items():
-                        if getattr(self.ocp,prop) != value:
-                            print("Should include bound transformer for ocp to be used with",opt.name,"due to property",prop)
-                    for prop,value in cost_reqs.items():
-                        if getattr(cost,prop) != value:
-                            print("Should include cost transformer for ocp to be used with",opt.name,"due to property",prop)
-                except NotImplementedError:
-                    pass
-        return cs
+        
