@@ -20,6 +20,8 @@ from .basis_funcs import *
 from ..utils.cs_utils import (get_hyper_bool, get_hyper_str,
         get_hyper_float, get_hyper_int)
 
+#the number of iters will be determined by this constant * budget
+STLSQ_ITERS_PER_SECOND = 1
 class SINDy(Model):
     R"""
     Sparse Identification of Nonlinear Dynamics (SINDy) is an system identification approach that works as follows. 
@@ -54,11 +56,17 @@ class SINDy(Model):
     """
     def __init__(self, system, allow_cross_terms=False):
         self.allow_cross_terms = allow_cross_terms
+        self.system = system
+        self.train_time_budget = None
         super().__init__(system, "SINDy")
 
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
-        time_mode = CSH.CategoricalHyperparameter("time_mode", 
+        if self.system.discrete_time:
+            time_mode = CSH.CategoricalHyperparameter("time_mode", 
+                choices=["discrete"])
+        else:
+            time_mode = CSH.CategoricalHyperparameter("time_mode", 
                 choices=["discrete", "continuous"])
         threshold = CSH.UniformFloatHyperparameter("threshold",
                 lower=1e-5, upper=1e1, default_value=1e-2, log=True)
@@ -121,6 +129,9 @@ class SINDy(Model):
     @property
     def state_dim(self):
         return self.system.obs_dim
+    
+    def set_train_budget(self, seconds=None):
+        self.train_time_budget = seconds
 
     def _init_model(self):
         basis_funcs = [IdentityBasisFunction()]
@@ -143,14 +154,15 @@ class SINDy(Model):
                 function_names=function_names)
         self.basis_funcs = basis_funcs
 
+        max_iter = 20 if self.train_time_budget is None else int(self.train_time_budget*STLSQ_ITERS_PER_SECOND)
         if self.time_mode == "continuous":
             sindy_model = ps.SINDy(feature_library=library, 
                     discrete_time=False,
-                    optimizer=ps.STLSQ(threshold=self.threshold))
+                    optimizer=ps.STLSQ(threshold=self.threshold, max_iter=max_iter))
         elif self.time_mode == "discrete":
             sindy_model = ps.SINDy(feature_library=library, 
                     discrete_time=True,
-                    optimizer=ps.STLSQ(threshold=self.threshold))
+                    optimizer=ps.STLSQ(threshold=self.threshold, max_iter=max_iter))
         self.model = sindy_model
 
     def train(self, trajs, xdot=None, silent=False):

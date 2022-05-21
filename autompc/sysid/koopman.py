@@ -16,6 +16,9 @@ from .stable_koopman import stabilize_discrete
 from .basis_funcs import *
 from ..utils.cs_utils import *
 
+#estimate of how many iters of Lasso should be performed, max_iters = budget * this constant / N
+LASSO_ITERS_PER_SECOND_BY_DATAPOINT = 20.0*100000.0
+
 class Koopman(Model):
     """
     This class identifies Koopman models of the form :math:`\dot{\Psi}(x) = A\Psi(x) + Bu`. 
@@ -54,8 +57,8 @@ class Koopman(Model):
     """
     def __init__(self, system, allow_cross_terms=False):
         self.allow_cross_terms = allow_cross_terms
+        self.budget = None
         super().__init__(system, "Koopman")
-
 
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
@@ -155,6 +158,9 @@ class Koopman(Model):
                 state_dim += 1
         return state_dim
 
+    def set_train_budget(self, seconds=None):
+        self.budget = seconds
+
     def train(self, trajs, silent=False):
         trans_obs = [self._transform_observations(traj.obs[:]) for traj in trajs]
         X = np.concatenate([obs[:-1,:] for obs in trans_obs]).T
@@ -170,8 +176,9 @@ class Koopman(Model):
             A = AB[:n, :n]
             B = AB[:n, n:]
         elif self.method == "lasso":  # Call lasso regression on coefficients
-            print("Call Lasso")
-            clf = Lasso(alpha=self.lasso_alpha)
+            max_iter = 1000 if self.budget is None else max(20,int(self.budget*LASSO_ITERS_PER_SECOND_BY_DATAPOINT/n) )
+            print("Call Lasso (%d iters)"%max_iter)
+            clf = Lasso(alpha=self.lasso_alpha, max_iter=max_iter)
             clf.fit(XU.T, Y.T)
             AB = clf.coef_
             A = AB[:n, :n]
@@ -179,7 +186,7 @@ class Koopman(Model):
         elif self.method == "stable": # Compute stable A, and B
             print("Compute Stable Koopman")
             # call function
-            A, _, _, _, B, _ = stabilize_discrete(X, U, Y)
+            A, _, _, _, B, _ = stabilize_discrete(X, U, Y, time_budget=self.budget)
             A = np.real(A)
             B = np.real(B)
 
@@ -206,7 +213,7 @@ class Koopman(Model):
         return xpred, np.copy(self.A), np.copy(self.B)
 
     def to_linear(self):
-        return np.copy(self.A), np.copy(self.B)
+        return np.copy(self.A), np.copy(self.B), None
 
     def get_parameters(self):
         return {"A" : self.A.tolist(),

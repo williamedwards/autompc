@@ -1,6 +1,7 @@
 
 # Standard library includes
 import sys
+import time
 
 # External library includes
 import numpy as np
@@ -27,15 +28,19 @@ def transform_output(xu_means, xu_std, XU):
     return np.vstack(XUt).T
 
 class ForwardNet(torch.nn.Module):
-    def __init__(self, n_in, n_out, hidden_sizes, nonlintype):
+    def __init__(self, n_in, n_out, hidden_sizes, nonlintype, batchnorm=False):
         """Specify the feedforward neuro network size and nonlinearity"""
         assert len(hidden_sizes) > 0
         torch.nn.Module.__init__(self)
         self.layers = torch.nn.ModuleDict() # a collection that will hold your layers
         last_n = n_in
         for i, size in enumerate(hidden_sizes):
-            self.layers['layer%d' % i] = torch.nn.Linear(last_n, size)
+            layer = torch.nn.Linear(last_n, size)
+            if batchnorm:
+                layer = torch.nn.Sequential(layer,torch.nn.BatchNorm1d(size))
+            self.layers['layer%d' % i] = layer
             last_n = size
+        
         # the final one
         self.output_layer = torch.nn.Linear(last_n, n_out)
         if nonlintype == 'relu':
@@ -47,7 +52,7 @@ class ForwardNet(torch.nn.Module):
         elif nonlintype == 'sigmoid':
             self.nonlin = torch.nn.Sigmoid()
         else:
-            raise NotImplementedError("Currently supported nonlinearity: relu, tanh, sigmoid")
+            raise NotImplementedError("Currently supported nonlinearity: relu, selu, tanh, sigmoid")
 
     def forward(self, x):
         for i, lyr in enumerate(self.layers):
@@ -97,10 +102,11 @@ class MLP(Model):
       Type of activation function.
     - **lr** *(Type: float, Low: 1e-5, High: 1, Default: 1e-3)*: Adam learning rate for the network.
     """
-    def __init__(self, system, n_train_iters=50, n_batch=64, use_cuda=True):
+    def __init__(self, system, n_train_iters=200, n_batch=64, use_cuda=True):
         super().__init__(system, "MLP")
         self.n_train_iters = n_train_iters
         self.n_batch = n_batch
+        self.train_time_budget = None
         self.use_cuda = use_cuda
         self.net = None
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
@@ -129,7 +135,9 @@ class MLP(Model):
                 values=["4"])
         lr = CSH.UniformFloatHyperparameter("lr",
                 lower = 1e-5, upper = 1, default_value=1e-3, log=True)
-        cs.add_hyperparameters([nonlintype, n_hidden_layers, hidden_size_1,
+        batchnorm = CSH.CategoricalHyperparameter("batchnorm",
+                choices=[False,True], default_value=False)
+        cs.add_hyperparameters([nonlintype, n_hidden_layers, batchnorm, hidden_size_1,
             hidden_size_2, hidden_size_3, hidden_size_4,
             lr])
         cs.add_conditions([hidden_cond_2, hidden_cond_3, hidden_cond_4])
@@ -141,6 +149,7 @@ class MLP(Model):
         self.hidden_sizes = [config[f"hidden_size_{i}"] 
                              for i in range(1,self.n_hidden_layers+1)]
         self.lr = config["lr"]
+        self.batchnorm = config["batchnorm"]
 
     def clear(self):
         self.net = None
@@ -163,7 +172,7 @@ class MLP(Model):
     def _init_net(self, seed=100):
         torch.manual_seed(seed)
         self.net = ForwardNet(self.system.obs_dim + self.system.ctrl_dim, self.system.obs_dim, 
-            self.hidden_sizes, self.nonlintype)
+            self.hidden_sizes, self.nonlintype, self.batchnorm)
         self.net = self.net.double().to(self._device)
 
     def _set_pairs(self, XU, dY):
@@ -208,6 +217,9 @@ class MLP(Model):
         for param in self.net.parameters():
             param.requires_grad_(False)
         self.is_trained = True
+    
+    def set_train_budget(self, seconds=None):
+        self.train_time_budget = seconds
 
     def train(self, trajs, silent=False, seed=100):
         X = np.concatenate([traj.obs[:-1,:] for traj in trajs])
@@ -219,8 +231,12 @@ class MLP(Model):
         self._init_train(seed)
 
         print("Training MLP: ", end="")
+        t0 = time.time()
         for i in tqdm(range(self.n_train_iters), file=sys.stdout):
             self._step_train()
+            if self.train_time_budget is not None and time.time()-t0 > self.train_time_budget:
+                print("Reached timeout of %.2fs"%self.train_time_budget)
+                break
 
         self._finish_train()
 

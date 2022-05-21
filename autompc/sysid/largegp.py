@@ -1,4 +1,5 @@
 # Standard libary includes
+import time
 
 # External library includes
 import numpy as np
@@ -79,7 +80,7 @@ class ApproximateGPModel(Model):
 
     Parameters:
 
-    - **n_train_iters** *(Type: int, Default: 5)*: Number of training iterations
+    - **n_train_iters** *(Type: int, Default: 20)*: Number of training iterations
     - **batch_size** *(Type: int, Default: 1024)*: Batch size for training.
 
     Hyperparameters:
@@ -88,10 +89,11 @@ class ApproximateGPModel(Model):
       to include in the gaussian process. 
     - **learning_rate** *(Type: float, Lower: 1e-5, Upper: 10, Default: 0.1)*: Learning rate for training.
     """
-    def __init__(self, system, n_train_iters=5, batch_size=1024, use_cuda=True):
+    def __init__(self, system, n_train_iters=20, batch_size=1024, use_cuda=True):
         super().__init__(system, "ApproximateGPModel")
         self.batch_size = batch_size
         self.n_train_iters = n_train_iters
+        self.train_time_budget = None
         self.device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
                 else torch.device('cpu'))
         if use_cuda and torch.cuda.is_available():
@@ -175,6 +177,9 @@ class ApproximateGPModel(Model):
         self.gpmodel.likelihood = self.likelihood
         self.is_trained = True
 
+    def set_train_budget(self, seconds=None):
+        self.train_time_budget = seconds
+
     def train(self, trajs, silent=False, seed=100):
         """Given collected trajectories, train the GP to approximate the actual dynamics"""
         # extract transfer pairs from data
@@ -190,8 +195,11 @@ class ApproximateGPModel(Model):
             itr = range(self.n_train_iters)
         else:
             itr = tqdm.tqdm(range(self.n_train_iters))
+        t0 = time.time()
         for i in itr:
             self._step_train()
+            if self.train_time_budget is not None and time.time()-t0 > self.train_time_budget:
+                break
 
         self._finish_train()
 

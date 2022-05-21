@@ -5,3 +5,4 @@ from .sindy import SINDy
 from .mlp import MLP
 from .largegp import ApproximateGPModel
 #from .linearize import LinearizedModel
+from .autoselect import AutoSelectModel

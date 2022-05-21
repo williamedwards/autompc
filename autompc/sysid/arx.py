@@ -160,7 +160,7 @@ class ARX(Model):
         return statenew, self.A, self.B
 
     def to_linear(self):
-        return self.A, self.B
+        return self.A, self.B, None
 
     @property
     def state_dim(self):

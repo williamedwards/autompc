@@ -8,6 +8,7 @@ import numpy as np
 from scipy.linalg import polar, pinv2, solve_discrete_lyapunov, sqrtm
 import math
 from scipy import io
+import time
 
 
 def projectPSD(Q, epsilon = 0, delta = math.inf):
@@ -44,7 +45,7 @@ def checkdstable(A):
     B = projectPSD(B,0,1)
     return P,S,U,B
 
-def stabilize_discrete(Xs, Xu, Y, S = None, U = None, B = None, Bcon = None):
+def stabilize_discrete(Xs, Xu, Y, S = None, U = None, B = None, Bcon = None, max_iter=30, time_budget=None):
     n = len(Xs) # number of Koopman basis functions
 #     na2 = np.linalg.norm(Y, 'fro')**2
     na2 = np.linalg.norm(Y, 'fro')
@@ -87,7 +88,7 @@ def stabilize_discrete(Xs, Xu, Y, S = None, U = None, B = None, Bcon = None):
     Yb_con = Bcon
     restarti = 1
 
-    max_iter = 30
+    t0 = time.time()
     while i < max_iter:
         # compute gradient
 
@@ -162,6 +163,9 @@ def stabilize_discrete(Xs, Xu, Y, S = None, U = None, B = None, Bcon = None):
         # Check if error is small (1e-6 relative error)
         if (error < 1e-12*na2):
             print("The algorithm converged")
+            break
+        if time_budget is not None and time.time()-t0 > time_budget:
+            print("Ran out of time")
             break
     Kd = np.linalg.inv(S).dot(U).dot(B).dot(S)
     return Kd, S, U, B, Bcon, error
