@@ -8,6 +8,7 @@ import pickle
 import numpy as np
 import matplotlib.animation as animation
 
+
 # Project includes
 from .benchmark import Benchmark
 from ..utils.data_generation import *
@@ -33,8 +34,7 @@ def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
             u])
 
 def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
-    y += dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
-    return y
+    return y + dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
 
 class CartpoleSwingupV2Benchmark(Benchmark):
     """
@@ -54,10 +54,10 @@ class CartpoleSwingupV2Benchmark(Benchmark):
         init_obs = np.array([3.1, 0.0, 0.0, 0.0])
         task.set_init_obs(init_obs)
         task.set_num_steps(200)
-
+        
         super().__init__(name, system, task, data_gen_method)
-
-    def dynamics(self, x, u):
+        
+    def dynamics(self,x,u):
         return dt_cartpole_dynamics(x,u,self.system.dt,g=9.8,m=1,L=1,b=1.0)
 
     def visualize(self, fig, ax, traj, margin=5.0):
@@ -95,10 +95,10 @@ class CartpoleSwingupV2Benchmark(Benchmark):
             time_text.set_text('')
             return line, time_text
 
-        nframes = traj.size + 50
+        nframes = len(traj)
         def animate(i):
             i %= nframes
-            i = min(i, traj.size-1)
+            i = min(i, len(traj)-1)
             if i == 0:
                 ax.set_xlim([-10.0, 10.0])
             #i = min(i, ts.shape[0])
@@ -113,7 +113,7 @@ class CartpoleSwingupV2Benchmark(Benchmark):
                 ax.set_xlim([traj[i,"x"] - 20.0 + margin, traj[i,"x"] + margin])
             return line, time_text
 
-        anim = animation.FuncAnimation(fig, animate, frames=6*nframes, interval=dt*1000.0,
+        anim = animation.FuncAnimation(fig, animate, frames=nframes, interval=dt*1000.0,
                 blit=False, init_func=init)
 
         return anim

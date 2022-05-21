@@ -12,7 +12,8 @@ from .benchmark import Benchmark
 from ..utils.data_generation import *
 from .. import System
 from ..task import Task
-from ..costs import Cost, QuadCostFactory
+from ..trajectory import Trajectory
+from ..costs import Cost, QuadCost
 
 def viz_halfcheetah_traj(env, traj, repeat):
     for _ in range(repeat):
@@ -71,7 +72,7 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     env.action_space.seed(int(rng.integers(1 << 30)))
     for i in range(num_trajs):
         init_obs = env.reset()
-        traj = ampc.zeros(system, traj_len)
+        traj = Trajectory.zeros(system, traj_len)
         traj[0].obs[:] = np.concatenate([[0], init_obs])
         for j in range(1, traj_len):
             action = env.action_space.sample()
@@ -92,7 +93,7 @@ class HalfcheetahBenchmark(Benchmark):
     """
     def __init__(self, data_gen_method="uniform_random"):
         name = "halfcheetah"
-        system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)])
+        system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
 
         import gym, mujoco_py
         env = gym.make("HalfCheetah-v2")
@@ -106,7 +107,7 @@ class HalfcheetahBenchmark(Benchmark):
         task.set_init_obs(init_obs)
         task.set_num_steps(200)
 
-        factory = QuadCostFactory(system, goal = np.zeros(system.obs_dim))
+        factory = QuadCost(system, goal = np.zeros(system.obs_dim))
         for obs in system.observations:
             if not obs in ["x1", "x6", "x7", "x8", "x9"]:
                 factory.fix_Q_value(obs, 0.0)
