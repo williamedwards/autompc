@@ -76,6 +76,9 @@ class LQR(Optimizer):
     """
     def __init__(self, system):
         super().__init__(system, "LQR")
+        self.Q,self.R,self.F=None,None,None
+        self.K = None
+        self.state0 = None
 
     def get_default_config_space(self):
         cs = ConfigurationSpace()
@@ -103,29 +106,44 @@ class LQR(Optimizer):
         return {'is_quad':True}
 
     def reset(self):
+        self.K = None
+
+    def _recompute_gains(self):
         A, B, c = self.model.to_linear()
         if c is not None and not np.allclose(c,np.zeros(len(c))):
             warnings.warn("Linear system has a nonzero drift term, LQR control will not be optimal")
         state_dim = self.model.state_dim
         Q, R, F = self.ocp.get_cost().get_cost_matrices()
+        if Q is not self.Q or R is not self.R or F is not self.F:
+            self.recompute_gains(Q,R,F)
+            self.Q,self.R,self.F = Q,R,F
         Qp = np.zeros((state_dim, state_dim))
         Qp[:Q.shape[0], :Q.shape[1]] = Q
         Fp = np.zeros((state_dim, state_dim))
         Fp[:F.shape[0], :F.shape[1]] = F
         N = np.zeros((state_dim, self.system.ctrl_dim))
-        self.Qp, self.Rp = Qp, R
         if self.finite_horizon:
             self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, Fp, self.horizon)
         else:
             self.K = _inf_horz_dt_lqr(A, B, Qp, R, N)
+        
+    def set_ocp(self, ocp) -> None:
+        super().set_ocp(ocp)
+        Q, R, F = self.ocp.get_cost().get_cost_matrices()
+        if Q is not self.Q or R is not self.R or F is not self.F:
+            self.K = None  #mark that K should be recomputed
+            self.Q,self.R,self.F = Q,R,F
         self.umin = self.ocp.get_ctrl_bounds()[:,0]
         self.umax = self.ocp.get_ctrl_bounds()[:,1]
         x0 = self.ocp.get_cost().goal
-        self.state0 = np.zeros(state_dim)
+        self.state0 = np.zeros(self.model.state_dim)
         if x0 is not None:
             self.state0[:len(x0)] = x0
 
     def step(self, state):
+        if self.K is None:
+            self._recompute_gains()
+            assert self.K is not None
         u = self.K @ (state - self.state0)
         u = np.clip(u, self.umin, self.umax)
         return u
