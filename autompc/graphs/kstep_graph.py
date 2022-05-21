@@ -5,7 +5,7 @@ from pdb import set_trace
 import numpy as np
 import numpy.linalg as la
 
-from ..evaluation.model_metrics import get_model_rmse, get_model_rmsmens, get_model_abs_error
+from ..sysid.metrics import get_model_rmse, get_model_rmsmens, get_model_abs_error
 
 class KstepPredAccGraph:
     """
