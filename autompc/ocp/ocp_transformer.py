@@ -29,17 +29,28 @@ class OCPTransformer(Tunable):
     def __init__(self, system : System, name : str):
         self.system = system
         self.name = name
+        self.is_trained = False
         Tunable.__init__(self)
 
     @abstractmethod
     def get_default_config_space(self) -> CS.ConfigurationSpace:
         raise NotImplementedError
 
-    def train(self) -> None:
+    def train(self, trajs) -> None:
+        """Trainable subclasses should implement this to train on a list of
+        trajectories.  Should then set self.is_trained = True.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def __call__(self, ocp : OCP) -> OCP:
+        raise NotImplementedError
+
+    def ocp_requirements(self) -> dict:
+        """Returns a set of ocp properties that must hold for this transformer
+        to work.  For example `{'are_obs_bounded':True}` specifies that this
+        transformer only works when observations are bounded.
+        """
         raise NotImplementedError
 
     @property

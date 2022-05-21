@@ -28,6 +28,9 @@ class SequenceTransformer(OCPTransformer):
             if not transformer.is_compatible(ocp):
                 return False
         return True
+        
+    def ocp_requirements(self) -> dict:
+        return self._transformers[0].ocp_requirements()
 
     def set_config(self, config):
         for i, transformer in enumerate(self._transformers):
@@ -48,6 +51,10 @@ class SequenceTransformer(OCPTransformer):
         for i, transformer in reversed(list(enumerate(self._transformers))):
             ocp = transformer(ocp)
         return ocp
+
+    @property
+    def trainable(self) -> bool:
+        return any(transformer.trainable for transformer in self._transformers)
 
     def __matmul__(self, other):
         if isinstance(other, SequenceTransformer):

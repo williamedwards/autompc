@@ -37,7 +37,7 @@ class QuadCostTransformer(OCPTransformer):
     """
     def __init__(self, system):
         self._goal_tunable = dict() # Key: obsname, Value: (lower, upper, default, log_scale)
-        super().__init__(system, "QuadCostFactory")
+        super().__init__(system, "QuadCostTransformer")
 
     def set_tunable_goal(self, obsname, lower_bound, upper_bound, default, log=False):
         """

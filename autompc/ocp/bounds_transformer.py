@@ -21,7 +21,10 @@ class DeleteBoundsTransformer(OCPTransformer):
         return cs
 
     def is_compatible(self, ocp : OCP):
-        return True
+        return ocp.are_obs_bounded
+    
+    def ocp_requirements(self) -> dict:
+        return {'are_obs_bounded':True}
 
     def __call__(self, ocp : OCP) -> OCP:
         res = copy.deepcopy(ocp)
@@ -48,7 +51,10 @@ class KeepBoundsTransformer(OCPTransformer):
         return cs
 
     def is_compatible(self, ocp : OCP):
-        return True
+        return {'are_obs_bounded':True}
+    
+    def ocp_requirements(self) -> dict:
+        return {'are_obs_bounded':True}
 
     def __call__(self, ocp : OCP) -> OCP:
         res = copy.deepcopy(ocp)

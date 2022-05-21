@@ -29,6 +29,15 @@ class SumTransformer(OCPTransformer):
                 return False
         return True
 
+    def ocp_requirements(self) -> dict:
+        res = dict()
+        for transformer in self._transformers:
+            try:
+                res.update(transformer.ocp_requirements())
+            except NotImplementedError:
+                pass
+        return res
+
     def set_config(self, config):
         for i, transformer in enumerate(self._transformers):
             transformer_config = create_subspace_configuration(config, f"_sum_{i}", 
@@ -67,6 +76,10 @@ class SumTransformer(OCPTransformer):
         new_ocp.set_cost(sum_cost)
             
         return new_ocp
+    
+    @property
+    def trainable(self) -> bool:
+        return any(transformer.trainable for transformer in self._transformers)
 
     def __add__(self, other):
         if isinstance(other, SumTransformer):

@@ -53,6 +53,7 @@ class GaussRegTransformer(OCPTransformer):
         X = np.concatenate([traj.obs[:,:] for traj in trajs])
         self._mean = np.mean(X, axis=0)
         self._cov = np.cov(X, rowvar=0)
+        self.is_trained = True
 
     def __call__(self, ocp):
         if self._mean is None or self._cov is None:

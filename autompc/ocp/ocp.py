@@ -80,7 +80,7 @@ class OCP:
         idx = self.system.observations.index(obs_label)
         self._obs_bounds[idx,:] = [lower, upper]
 
-    def set_obs_bounds(self, lowers : np.ndarray, uppers : np.ndarray) -> None:
+    def set_obs_bounds(self, lowers : np.ndarray, uppers : np.ndarray = None) -> None:
         """
         Set bound for all observation dimensions
 
@@ -90,10 +90,16 @@ class OCP:
             Lower bounds
 
         uppers : numpy array of size self.system.obs_dim
-            Upper bounds
+            Upper bounds, or if not given, lowers is assumed to be a N*2 array
+            containing lower and upper bounds
         """
-        self._obs_bounds[:,0] = lowers
-        self._obs_bounds[:,1] = uppers
+        if uppers is None:
+            if lowers.shape != self._obs_bounds.shape:
+                raise ValueError("Invalid size of obs bounds")
+            self._obs_bounds = lowers
+        else:
+            self._obs_bounds[:,0] = lowers
+            self._obs_bounds[:,1] = uppers
 
     def set_ctrl_bound(self, ctrl_label : str, lower : np.ndarray, upper : np.ndarray) -> None:
         """
@@ -113,7 +119,7 @@ class OCP:
         idx = self.system.controls.index(ctrl_label)
         self._ctrl_bounds[idx,:] = [lower, upper]
 
-    def set_ctrl_bounds(self, lowers : np.ndarray, uppers : np.ndarray) -> None:
+    def set_ctrl_bounds(self, lowers : np.ndarray, uppers : np.ndarray = None) -> None:
         """
         Set bound for all control dimensions
 
@@ -123,10 +129,16 @@ class OCP:
             Lower bounds
 
         uppers : numpy array of size self.system.ctrl_dim
-            Upper bounds
+            Upper bounds, or if not given, lowers is assumed to be a M*2 array
+            containing lower and upper bounds
         """
-        self._ctrl_bounds[:,0] = lowers
-        self._ctrl_bounds[:,1] = uppers
+        if uppers is None:
+            if lowers.shape != self._ctrl_bounds.shape:
+                raise ValueError("Invalid size of control bounds")
+            self._ctrl_bounds = lowers
+        else:
+            self._ctrl_bounds[:,0] = lowers
+            self._ctrl_bounds[:,1] = uppers
 
     @property
     def are_obs_bounded(self) -> bool:
@@ -181,13 +193,21 @@ class OCP:
             Control bounds
         """
         return self._ctrl_bounds.copy()
+    
+    def is_obs_feasible(self, obs : np.ndarray) -> bool:
+        """Returns True if the observation is feasible"""
+        return not np.any(obs < self._obs_bounds[:,0] | obs > self._obs_bounds[:,1])
+    
+    def is_ctrl_feasible(self, ctrl : np.ndarray) -> bool:
+        """Returns True if the control is feasible"""
+        return not np.any(ctrl < self._ctrl_bounds[:,0] | ctrl > self._ctrl_bounds[:,1])
 
     def is_feasible(self, traj : Trajectory) -> bool:
         """Returns True if the trajectory is feasible"""
         for i in range(len(traj.obs)):
-            if any(traj.obs[i] < self._obs_bounds[:,0] | traj.obs[i] > self._obs_bounds[:,1]): return False
+            if np.any(traj.obs[i] < self._obs_bounds[:,0] | traj.obs[i] > self._obs_bounds[:,1]): return False
         for i in range(len(traj.ctrls)):
-            if any(traj.ctrls[i] < self._ctrl_bounds[:,0] | traj.ctrls[i] > self._ctrl_bounds[:,1]): return False
+            if np.any(traj.ctrls[i] < self._ctrl_bounds[:,0] | traj.ctrls[i] > self._ctrl_bounds[:,1]): return False
         return True
 
     def project_obs(self, obs : np.ndarray) -> np.ndarray:
@@ -207,4 +227,4 @@ class OCP:
         newctrls = []
         for i in range(len(traj.ctrls)):
             newctrls.append(np.clip(traj.ctrls[i],self._ctrl_bounds[:,0],self._ctrl_bounds[:,1]))
-        return Trajectory(traj.system.traj.size,traj.obs,np.array(newctrls))
+        return Trajectory(traj.system,traj.obs,np.array(newctrls))
