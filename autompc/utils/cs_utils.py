@@ -34,14 +34,14 @@ def _get_subkey(key, delimiter):
 def set_subspace_configuration(cfg, prefix, sub_cfg, delimiter=":"):
     prefix = prefix + delimiter
     for key, val in cfg.get_dictionary().items():
-        if key[:len(prefix)] == prefix:
+        if key.startswith(prefix):
             sub_cfg[_get_subkey(key, delimiter)] = val
         
 def create_subspace_configuration(cfg, prefix, sub_cs, delimiter=":", **kwargs):
     prefix = prefix + delimiter
     values = dict()
     for key, val in cfg.get_dictionary().items():
-        if key[:len(prefix)] == prefix:
+        if key.startswith(prefix):
             values[_get_subkey(key, delimiter)] = val
     return Configuration(sub_cs, values=values, **kwargs)
 
@@ -50,8 +50,8 @@ def transfer_subspace_configuration(source_cfg, source_prefix, dest_cfg, dest_pr
     source_prefix = source_prefix + delimiter
     dest_prefix = dest_prefix + delimiter
     for source_key, source_val in source_cfg.get_dictionary().items():
-        if source_key[:len(source_prefix)] == source_prefix:
-            key = get_subkey(source_key, delimiter)
+        if source_key.startswith(source_prefix):
+            key = _get_subkey(source_key, delimiter)
             dest_cfg[dest_prefix + key] = source_val
 
 def set_parent_configuration(cfg, prefix, sub_cfg, delimiter=":"):
@@ -275,3 +275,12 @@ def coerce_hyper_vals(cs, values):
         coerced_values[name] = cvalue
     
     return coerced_values
+
+def forbid_value(cs, name, value):
+    """Safely forbids a value (not excluding it from a domain)"""
+    #CS will complain if the default value is forbidden
+    hyper = cs.get_hyperparameter(name)
+    if hyper.default_value == value:
+        hyper.default_value = [c for c in hyper.choices if c != value][0]
+    match = CS.ForbiddenEqualsClause(hyper,value)
+    cs.add_forbidden_clause(match)
