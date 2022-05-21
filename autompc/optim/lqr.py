@@ -1,5 +1,7 @@
 # Created by William Edwards (wre2@illinois.edu)
 
+import warnings
+
 # External library includes
 import numpy as np
 import numpy.linalg as la
@@ -52,9 +54,16 @@ def _finite_horz_dt_lqr(A, B, Q, R, N, F, horizon):
 
 class LQR(Optimizer):
     """
-    Linear Quadratic Regulator (LQR) is some classical results from linear system theory and optimal control theory.
-    It applies to linear system with quadratic cost function with respect to both state and control.
-    It is proven that the optimal control policy is linear, i.e. :math:`u=-Kx` where :math:`x` is system state, :math:`K` is gain matrix, and :math:`u` is the control.
+    Linear Quadratic Regulator (LQR) is a classical result from linear system
+    theory and optimal control theory.
+
+    It applies to linear system with quadratic cost function with respect to
+    both state and control. In this setting, the optimal control policy is
+    linear, i.e. :math:`u=-Kx` where :math:`x` is system state, :math:`K` is
+    the gain matrix, and :math:`u` is the control.
+
+    x' = Ax + Bu + c
+
     The feedback :math:`K` is computed by solving Ricatti equations.
     For more details refer to these slides_ .
 
@@ -94,7 +103,9 @@ class LQR(Optimizer):
         return {'is_quad':True}
 
     def reset(self):
-        A, B = self.model.to_linear()
+        A, B, c = self.model.to_linear()
+        if c is not None and not np.allclose(c,np.zeros(len(c))):
+            warnings.warn("Linear system has a nonzero drift term, LQR control will not be optimal")
         state_dim = self.model.state_dim
         Q, R, F = self.ocp.get_cost().get_cost_matrices()
         Qp = np.zeros((state_dim, state_dim))
@@ -109,9 +120,10 @@ class LQR(Optimizer):
             self.K = _inf_horz_dt_lqr(A, B, Qp, R, N)
         self.umin = self.ocp.get_ctrl_bounds()[:,0]
         self.umax = self.ocp.get_ctrl_bounds()[:,1]
-        x0 = self.ocp.get_cost().get_goal()
+        x0 = self.ocp.get_cost().goal
         self.state0 = np.zeros(state_dim)
-        self.state0[:x0.size] = x0
+        if x0 is not None:
+            self.state0[:len(x0)] = x0
 
     def step(self, state):
         u = self.K @ (state - self.state0)
