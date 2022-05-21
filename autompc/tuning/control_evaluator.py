@@ -1,38 +1,120 @@
 from abc import ABC, abstractmethod
-from scipy.stats import norm
+from collections import namedtuple
+import time
+import numpy as np
+from ..system import System
+from ..dynamics import Dynamics
+from ..trajectory import Trajectory
+from ..policy import Policy
+from ..controller import Controller
+from ..task import Task
+from ..utils import simulate
+from typing import Union,List,Tuple,Callable
+
+ControlEvaluationTrial = namedtuple("ControlEvaluationTrial", ["policy","task","dynamics","weight",
+    "cost","traj","term_cond","eval_time"])
+
+def trial_to_json(trial : ControlEvaluationTrial):
+    res = dict(trial)
+    res['policy'] = str(trial.policy)
+    res['task'] = str(trial.task)
+    res['dynamics'] = str(trial.dynamics)
+    res['traj'] = [trial.traj.obs.tolist(),trial.traj.ctrls.tolist()]
+    return res
 
 class ControlEvaluator(ABC):
-    def __init__(self, system, tasks, trajs):
+    """An abstract method for evaluating a controller on one or more tasks.
+    
+    Arguments:
+        system (System): the system
+        tasks: the task or set of tasks to evaluate on.  Can also be a function
+            which samples a task from a probability distribution.
+    """
+    def __init__(self, system : System, tasks : Union[Task,List[Task],Callable]):
         self.system = system
+        if isinstance(tasks,Task):
+            tasks = [tasks]
         self.tasks = tasks
-        self.trajs = trajs
+
+    def __call__(self, policy : Union[Policy,Controller]) -> List[ControlEvaluationTrial]:
+        """
+        Evaluates policy on all tasks.  Default just runs evaluate_for_task
+        on all tasks.
+        
+        Returns
+        --------
+            trial_info (List[ControlEvaluationTrial]):
+                A list of trials evaluated.
+        """
+        if callable(self.tasks):
+            raise ValueError("Can't use a task sampling function in evaluator class {}, must override __call__".format(self.__class__.__name__))
+            
+        results = []
+        for i, task in enumerate(self.tasks):
+            if hasattr(policy,'set_ocp'):  #it's a Controller
+                policy.set_ocp(self.tasks[i])
+            policy.reset()
+            print(f"Evaluating Task {i}")
+            trial_info = self.evaluate_for_task(policy, task)
+            results.append(trial_info)
+        return results
 
     @abstractmethod
-    def __call__(self, controller):
+    def evaluate_for_task(self, policy : Policy, task: Task) -> ControlEvaluationTrial:
         """
-        Evaluates configuration.  Returns uncertainy distribution over
-        scores, represented as quantile function.
+        Evaluates policy on one task. 
+        
+        Note: before calling this method, __call__ resets a controller for you
+        and sets its optimal control problem to the task.
+        
+        Returns
+        --------
+            ControlEvaluationTrial
         """
         raise NotImplementedError
+    
+    def evaluate_for_task_dynamics(self, policy : Policy, task: Task, dynamics : Dynamics) -> ControlEvaluationTrial:
+        """
+        Standard evaluation of a policy on one task using a dynamics rollout.
+        
+        Note: before calling this method, __call__ resets a controller for you
+        and sets its optimal control problem to the task.
 
-class ConstantDistribution:
-    def __init__(self, val):
-        self.val = val
+        Note: you may use ._replace(attr=value) to change an attribute, e.g., weight.
+        
+        Returns
+        --------
+            ControlEvaluationTrial
+        """
+        t0 = time.time()
+        try:
+            truedyn_traj,truedyn_cost,truedyn_termcond = task.simulate(policy,dynamics)
+            return ControlEvaluationTrial(policy=policy,task=task,dynamics=dynamics,weight=1.0,
+                cost = truedyn_cost, traj=truedyn_traj, term_cond=truedyn_termcond, eval_time = t1-t0)
+        except np.linalg.LinAlgError:
+            truedyn_cost = np.inf
+            t1 = time.time()
+            return ControlEvaluationTrial(policy=policy,task=task,dynamics=dynamics,weight=1.0,
+                cost = truedyn_cost, traj=truedyn_traj, term_cond='LinAlgError', eval_time = t1-t0)
 
-    def __call__(self, quantile):
-        return self.val
 
-    def __str__(self):
-        return "<Constant Distribution, Val={}>".format(self.val)
 
-class NormalDistribution:
-    def __init__(self, mu, sigma):
-        self.mu = mu
-        self.sigma = sigma
+class StandardEvaluator(ControlEvaluator):
+    """A ControlEvaluator that is given a given dynamics model and just 
+    simulates the controller on each task.
 
-    def __call__(self, quantile):
-        return norm.ppf(quantile, loc=self.mu, scale=self.sigma)
+    Arguments:
+        system (System): the system.
+        tasks: the task or set of tasks to evaluate on.
+        dynamics (Dynamics): the assumed dynamics for simulation.
+    """
+    def __init__(self, system, tasks, dynamics, prefix=''):
+        super().__init__(system, tasks)
+        self.dynamics = dynamics
+        self.prefix = prefix
 
-    def __str__(self):
-        return "<Normal Distribution, mean={}, std={}>".format(
-                self.mu, self.sigma)
+    def evaluate_for_task(self, controller : Policy, task : Task):
+        print("Simulating Trajectory...",end='')
+        res = self.evaluate_for_task_dynamics(controller,task,self.dynamics)
+        print("Resulting cost",res.cost)
+        return res
