@@ -1,11 +1,11 @@
+![AutoMPC logo](docs/_static/autompc-logo.svg)
+
 Welcome to AutoMPC, a library for automating system identification and model predictive control.
 AutoMPC can
  * Build SystemID models and Controllers
  * Evaluate and compare models and controllers
  * Tune controllers without requiring interactive access to the system
  * Provides a variety of controllers and optimizers
-
-To see AutoMPC in action, check out this example [TODO].
 
 ## Why AutoMPC?
 
@@ -28,8 +28,7 @@ For more details, see our [paper](https://motion.cs.illinois.edu/papers/ICRA2021
 
 ## How to use AutoMPC?
 
-Check out are main_example [TODO]
-to see an overview of the AutoMPC workflow.
+Check out our main [example](examples/0_MainDemo.ipynb) to see an overview of the AutoMPC workflow.
 
 If you are interested, check out our [detailed examples](examples/readme.md) for more information on how to use the different parts of AutoMPC.
 
@@ -74,4 +73,4 @@ To build or re-build the documentation, run the following command from the `docs
 make html
 ```
 
-The documentation will be produced in `docs/html`.
+The documentation will be produced in `docs/_build/html`.
