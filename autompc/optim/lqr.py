@@ -114,9 +114,7 @@ class LQR(Optimizer):
             warnings.warn("Linear system has a nonzero drift term, LQR control will not be optimal")
         state_dim = self.model.state_dim
         Q, R, F = self.ocp.get_cost().get_cost_matrices()
-        if Q is not self.Q or R is not self.R or F is not self.F:
-            self.recompute_gains(Q,R,F)
-            self.Q,self.R,self.F = Q,R,F
+        self.Q,self.R,self.F = Q,R,F
         Qp = np.zeros((state_dim, state_dim))
         Qp[:Q.shape[0], :Q.shape[1]] = Q
         Fp = np.zeros((state_dim, state_dim))
