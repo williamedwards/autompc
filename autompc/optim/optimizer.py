@@ -82,12 +82,6 @@ class Optimizer(Tunable):
         """
         raise NotImplementedError
 
-    def run(self, *args, **kwargs):
-        """
-        Alias of step() included for backwards compatibility.
-        """
-        return self.step(*args, **kwargs)
-
     def reset(self) -> None:
         """
         Re-initialize the optimizer. For optimizers which
@@ -108,16 +102,16 @@ class Optimizer(Tunable):
         """
         self.ocp = ocp
 
+    def get_traj(self) -> Trajectory:
+        """
+        Returns the last optimized trajectory, if available.
+        """
+        raise NotImplementedError
+    
     @abstractmethod
     def get_state(self) -> np.ndarray:
         """
         Returns a representatation of the optimizers internal state.
-        """
-        raise NotImplementedError
-
-    def get_traj(self) -> Trajectory:
-        """
-        Returns the last optimized trajectory, if available.
         """
         raise NotImplementedError
 
