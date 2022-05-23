@@ -13,7 +13,7 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 # Internal library includes
-from .model import Model
+from .model import Model,FullyObservableModel
 
 def transform_input(xu_means, xu_std, XU):
     XUt = []
@@ -75,7 +75,7 @@ class SimpleDataset(Dataset):
         return self.x[idx], self.y[idx]
 
 
-class MLP(Model):
+class MLP(FullyObservableModel):
     """
     The multi-layer perceptron (MLP) model uses a feed-forward neural network
     architecutret to predict the system dynamics. The network size, activation
@@ -154,16 +154,6 @@ class MLP(Model):
     def clear(self):
         self.net = None
         self.is_trained = False
-
-    def traj_to_state(self, traj):
-        return traj[-1].obs.copy()
-    
-    def update_state(self, state, new_ctrl, new_obs):
-        return new_obs.copy()
-
-    @property
-    def state_dim(self):
-        return self.system.obs_dim
 
     def set_device(self, device):
         self._device = device

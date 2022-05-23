@@ -9,6 +9,7 @@ import numpy.linalg as la
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
+from ..system import System
 from .model import Model
 #from ..hyper import IntRangeHyperparam
 
@@ -31,6 +32,30 @@ class ARX(Model):
     def __init__(self, system):
         super().__init__(system, "ARX")
 
+    @property
+    def state_dim(self):
+        return self._get_fvec_size() - self.system.ctrl_dim
+
+    @property
+    def state_system(self):
+        vars = []
+        for i in range(self.k):
+            for x in self.system.observations:
+                if i==0:
+                    vars.append(x + '[t]')
+                else:
+                    vars.append(x + '[t-%d]'%i)
+            for u in self.system.controls:
+                if i==0 or i+1==self.k:
+                    break
+                else:
+                    vars.append(u + '[t-%d]'%i)
+        vars.append('const')
+        for u in self.system.controls:
+            vars.append(u + '[t]')
+        assert len(vars)==self.state_dim
+        return System(vars,self.system.controls)
+
     def set_config(self, config):
         self.k = config["history"]
 
@@ -48,11 +73,8 @@ class ARX(Model):
 
         feature_elements = [traj[t-1].obs]
         for i in range(t-2, t-k-1, -1):
-            if i >= 0:
-                feature_elements += [traj[i].obs, traj[i].ctrl]
-            else:
-                feature_elements += [traj[0].obs, traj[0].ctrl]
-        feature_elements += [np.ones(1), traj[t-1].ctrl]
+            feature_elements += [traj[max(i,0)].obs, traj[max(i,0)].ctrl]
+        feature_elements += [np.ones(1), traj[max(t-1,0)].ctrl]
         return np.concatenate(feature_elements)
 
     def _get_all_feature_vectors(self, traj):
@@ -98,11 +120,11 @@ class ARX(Model):
     def traj_to_state(self, traj):
         return self._get_feature_vector(traj)[:-self.system.ctrl_dim]
 
+    def get_obs(self, state):
+        return state[0:self.system.obs_dim]
+
     def traj_to_states(self, traj):
         return self._get_all_feature_vectors(traj)[:, :-self.system.ctrl_dim]
-
-    def state_to_obs(self, state):
-        return state[0:self.system.obs_dim]
 
     def train(self, trajs, silent=False):
         matrix, targets = self._get_training_matrix_and_targets(trajs)
@@ -161,11 +183,6 @@ class ARX(Model):
 
     def to_linear(self):
         return self.A, self.B, None
-
-    @property
-    def state_dim(self):
-        return self._get_fvec_size() - self.system.ctrl_dim
-
 
     def get_parameters(self):
         return {"A" : self.A.tolist(), "B" : self.B.tolist()}

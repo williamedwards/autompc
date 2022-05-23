@@ -11,6 +11,7 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 # Internal library includes
+from ..system import System
 from .model import Model
 from .stable_koopman import stabilize_discrete
 from .basis_funcs import *
@@ -157,6 +158,14 @@ class Koopman(Model):
             for idxs in combinations(range(self.system.obs_dim), basis.n_args):
                 state_dim += 1
         return state_dim
+    
+    @property
+    def state_system(self):
+        vars = []
+        for basis in self.basis_funcs:
+            for idxs in combinations(range(self.system.obs_dim), basis.n_args):
+                vars.append(basis.name_func(*[self.system.observations[i] for i in idxs]))
+        return System(vars,self.system.controls)
 
     def set_train_budget(self, seconds=None):
         self.budget = seconds

@@ -15,14 +15,15 @@ import pysindy.differentiation as psd
 from sklearn.linear_model import  Lasso
 
 # Internal library includes
-from .model import Model
+from .model import Model,FullyObservableModel
 from .basis_funcs import *
 from ..utils.cs_utils import (get_hyper_bool, get_hyper_str,
         get_hyper_float, get_hyper_int)
 
 #the number of iters will be determined by this constant * budget
 STLSQ_ITERS_PER_SECOND = 1
-class SINDy(Model):
+
+class SINDy(FullyObservableModel):
     R"""
     Sparse Identification of Nonlinear Dynamics (SINDy) is an system identification approach that works as follows. 
     Using a library of :math:`k` pre-selected functions (e.g. :math:`f \in \mathbb{R}^k`), it computes numerically the derivatives
@@ -116,19 +117,9 @@ class SINDy(Model):
         self.time_mode = get_hyper_str(config, "time_mode")
         self.threshold = get_hyper_float(config, "threshold")
 
-    def traj_to_state(self, traj):
-        return traj[-1].obs.copy()
-    
-    def update_state(self, state, new_ctrl, new_obs):
-        return new_obs.copy()
-
     def clear(self):
         self.model = None
         self.is_trained = False
-
-    @property
-    def state_dim(self):
-        return self.system.obs_dim
     
     def set_train_budget(self, seconds=None):
         self.train_time_budget = seconds

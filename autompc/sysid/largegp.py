@@ -20,7 +20,7 @@ except:
     raise OptionalDependencyException("GPytorch is not installed, cannot import this module")
 
 # Internal library includes
-from .model import Model
+from .model import Model,FullyObservableModel
 
 def transform_input(xu_means, xu_std, XU):
     XUt = []
@@ -68,7 +68,7 @@ class ApproximateGPytorchModel(gpytorch.models.ApproximateGP):
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
-class ApproximateGPModel(Model):
+class ApproximateGPModel(FullyObservableModel):
     """
     Gaussian Processes (GPs) are a non-parametric regression method.  Since GPs have trouble
     scaling to large training sets, this class provides a variational GP which automatically
@@ -227,14 +227,6 @@ class ApproximateGPModel(Model):
         self.gpmodel.likelihood = likelihood
         self.gpmodel.load_state_dict(params["gpmodel_state"])
 
-    def update_state(self, state, new_ctrl, new_obs):
-        return np.copy(new_obs)
-
-    def traj_to_state(self, traj):
-        return traj[-1].obs[:]
-
-    def state_to_obs(self, state):
-        return state[:]
 
     def pred(self, state, ctrl):
         X = np.concatenate([state, ctrl])
@@ -353,7 +345,3 @@ class ApproximateGPModel(Model):
         ctrl_jacs = jac[:, :, n:]
         return state + dy, state_jacs, ctrl_jacs
 
-
-    @property
-    def state_dim(self):
-        return self.system.obs_dim

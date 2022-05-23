@@ -15,7 +15,7 @@ from ..dynamics import Dynamics
 from typing import List,Tuple,Any
 
 class Model(Tunable,Dynamics):
-    """A learnable model of a dynamic system. 
+    """A learnable model of a dynamic system.
     """
     def __init__(self, system, name):
         Tunable.__init__(self)
@@ -23,6 +23,7 @@ class Model(Tunable,Dynamics):
         self.name = name
         self.set_config(self.get_default_config())
         self.is_trained = False
+
 
     def get_obs(self,state):
         """Converts a state to an observation. Default assumes that
@@ -114,3 +115,26 @@ class Model(Tunable,Dynamics):
         properties depend on the config.
         """
         return self
+
+
+class FullyObservableModel(Model):
+    """A Model whose state = obs."""
+    @property
+    def state_dim(self):
+        return self.system.obs_dim
+    
+    @property
+    def state_system(self):
+        return self.system
+
+    def init_state(self, obs : np.ndarray) -> np.ndarray:
+        return np.copy(obs)
+
+    def traj_to_state(self, traj):
+        return traj[-1].obs.copy()
+    
+    def update_state(self, state, new_ctrl, new_obs):
+        return new_obs.copy()    
+
+    def get_obs(self, state):
+        return state
