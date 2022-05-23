@@ -14,9 +14,19 @@ class ControlPerformanceMetric:
 class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
     """A performance metric that uses a quantile of some statistical
     distribution, and also allows incorporating evaluation time and
-    infeasibility
+    infeasibility.
+
+    Overall performance  for a trial is::
+
+        cost + eval_time_weight * E[control evaluation time] +
+            infeasible_cost * I[trial is infeasible].
+    
+    Then, the `quantile` of the trial performance distributions is
+    returned as the overall score.
+
+    Default aggregator fits a NormalDistribution to the trial values.
     """
-    def __init__(self,aggregator=None,quantile=0.5,eval_time_weight=0.0,infeasible_cost=100.0):
+    def __init__(self,quantile=0.5,eval_time_weight=0.0,infeasible_cost=100.0,aggregator=None):
         if aggregator is None:
             aggregator = NormalDistribution
         self.aggregator = aggregator
@@ -30,6 +40,7 @@ class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
             c = t.cost + self.eval_time_weight*t.eval_time/len(t.traj)
             if t.term_cond.endswith('infeasible'):
                 c += self.infeasible_cost
+            costs.append(c)
         return self.aggregator(costs)(self.quantile)
 
 

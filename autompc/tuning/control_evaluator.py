@@ -89,6 +89,7 @@ class ControlEvaluator(ABC):
         t0 = time.time()
         try:
             truedyn_traj,truedyn_cost,truedyn_termcond = task.simulate(policy,dynamics)
+            t1 = time.time()
             return ControlEvaluationTrial(policy=policy,task=task,dynamics=dynamics,weight=1.0,
                 cost = truedyn_cost, traj=truedyn_traj, term_cond=truedyn_termcond, eval_time = t1-t0)
         except np.linalg.LinAlgError:
