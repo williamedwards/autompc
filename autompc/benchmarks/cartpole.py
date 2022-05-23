@@ -14,7 +14,7 @@ from .. import System
 from ..task import Task
 from ..costs import ThresholdCost
 
-def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
+def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1, m_pole=0.0):
     """
     Parameters
     ----------
@@ -23,15 +23,26 @@ def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
 
     Returns
     -------
-        A list describing the dynamics of the cart cart pole
+        A list describing the dynamics of the cart pole
     """
     theta, omega, x, dx = y
+
+    #From OpenAI gym
+    # costheta = np.cos(theta)
+    # sintheta = np.sin(theta)
+    # # For the interested reader:
+    # # https://coneural.org/florian/papers/05_cart_pole.pdf
+    # temp = (u + m_pole * L*0.5 * omega**2 * sintheta) / (m+m_pole)
+    # thetaacc = (g * sintheta - costheta * temp) / (
+    #     L*0.5 * (4.0 / 3.0 - m_pole * costheta**2 / (m+m_pole)))
+    # xacc = temp - m_pole*L*0.5 * thetaacc * costheta / (m+m_pole)
+    # return np.array([omega,thetaacc,dx,xacc])
     return np.array([omega,
             g * np.sin(theta)/L - b * omega / (m*L**2) + u * np.cos(theta)/L,
             dx,
             u])
 
-def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
+def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1):
     return y + dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
 
 class CartpoleSwingupBenchmark(Benchmark):
@@ -135,7 +146,7 @@ class CartpoleSwingupBenchmark(Benchmark):
                     traj_len=traj_len, n_trajs=n_trajs)
         elif self._data_gen_method == "random_walk":
             return random_walk_generate(self.system, ocp, self.dynamics, rng, 
-                    init_min=init_min, init_max=init_max, walk_rate=1.0,
+                    init_min=init_min, init_max=init_max, walk_rate=40.0,
                     traj_len=traj_len, n_trajs=n_trajs)
 
     def gen_trajs(self, seed, n_trajs, traj_len=200):
