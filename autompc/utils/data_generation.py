@@ -36,9 +36,9 @@ class BrownianNoisePolicy(Policy):
             rng = np.random.default_rng()
         super().__init__(system)
         self.umin, self.umax = ctrl_bounds.T
-        self.u = self.rng.uniform(self.umin,self.umax)
         self.rate = rate 
         self.rng = rng
+        self.u = self.rng.uniform(self.umin,self.umax)
 
     def reset(self):
         self.u = self.rng.uniform(self.umin,self.umax)
