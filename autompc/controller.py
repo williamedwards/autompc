@@ -436,6 +436,7 @@ class Controller(TunablePipeline,Policy):
                 self.optimizer = self.optimizers[0]
             else:
                 raise ControllerStateError("set_config() must be called before build")
+        self.optimizer.set_model(self.model)
         if hasattr(self.model,'trainable') and self.model.trainable:
             if trajs:
                 self.model.clear()
@@ -444,6 +445,9 @@ class Controller(TunablePipeline,Policy):
                 pass
             else:
                 raise ControllerStateError("Specified model requires learning from trajectories.")
+        if not self.ocp_transformer:
+            if len(self.ocp_transformers) == 1:
+                self.ocp_transformer = self.ocp_transformers[0]
         if self.ocp_transformer and self.ocp_transformer.trainable:
             if trajs:
                 self.ocp_transformer.train(trajs)
@@ -486,6 +490,8 @@ class Controller(TunablePipeline,Policy):
         # Instantiate optimizer and transformed ocp
         if self.ocp is None:
             raise ControllerStateError("Need to provide OCP before resetting optimizer")
+        if self.optimizer is None:
+            raise ControllerStateError("Need to build OCP before resetting optimizer")
         if self.ocp_transformer:
             self.transformed_ocp = self.ocp_transformer(self.ocp)
         else:
@@ -504,12 +510,6 @@ class Controller(TunablePipeline,Policy):
             History of the system.
         """
         self.model_state = self.model.traj_to_state(history)
-
-    def run(self, *args, **kwargs):
-        """
-        Alias of step() for backwards compatibility.
-        """
-        return self.step(*args, **kwargs)
 
     def step(self, obs : np.ndarray) -> np.ndarray:
         """
