@@ -245,6 +245,9 @@ class ControlTuner:
         tuning_data["sysid_trajs"] = sysid_trajs
 
         if surrogate.is_trained:
+            print("------------------------------------------------------------------")
+            print("Skipping surrogate tuning, surrogate is a trained model")
+            print("------------------------------------------------------------------")
             if control_evaluator is None:
                 control_evaluator = StandardEvaluator(controller.system, task, surrogate, 'surr_')
             else:
@@ -252,7 +255,10 @@ class ControlTuner:
         else:
             if surrogate.is_tunable():
                 # Run surrogate tuning
-                tuner = ModelTuner(controller.system, trajs, surrogate, eval_holdout=self.surrogate_tune_holdout, eval_folds=self.surrogate_tune_folds,
+                print("------------------------------------------------------------------")
+                print("Beginning surrogate tuning with model class",surrogate.name)
+                print("------------------------------------------------------------------")
+                tuner = ModelTuner(controller.system, surr_trajs, surrogate, eval_holdout=self.surrogate_tune_holdout, eval_folds=self.surrogate_tune_folds,
                     eval_metric=self.surrogate_tune_metric,eval_horizon=self.surrogate_tune_horizon,eval_quantile=self.surrogate_tune_quantile,evaluator=self.surrogate_evaluator)
                 model, tune_result = tuner.run(rng, surrogate_tune_iters, retrain_full=False)
                 print("------------------------------------------------------------------")
@@ -286,8 +292,9 @@ class ControlTuner:
         
         if self.tuning_mode == 'twostage':
             #tune the model if not already tuned by surrogate tuning
-            print()
-            print("--------  Two-stage tuning -----------")
+            print("------------------------------------------------------------------")
+            print("Beginning two-stage tuning")
+            print("------------------------------------------------------------------")
             if 'surr_tune_result' in self.tuning_mode and isinstance(surrogate,AutoSelectModel):
                 print("Reusing surrogate model tuning for SysID model to save time")
                 model = surrogate
