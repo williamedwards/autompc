@@ -59,6 +59,8 @@ class IterativeLQR(Optimizer):
         self.horizon = config["horizon"]
         self.max_iter = config["max_iter"]
         self.frequency = config["frequency"]
+        if self.frequency >= self.horizon:
+            self.frequency = self.horizon - 1
 
     def reset(self):
         self._guess = None
@@ -265,6 +267,10 @@ class IterativeLQR(Optimizer):
             print('ilqr fails to converge, try a new guess? Last u update is %f ks norm is %f' % (du_norm, ks_norm))
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks
+    
+    def set_guess(self, guess : Trajectory) -> None:
+        assert len(guess) == self.horizon,"Invalid guess provided"
+        self._guess = guess.ctrls
 
     def step(self, obs):
         substep = self._step % self.frequency
@@ -274,7 +280,7 @@ class IterativeLQR(Optimizer):
         if substep == 0: 
             converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess)
             self._guess = np.concatenate((ctrls[1:], ctrls[-1:]*0), axis=0)
-            self._traj = Trajectory(self.system, states, 
+            self._traj = Trajectory(self.model.state_system, states, 
                 np.vstack([ctrls, np.zeros(self.system.ctrl_dim)]))
             self._gains = Ks
             return ctrls[0]
