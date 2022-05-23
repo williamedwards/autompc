@@ -66,7 +66,7 @@ class MPPI(Optimizer):
         return cs
 
     def set_config(self, config):
-        self.H = config["horizon"]
+        self.horizon = config["horizon"]
         self.sigma = config["sigma"]  # sigma of the normal distribution
         self.lmda = config["lmda"]
         self.num_path = config["num_path"]
@@ -88,11 +88,12 @@ class MPPI(Optimizer):
         self.dyn_eqn = model.pred_batch
 
     def reset(self, seed=100):
+        H = self.horizon
         self.rng = np.random.default_rng(seed)
         self.dim_state, self.dim_ctrl = self.model.state_dim, self.system.ctrl_dim
-        self.act_sequence = np.zeros((self.H, self.dim_ctrl))  
+        self.act_sequence = np.zeros((H, self.dim_ctrl))  
         self.noise_dist = MultivariateNormal(0, self.sigma)
-        self.act_sequence = self.noise_dist.sample((self.H,), self.rng)
+        self.act_sequence = self.noise_dist.sample((H,), self.rng)
         self.umin = self.ocp.get_ctrl_bounds()[:,0]
         self.umax = self.ocp.get_ctrl_bounds()[:,1]
         self.ctrl_scale = self.umax
@@ -108,19 +109,17 @@ class MPPI(Optimizer):
         self.act_sequence += update
 
     def do_rollouts(self, cur_state, seed=None):
-        # roll the action
-        self.act_sequence[:-1] = self.act_sequence[1:]
-        self.act_sequence[-1] = self.act_sequence[-2]
+        H = self.horizon
         # generate random noises
-        # eps = np.random.normal(scale=self.sigma, size=(self.H, self.num_path, self.dim_ctrl))  # horizon by num_path by ctrl_dim
-        eps = self.noise_dist.sample((self.num_path, self.H), self.rng).transpose((1, 0, 2))
-        # path = np.zeros((self.H + 1, self.num_path, self.dim_state))  # horizon by num_path by state_dim
+        # eps = np.random.normal(scale=self.sigma, size=(H, self.num_path, self.dim_ctrl))  # horizon by num_path by ctrl_dim
+        eps = self.noise_dist.sample((self.num_path, H), self.rng).transpose((1, 0, 2))
+        # path = np.zeros((H + 1, self.num_path, self.dim_state))  # horizon by num_path by state_dim
         # path[0] = cur_state  # just copy the initial state in...
         path = np.zeros((self.num_path, self.dim_state))
         path[:] = cur_state
         costs = np.zeros(self.num_path)
         action_cost = np.zeros_like(costs)
-        for i in range(self.H):
+        for i in range(H):
             actions = eps[i] + self.act_sequence[i]
             # bound actions if necessary
             if self.umin is not None and self.umax is not None:
@@ -143,6 +142,9 @@ class MPPI(Optimizer):
 
     def step(self, state):
         x0 = state
+        # advance the action sequence from last iteration
+        self.act_sequence[:-1] = self.act_sequence[1:]
+        self.act_sequence[-1] = self.act_sequence[-2]
         # then collect trajectories...
         for _ in range(self.niter):
             costs, eps = self.do_rollouts(x0)
