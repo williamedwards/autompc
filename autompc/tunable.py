@@ -80,7 +80,7 @@ class Tunable(ABC):
         for key,value in kwargs.items():
             hyperparam = self._configuration_space.get_hyperparameters_dict()[key]
             if isinstance(hyperparam,CSH.CategoricalHyperparameter):
-                hyperparam.choices = [value]
+                hyperparam.choices = (value,)
             else:
                 hyperparam.lower=value
                 hyperparam.upper=value
