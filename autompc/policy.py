@@ -113,10 +113,10 @@ class LinearPolicy(Policy):
             if offset.shape != (system.ctrl_dim,):
                 raise ValueError("Invalid offset dimensions, got {} and need {}".format(offset.shape,(system.ctrl_dim,)))
             self._offset = offset
-        if offset is not None:
+        if target is not None:
             if target.shape != (system.obs_dim,):
                 raise ValueError("Invalid target dimensions, got {} and need {}".format(target.shape,(system.obs_dim,)))
-            self._offset -= self._gain @ target
+            self._offset = self._offset - self._gain @ target
 
     def step(self, obs):
         return self._gain @ obs + self._offset
@@ -128,7 +128,7 @@ class ClippedPolicy(Policy):
     def __init__(self, policy : Policy, ctrl_bounds : np.ndarray):
         if ctrl_bounds.shape != (policy.system.ctrl_dim,2):
             raise ValueError("Invalid control bounds shape")
-        super.__init__(policy.system)
+        super().__init__(policy.system)
         self._policy = policy
         self._ctrl_bounds = ctrl_bounds
     
