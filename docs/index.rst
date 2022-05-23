@@ -14,9 +14,8 @@ Contents:
    source/core
    source/sysid
    source/optim
-   source/tasks
    source/costs
-   source/evaluation
+   source/ocp
    source/tuning
    source/benchmarks
    source/graphs

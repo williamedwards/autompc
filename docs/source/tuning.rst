@@ -4,24 +4,46 @@ tuning package
 Model Tuning
 ^^^^^^^^^^^^
 
-ModelTuneResult
----------------
+ModelTunerResult
+----------------
 .. autoclass:: autompc.tuning.model_tuner.ModelTuneResult
 
 ModelTuner
 ----------
 
 .. autoclass:: autompc.tuning.ModelTuner
-   :members: __init__, add_model_factory, run
 
-Pipeline Tuning
-^^^^^^^^^^^^^^^
+Model Evaluator
+---------------
 
-PipelineTuneResult
+.. autoclass:: autompc.tuning.model_evaluator.ModelEvaluator
+
+HoldoutModelEvaluator
+---------------------
+
+.. autoclass:: autompc.tuning.model_evaluator.HoldoutModelEvaluator
+
+CrossValidationModelEvaluator
+-----------------------------
+
+.. autoclass:: autompc.tuning.model_evaluator.CrossValidationModelEvaluator
+
+
+Controller Tuning
+^^^^^^^^^^^^^^^^^
+
+ControlTunerResult
 ------------------
-.. autoclass:: autompc.tuning.pipeline_tuner.PipelineTuneResult
+.. autoclass:: autompc.tuning.control_tuner.ControlTunerResult
 
-PipelineTuner
+ControlTuner
 -------------
-.. autoclass:: autompc.tuning.PipelineTuner
-   :members: __init__, run
+.. autoclass:: autompc.tuning.ControlTuner
+
+ControlPerformanceMetric
+-------------------------
+.. autoclass:: autompc.tuning.control_performance_metric.ControlPerformanceMetric
+
+ConfidenceBoundPerformanceMetric
+--------------------------------
+.. autoclass:: autompc.tuning.control_performance_metric.ConfidenceBoundPerformanceMetric

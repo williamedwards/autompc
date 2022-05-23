@@ -38,3 +38,11 @@ Approximate Gaussian Process
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: autompc.sysid.ApproximateGPModel
+
+
+Model Metrics
+^^^^^^^^^^^^^
+
+.. autofunction:: autompc.sysid.metrics.get_model_rmse
+
+.. autofunction:: autompc.sysid.metrics.get_model_rmsmens

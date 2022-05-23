@@ -1,4 +1,4 @@
-core classes
+Core classes
 ============
 
 System
@@ -12,23 +12,32 @@ Trajectories
 Trajectory
 ----------
 .. autoclass:: autompc.Trajectory
-   :members: __init__, system, size, obs, ctrls
 
 TimeStep
 --------
 .. autoclass:: autompc.trajectory.TimeStep
 
-zeros
------
-.. autofunction:: autompc.zeros
+Dynamics and Policies
+^^^^^^^^^^^^^^^^^^^^^^
+.. autoclass:: autompc.Dynamics
+   :members:
 
-empty
------
-.. autofunction:: autompc.empty
+.. autoclass:: autompc.Policy
+   :members:
 
-extend
-------
-.. autofunction:: autompc.extend
+
+Tasks
+^^^^^^
+.. autoclass:: autompc.Task
+   :members:
+
+Tunables
+^^^^^^^^^
+.. autoclass:: autompc.tunable.Tunable
+   :members:
+
+.. autoclass:: autompc.tunable.TunablePipeline
+   :members:
 
 Controller
 ^^^^^^^^^^

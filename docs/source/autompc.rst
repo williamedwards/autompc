@@ -1,52 +1,61 @@
 autompc package
 ===============
 
-..  
-    #autompc.constraint module
-    #-------------------------
-    #
-    #.. automodule:: autompc.constraint
-    #    :members:
-    #    :undoc-members:
-    #    :show-inheritance:
-    #
-    #autompc.cost module
-    #-------------------
-    #
-    #.. automodule:: autompc.cost
-    #    :members:
-    #    :undoc-members:
-    #    :show-inheritance:
-    #
-    #autompc.model module
-    #--------------------
-    #
-    #.. automodule:: autompc.model
-    #    :members:
-    #    :undoc-members:
-    #    :show-inheritance:
 
-
-
-.. autompc.tasks module
-   -------------------
+autompc.costs module
+--------------------
    
-   .. automodule:: autompc.tasks
-       :members:
-       :undoc-members:
-       :show-inheritance:
+.. automodule:: autompc.costs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+autompc.graphs module
+---------------------
+
+.. automodule:: autompc.graphs
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+autompc.ocp module
+---------------------
+
+.. automodule:: autompc.ocp
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+autompc.optim module
+---------------------
+
+.. automodule:: autompc.optim
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 autompc.sysid module
 --------------------
-.. automodule:: autompc.sysid.mlp
+.. automodule:: autompc.sysid
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: autompc.sysid.sindy
+autompc.tuning module
+---------------------
+.. automodule:: autompc.tuning
    :members:
    :undoc-members:
    :show-inheritance:
+
+autompc.utils module
+--------------------
+
+.. automodule:: autompc.utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 
 Module contents
