@@ -9,7 +9,7 @@ class QuadCost(Cost):
         """
         Create quadratic cost.  Cost is:
         
-            \sum_i (x[i]-xg)^T Q (x[i]-xg) + u[i]^T Q u[i] + (x[T]-xg)^T F (x[T]-xg)
+            \sum_i (x[i]-xg)^T Q (x[i]-xg) + u[i]^T R u[i] + (x[T]-xg)^T F (x[T]-xg)
         
         where xg is a goal state (may be None, in which case it is treated
         as zero).
