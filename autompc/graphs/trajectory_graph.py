@@ -22,7 +22,7 @@ def _normalize_opts(sys,obs_opts,ctrl_opts):
         if isinstance(obs_opts,bool):
             pass
         elif isinstance(obs_opts,dict):
-            obs_opts = [obs_opts.copy()]*sys.obs_dim
+            obs_opts = [obs_opts.copy() for i in range(sys.obs_dim)]
         else:
             if len(obs_opts) != sys.obs_dim:
                 raise ValueError("Need observation options to match # of observations")
@@ -33,7 +33,7 @@ def _normalize_opts(sys,obs_opts,ctrl_opts):
         if isinstance(ctrl_opts,bool):
             pass
         elif isinstance(ctrl_opts,dict):
-            ctrl_opts = [ctrl_opts.copy()]*sys.ctrl_dim
+            ctrl_opts = [ctrl_opts.copy() for i in range(sys.ctrl_dim)]
         else:
             if len(ctrl_opts) != sys.ctrl_dim:
                 raise ValueError("Need control options to match # of controls")
@@ -47,13 +47,13 @@ def _normalize_opts(sys,obs_opts,ctrl_opts):
             if 'label' not in obs_opts[dim]:    
                 o['label'] = sys.observations[dim]
             if 'color' not in o:
-                o['color'] = colors[dim]
+                o['color'] = colors[dim%len(colors)]
     if ctrl_opts != False:
         for dim,o in enumerate(ctrl_opts):
             if 'label' not in ctrl_opts[dim]:
                 o['label'] = sys.controls[dim]
             if 'color' not in o:
-                o['color'] = colors[dim+sys.obs_dim]
+                o['color'] = colors[(dim+sys.obs_dim)%len(colors)]
     return obs_opts,ctrl_opts
 
 def plot_traj(traj : Trajectory, obs_opts=None, ctrl_opts=None, dims=None, ax=None):
@@ -183,16 +183,18 @@ def plot_trajs(trajs : List[Trajectory], style='auto',
             uupper = stats['max'].ctrls
         dims = _normalize_dims(sys,dims)
         obs_opts,ctrl_opts = _normalize_opts(sys,obs_opts,ctrl_opts)
-        for i,o in enumerate(obs_opts):
-            if 'alpha' in o:
-                o['alpha'] = 0.1*o['alpha']
-            else:
-                o['alpha'] = 0.1
-        for i,o in enumerate(ctrl_opts):
-            if 'alpha' in o:
-                o['alpha'] = 0.1*o['alpha']
-            else:
-                o['alpha'] = 0.1
+        if obs_opts != False:
+            for i,o in enumerate(obs_opts):
+                if 'alpha' in o:
+                    o['alpha'] = 0.1*o['alpha']
+                else:
+                    o['alpha'] = 0.1
+        if ctrl_opts != False:
+            for i,o in enumerate(ctrl_opts):
+                if 'alpha' in o:
+                    o['alpha'] = 0.1*o['alpha']
+                else:
+                    o['alpha'] = 0.1
         if ax is None:
             ax = plt.gca()
         if obs_opts != False:
@@ -231,7 +233,7 @@ def plot_trajs_projected(trajs : List[Trajectory], style='auto', dims=[0,1], mar
             opts = dict()
         for i,traj in enumerate(trajs):
             if 'color' not in opts:
-                opts['color'] = colors[i]
+                opts['color'] = colors[i%len(colors)]
             plot_traj_projected(traj, dims, marker_rate=marker_rate, opts=opts, ax=ax)
     elif style == 'sample':
         if len(trajs) < 10:

@@ -1,3 +1,4 @@
+import numpy as np
 import matplotlib.pyplot as plt
 
 from ..tuning.control_tuner import ControlTunerResult
@@ -62,12 +63,19 @@ def plot_tuning_correlations(tune_result, option, style='auto', ax=None):
             style = 'column'
 
     ax.set_ylabel("Cost")
+    ax.set_xlabel(option)
     if isinstance(tune_result, ControlTunerResult):
         if style == 'scatter':
             ax.scatter(x,y,label="Surr. dynamics")
-            ax.set_xlabel(option)
         else:
-            ax.bar(x,y,label="Surr. dynamics")
+            labels = sorted(list(set(x)))
+            values = dict((i,[]) for i in labels)
+            for a,b in zip(x,y):
+                values[a].append(b)
+            values = [values[i] for i in labels]
+            means = [np.mean(v) for v in values]
+            stds = [np.std(v) for v in values]
+            ax.bar(labels,means,yerr=stds,capsize=7,label="Surr. dynamics")
         if tune_result.inc_truedyn_costs is not None:
             ytrue = []
             for cfg,cost in zip(tune_result.cfgs,tune_result.costs):
@@ -76,14 +84,25 @@ def plot_tuning_correlations(tune_result, option, style='auto', ax=None):
             if style == 'scatter':
                 ax.scatter(x,ytrue,label="True dynamics")
             else:
-                ax.bar(x,ytrue,label="True dynamics")
+                labels = sorted(list(set(x)))
+                values = dict((i,[]) for i in labels)
+                for a,b in zip(x,ytrue):
+                    values[a].append(b)
+                values = [values[i] for i in labels]
+                means = [np.mean(v) for v in values]
+                stds = [np.std(v) for v in values]
+                ax.bar(labels,means,yerr=stds,capsize=7,label="True dynamics")
             ax.legend()
         
     elif isinstance(tune_result, ModelTuneResult):    
         if style == 'scatter':
             ax.scatter(x,y)
-            ax.set_xlabel(option)
         else:
-            ax.bar(x,y)
-        ax.set_ylabel("Cost")
-        ax.legend()
+            labels = sorted(list(set(x)))
+            values = dict((i,[]) for i in labels)
+            for a,b in zip(x,y):
+                values[a].append(b)
+            values = [values[i] for i in labels]
+            means = [np.mean(v) for v in values]
+            stds = [np.std(v) for v in values]
+            ax.bar(labels,means,yerr=stds,capsize=7,label="Surr. dynamics")
