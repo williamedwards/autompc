@@ -218,7 +218,7 @@ class Task(OCP):
         """
         return self._init_obs
 
-    def simulate(self, policy : Policy, dynamics : Dynamics) -> Tuple[Trajectory,float,bool]:
+    def simulate(self, policy : Policy, dynamics : Dynamics) -> Tuple[Trajectory,float,Union[str,None]]:
         """Simulates a controller on this task given some dynamics model.
 
         Note that if the policy is a controller, it is not reset at the start --
@@ -232,13 +232,13 @@ class Task(OCP):
         """
         from .utils.simulation import simulate
         if self.has_num_steps():
-            truedyn_traj = simulate(policy, self.get_init_obs(),
+            traj = simulate(policy, self.get_init_obs(),
                 dynamics, self.term_cond, 
                 max_steps=self.get_num_steps())
         else:
-            truedyn_traj = simulate(policy, self.get_init_obs(),
+            traj = simulate(policy, self.get_init_obs(),
                 dynamics, term_cond=self.term_cond)
         cost = self.get_ocp().get_cost()
-        truedyn_cost = cost(truedyn_traj)
-        return truedyn_traj,truedyn_cost,self.term_cond(truedyn_traj)
+        rollout_cost = cost(traj)
+        return traj,rollout_cost,self.term_cond(traj)
 
