@@ -174,7 +174,6 @@ class QuadCostTransformer(OCPTransformer):
         return PrototypeOCP(ocp, cost=QuadCost)
 
     def __call__(self, ocp):
-        self.set_hyper_values(**self._fixed_configuration_space_parameters)
         config = self.get_config()
         Qdiag = [config[name+"_Q"] for name in self.system.observations]
         Rdiag = [config[name+"_R"] for name in self.system.controls]
@@ -182,8 +181,9 @@ class QuadCostTransformer(OCPTransformer):
         Q = np.diag(Qdiag)
         R = np.diag(Rdiag)
         F = np.diag(Fdiag)
-        goal = ocp.goal
+        goal = ocp.cost.goal
         if len(self._goal_tunable)>0:
+            goal = np.copy(goal)
             for key in self._goal_tunable:
                 index = self.system.observations.index(key)
                 goal[index] = config[key+"_goal"]
