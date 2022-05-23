@@ -122,6 +122,7 @@ class ControlTuner:
     The surrogate model is tuned on the holdout set according to some accuracy-
     related performance metric.  By default, a CrossValidationModelEvaluator with
     surrogate_tune_folds folds is used. 
+    
     - To use holdout evaluation, you can use surrogate_tune_folds = 1 and specify
       surrogate_tune_holdout.
     - To use a custom evaluator, you can specify surrogate_evaluator=X. 
