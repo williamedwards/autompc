@@ -26,6 +26,24 @@ class Dynamics(ABC):
     """
     def __init__(self, system : System):
         self.system = system
+    
+
+    @property
+    @abstractmethod
+    def state_dim(self) -> int:
+        """
+        Returns the size of the system state
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def state_system(self) -> System:
+        """
+        Returns a system sized and named appropriately for the state space
+        (rather than observation space)
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def traj_to_state(self, traj : Trajectory):
@@ -185,21 +203,20 @@ class Dynamics(ABC):
                 self.pred_diff(states[i,:], ctrls[i,:])
         return out, state_jacs, ctrl_jacs
     
-    @property
-    @abstractmethod
-    def state_dim(self) -> int:
-        """
-        Returns the size of the system state
-        """
-        raise NotImplementedError
-
-
 
 class FullyObservableDynamics(Dynamics):
     """An abstract base class for a fully-observable dynamics model.
     Subclass still needs to implement pred() and optionally
     pred_diff()/pred_diff_batch().
     """
+    @property
+    def state_dim(self) -> int:
+        return self.system.obs_dim
+    
+    @property
+    def state_system(self) -> System:
+        return self.system
+
     def traj_to_state(self, traj : Trajectory):
         return np.copy(traj.obs[-1])
 
@@ -212,10 +229,6 @@ class FullyObservableDynamics(Dynamics):
     def update_state(self, state : np.ndarray, new_ctrl : np.ndarray, new_obs : np.ndarray) -> np.ndarray:
         return np.copy(new_obs)
     
-    @property
-    def state_dim(self) -> int:
-        return self.system.obs_dim
-
 
 class LambdaDynamics(FullyObservableDynamics):
     """A helper class x[t+1] = f(x[t],u[t]) for converting Python functions
@@ -280,6 +293,10 @@ class LinearizedDynamics(Dynamics):
     @property
     def state_dim(self):
         return self._model.state_dim
+    
+    @property
+    def state_system(self):
+        return self._model.state_system
 
     def get_obs(self, state):
         return self._model.get_obs(state)
