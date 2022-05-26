@@ -11,7 +11,7 @@ To see AutoMPC in action, check out this [example](https://htmlpreview.github.io
 ## Why AutoMPC?
 
 System ID and Model Predictive Control are powerful tools for building robot controllers, 
-but getting them up and running can take a lot of engineering work.  Acheiving good
+but getting them up and running can take a lot of engineering work.  Achieving good
 performance typically requires careful selection of a number of hyperparameters,
 including the MPC horizon, the terms of the objective function, and the parameters
 of the System ID algorithm.  AutoMPC automates the selection of these hyperparameters
@@ -29,7 +29,7 @@ For more details, see our [paper](https://motion.cs.illinois.edu/papers/ICRA2021
 
 ## How to use AutoMPC?
 
-Check out are [main example](https://htmlpreview.github.io/?https://github.com/williamedwards/autompc/blob/main/examples/0_MainDemo.html) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CNil-Cq24AjVtoArgWOW0ZvLNB-zcyGW)
+Check out our [main example](https://htmlpreview.github.io/?https://github.com/williamedwards/autompc/blob/main/examples/0_MainDemo.html) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1CNil-Cq24AjVtoArgWOW0ZvLNB-zcyGW)
 to see an overview of the AutoMPC workflow.
 
 If you are interested, check out our [detailed examples](examples/readme.md) for more information on how to use the different parts of AutoMPC.
