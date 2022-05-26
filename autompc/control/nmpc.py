@@ -1,4 +1,3 @@
-from collections import Iterable
 from .controller import Controller, ControllerFactory
 from pdb import set_trace
 import ConfigSpace as CS
