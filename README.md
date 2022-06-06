@@ -10,7 +10,7 @@ AutoMPC can
 ## Why AutoMPC?
 
 System ID and Model Predictive Control are powerful tools for building robot controllers, 
-but getting them up and running can take a lot of engineering work.  Acheiving good
+but getting them up and running can take a lot of engineering work.  Achieving good
 performance typically requires careful selection of a number of hyperparameters,
 including the MPC horizon, the terms of the objective function, and the parameters
 of the System ID algorithm.  AutoMPC automates the selection of these hyperparameters
@@ -47,7 +47,7 @@ For control optimization, AutoMPC supports
  * [Direct Transcription](https://autompc.readthedocs.io/en/latest/source/control.html#direct-transcription-dt)
  * [Model Path Predictive Integral](https://autompc.readthedocs.io/en/latest/source/control.html#model-predictive-path-integral-mppi)
 
-AutoMPC is also extensible, so you can use our tuning process with your own System ID and control methods.  We'd also welcome contributions
+AutoMPC is also extensible, so you can use our tuning process with your own System ID and control methods.  We also welcome contributions
 of new algorithms to the package.
 
 ## Installation
@@ -74,3 +74,15 @@ make html
 ```
 
 The documentation will be produced in `docs/_build/html`.
+
+
+## Version history
+
+**0.2** (June 2022): Current version
+- Major API changes to clean up problem definitions, add multi-task tuning. All tunable items now derive from a uniform base class.  Added support for constraints, cost trainsformers. 
+- Factories removed so that each item is configurable in-place.
+- CostFactories now changed to OCPTransformers, which process an optimal control problem into another.
+- Major revision to controller pipelines to make them more flexible. 
+- Added plotting utilities to help debug trajectories, models, and controllers.
+
+**0.1** (May 2021): Initial release 
