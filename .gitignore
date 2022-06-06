@@ -1,6 +1,8 @@
+smac3-output*
 .vscode/
 cache/*
 *.npz
+
 *.png
 *.pdf
 # Byte-compiled / optimized / DLL files
