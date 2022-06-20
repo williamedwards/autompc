@@ -16,7 +16,7 @@ class RoundedOptimizer(Optimizer):
         self.optimizer.set_config(config)
         
     def step(self, *args, **kwargs):
-        u = self.optimizer.run(*args, **kwargs)
+        u = self.optimizer.step(*args, **kwargs)
         return np.around(u)
 
     def reset(self):
