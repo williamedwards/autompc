@@ -82,8 +82,7 @@ class Tunable(ABC):
             if isinstance(hyperparam,CSH.CategoricalHyperparameter):
                 hyperparam.choices = (value,)
             else:
-                hyperparam.lower=value
-                hyperparam.upper=value
+                self._configuration_space._hyperparameters[key] = CSH.Constant(key,value)
             hyperparam.default_value = value
 
         config = self.get_config()
