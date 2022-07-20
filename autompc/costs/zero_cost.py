@@ -29,5 +29,5 @@ class ZeroCost(Cost):
         return 0.0,np.zeros(len(obs))
 
     def terminal_hess(self, obs):
-        return 0.0,np.zeros(len(obs)),np.zeros(len(obs),len(obs))
+        return 0.0,np.zeros(len(obs)),np.zeros((len(obs),len(obs)))
 

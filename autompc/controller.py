@@ -481,6 +481,7 @@ class Controller(TunablePipeline,Policy):
         from influencing current model predictions.
         """
         self.model_state = None
+        self.last_control = None
 
     def reset_optimizer(self) -> None:
         """
