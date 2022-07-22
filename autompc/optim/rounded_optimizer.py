@@ -33,4 +33,9 @@ class RoundedOptimizer(Optimizer):
 
     def set_state(self, state):
         self.optimizer.set_state(state)
+
+    def get_traj(self):
+        traj = self.optimizer.get_traj()
+        traj.ctrls=np.around(traj.ctrls)
+        return traj
     
