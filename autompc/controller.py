@@ -143,6 +143,8 @@ class Controller(TunablePipeline,Policy):
                 OCPTransformer to set.
         """
         self.ocp_transformers = [ocp_transformer]
+        self.set_component("cost_transformer",self.ocp_transformers)
+
 
     def set_ocp_transformers(self, ocp_transformers : List[OCPTransformer]) -> None:
         """
@@ -154,6 +156,7 @@ class Controller(TunablePipeline,Policy):
                 Set of OCP transformers which can be selected.
         """
         self.ocp_transformers = ocp_transformers
+        self.set_component("cost_transformer",self.ocp_transformers)
 
     def add_ocp_transformer(self, ocp_transformer):
         """

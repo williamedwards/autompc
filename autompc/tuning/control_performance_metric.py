@@ -8,8 +8,7 @@ class ControlPerformanceMetric:
     for tuning.  Default implementation just averages the cost.
     """
     def __call__(self,trials : List[ControlEvaluationTrial]) -> float:
-        return np.mean(t.cost for t in trials)
-
+        return np.mean([t.cost for t in trials])
 
 class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
     """A performance metric that uses a quantile of some statistical
