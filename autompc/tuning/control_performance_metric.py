@@ -10,7 +10,6 @@ class ControlPerformanceMetric:
     def __call__(self,trials : List[ControlEvaluationTrial]) -> float:
         return np.mean([t.cost for t in trials])
 
-
 class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
     """A performance metric that uses a quantile of some statistical
     distribution, and also allows incorporating evaluation time and
