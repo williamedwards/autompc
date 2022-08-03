@@ -19,7 +19,6 @@ class ThresholdCost(Cost):
         ----------
         system : System
             Robot system object
-
         goal : Numpy array
             Goal position. Can either be length system.obs_dim or
             # of observations in obs_range.
@@ -28,7 +27,6 @@ class ThresholdCost(Cost):
             First (inclusive and last (exclusive) index of observations
             for which goal is specified.  If neither this field nor
             observations is set, default is full observation range.
-
         observations : [str]
             List of observation names for which goal is specified.
             Supersedes obs_range when present.
@@ -65,16 +63,13 @@ class BoxThresholdCost(Cost):
         """
         Create Box threshold cost. Returns 1 for every time steps
         where observation is outisde of limits.
-
         Paramters
         ---------
         system : System
             System cost is computed for
-
         limits : numpy array of shape (system.obs_dim, 2)
             Upper and lower limits.  Use +np.inf or -np.inf
             to allow certain dimensions unbounded.
-
         goal : numpy array of size system.obs_dim
             Goal state.  Not used directly for computing cost, but
             may be used by downstream cost factories.
