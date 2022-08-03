@@ -52,6 +52,38 @@ class LogBarrierCost(Cost):
         self._is_twice_diff = True
         self._has_goal = False
 
+    def incremental(self, obs, control):
+        return self.eval_obs_cost(obs) + self.eval_ctrl_cost(control)
+
+    def incremental_diff(self, obs, control):
+        return self.incremental(obs, control), self.eval_obs_cost_diff(obs), self.eval_ctrl_cost_diff(control)
+
+    def incremental_hess(self, obs, control): # TODO: Tuple unpacking only supported for python>=3.8
+        hess_obs_ctrl = np.zeros((self.system.obs_dim, self.system.ctrl_dim))
+        return *self.incremental_diff(obs, control), self.eval_obs_cost_hess(obs), hess_obs_ctrl, self.eval_ctrl_cost_hess(control)
+
+    def terminal(self, obs):
+        return 0
+
+    def terminal_diff(self, obs):
+        return 0, 0
+    
+    def terminal_hess(self, obs):
+        return 0, 0, 0
+
+    def __add__(self, rhs):
+        if isinstance(rhs, LogBarrierCost):
+            if (self.goal is None and rhs.goal is None) or np.all(self.goal == rhs.goal):
+                return LogBarrierCost(self.system, self.boundedStates+rhs.boundedStates)
+        return Cost.__add__(self, rhs)
+
+    def __mul__(self, rhs):
+        if not isinstance(rhs, (float, int)):
+            raise ValueError("* only supports product with numbers")
+        new_cost = LogBarrierCost(self.system, self.boundedStates)
+        return new_cost
+
+
     #Cost Function:
     # - b * ln ( a - x ) upper limit
     # - b * ln ( a + x ) lower limit
@@ -79,8 +111,8 @@ class LogBarrierCost(Cost):
             self._direction = -1
             if(upper):
                 direction = 1
-            jacobian[boundedObs[0]] = direction * scale / (limit - obs[index])
-        return self.eval_obs_cost(obs), jacobian
+            jacobian[index] = direction * scale / (limit - obs[index])
+        return jacobian
 
     #Hessian:
     # b / (a - x)^2 upper limit
@@ -91,8 +123,8 @@ class LogBarrierCost(Cost):
             variable, config = boundedObs
             index = self.system.observations.index(variable)
             limit, scale, _ = config
-            hessian[boundedObs[0]][boundedObs[0]] = scale / ((limit - obs[index])**2)
-        return *self.eval_obs_cost_diff, hessian
+            hessian[index][index] = scale / ((limit - obs[index])**2)
+        return hessian
 
     def eval_ctrl_cost(self, ctrl):
         sum = 0
@@ -115,8 +147,8 @@ class LogBarrierCost(Cost):
             self._direction = -1
             if(upper):
                 direction = 1
-            jacobian[boundedCtrl[0]] = direction * scale / (limit - ctrl[index])
-        return self.eval_ctrl_cost(), jacobian
+            jacobian[index] = direction * scale / (limit - ctrl[index])
+        return jacobian
 
     def eval_ctrl_cost_hess(self, ctrl):
         hessian = np.zeros((self.system.ctrl_dim, self.system.ctrl_dim))
@@ -124,8 +156,8 @@ class LogBarrierCost(Cost):
             variable, config = boundedCtrl
             index = self.system.controls.index(variable)
             limit, scale, _ = config
-            hessian[boundedCtrl[0]][boundedCtrl[0]] = scale / ((limit - ctrl[index])**2)
-        return *self.eval_ctrl_cost_diff(), hessian
+            hessian[index][index] = scale / ((limit - ctrl[index])**2)
+        return hessian
 
     def eval_term_obs_cost(self, obs):
         return 0

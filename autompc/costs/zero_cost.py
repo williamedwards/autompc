@@ -20,7 +20,7 @@ class ZeroCost(Cost):
         return 0.0,np.zeros(len(obs)),np.zeros(len(ctrl))
 
     def incremental_hess(self, obs, ctrl):
-        return 0.0,np.zeros(len(obs)),np.zeros(len(ctrl)),np.zeros(len(obs),len(obs)),None,np.zeros(len(ctrl),len(ctrl))
+        return 0.0,np.zeros(len(obs)),np.zeros(len(ctrl)),np.zeros((len(obs),len(obs))),np.zeros((len(obs),len(ctrl))),np.zeros((len(ctrl),len(ctrl)))
 
     def terminal(self, obs) -> float:
         return 0.0

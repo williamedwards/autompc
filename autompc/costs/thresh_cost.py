@@ -10,22 +10,21 @@ class ThresholdCost(Cost):
         """
         Create threshold cost. Returns 1 for every time steps
         where :math:`||x - x_\\textrm{goal}||_\\infty > \\textrm{threshold}`.
-        The check is performed only over the observation dimensions from
-        obs_range[0] to obs_range[1].
-
+        
+        The norm is performed only over the observation dimensions from
+        obs_range[0] to obs_range[1], or the observations named in
+        `observations`.
         Parameters
         ----------
         system : System
             Robot system object
-
         goal : Numpy array
-            Goal position
-
+            Goal position. Can either be length system.obs_dim or
+            # of observations in
         obs_range : (int, int)
             First (inclusive and last (exclusive) index of observations
             for which goal is specified.  If neither this field nor
             observations is set, default is full observation range.
-
         observations : [str]
             List of observation names for which goal is specified.
             Supersedes obs_range when present.
@@ -39,17 +38,14 @@ class ThresholdCost(Cost):
             self._obs_idxs = [system.observations.index(obs) for obs in observations]
         if self._obs_idxs is None:
             self._obs_idxs = list(range(0, system.obs_dim))
+        if len(goal) < self.system.obs_dim:
+            full_goal = np.zeros(self.system.obs_dim)
+            full_goal[self._obs_idxs] = goal
+            goal = full_goal
         self.set_goal(goal)
 
-    def set_goal(self, goal):
-        if len(goal) < self.system.obs_dim:
-            self._goal = np.zeros(self.system.obs_dim)
-            self._goal[self._obs_idxs] = goal
-        else:
-            self._goal = np.copy(goal)
-
     def incremental(self, obs, ctrl):
-        if (la.norm(obs[self._obs_idxs] - self._goal[self._obs_idxs], np.inf) 
+        if (la.norm(obs[self._obs_idxs] - self.goal[self._obs_idxs], np.inf) 
                 > self._threshold):
             return 1.0
         else:
@@ -64,16 +60,13 @@ class BoxThresholdCost(Cost):
         """
         Create Box threshold cost. Returns 1 for every time steps
         where observation is outisde of limits.
-
         Paramters
         ---------
         system : System
             System cost is computed for
-
         limits : numpy array of shape (system.obs_dim, 2)
             Upper and lower limits.  Use +np.inf or -np.inf
             to allow certain dimensions unbounded.
-
         goal : numpy array of size system.obs_dim
             Goal state.  Not used directly for computing cost, but
             may be used by downstream cost factories.
