@@ -1,11 +1,12 @@
 # Created by Teodor Tchalakov (tcha2@illinois.edu), 2022-04-18
 
 # Standard library includes
+import copy
 from collections import defaultdict
 
 # Internal library includes
-from .cost_factory import CostFactory
-from . import LogBarrierCost
+from .ocp_transformer import OCPTransformer, PrototypeOCP
+from ..costs import LogBarrierCost
 
 # External library includes
 import numpy as np
@@ -16,13 +17,13 @@ import ConfigSpace.conditions as CSC
 def construct_default_bounds():
     return (1e-3, 1e4, 1.0, False)
 
-class LogBarrierCostFactory(CostFactory):
+class LogBarrierCostTransformer(OCPTransformer):
     def __init__(self, system):
-        super().__init__(system)
+        super().__init__(system, 'LogBarrierCostTransformer')
 
         self._scale_bounds = defaultdict(construct_default_bounds) # Key: obsname, Value: (lower, upper, default, log_scale)
-        self._limits = [] # Key: obs/ctrlname, Value: (limit, upper)
-        self._scale_fixed = [] # Key: obs/ctrlname, Value: limit
+        self._limits = {} # Key: obs/ctrlname, Value: (limit, upper)
+        self._scale_fixed = {} # Key: obs/ctrlname, Value: limit
 
     """
         boundedState : String
@@ -110,13 +111,27 @@ class LogBarrierCostFactory(CostFactory):
                 if(not upper):
                     upper_string = "Lower"
                 hyper_name = f"{name}_{upper_string}_{label}"
-                scale = cfg(hyper_name)
+                scale = cfg[hyper_name]
                 boundedStates[name] = (limit, scale, upper)
         return boundedStates
 
-    def __call__(self, cfg, task, trajs):
-        boundedStates = self._get_boundedState(cfg, "LogBarrier", self._scale_fixed)
+    def get_default_config_space(self):
+        return CS.ConfigurationSpace()
 
-        return LogBarrierCost(self.system, boundedStates)
+    def get_prototype(self, config, ocp):
+        return PrototypeOCP(ocp, cost=LogBarrierCost)
+
+    def is_compatible(self, ocp):
+        return True
+    
+    def ocp_requirements(self) -> dict:
+        return {}
+
+    def __call__(self, ocp):
+        boundedStates = self._get_boundedState(self.get_config(), "LogBarrier", self._scale_fixed)
+        new_cost = LogBarrierCost(self.system, boundedStates)
+        new_ocp = copy.deepcopy(ocp)
+        new_ocp.set_cost(new_cost)
+        return new_ocp
 
     
