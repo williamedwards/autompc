@@ -92,39 +92,43 @@ class LogBarrierCost(Cost):
         for boundedObs in self.obsConfiguration:
             variable, config = boundedObs
             index = self.system.observations.index(variable)
-            limit, scale, upper = config
-            if(upper):
-                self._direction = 1
-            else: 
-                self._direction = -1
-            sum = sum + -scale * np.log(limit - (self._direction * obs[index]))
+            lower, upper, scale = config
+            if lower > -np.inf:
+                sum = sum + -scale * np.log(-lower + obs[index])
+            if upper < np.inf:
+                sum = sum + -scale * np.log(upper - obs[index])           
         return sum
 
     #Jacobian:
     # b / (a - x) upper limit
-    # -b / (a - x) lower limit
+    # -b / (-a + x) lower limit
     def eval_obs_cost_diff(self, obs):
         jacobian = np.zeros(self.system.obs_dim)
         for boundedObs in self.obsConfiguration:
             variable, config = boundedObs
             index = self.system.observations.index(variable)
-            limit, scale, upper = config
-            self._direction = -1
-            if(upper):
-                self._direction = 1
-            jacobian[index] = self._direction * scale / (limit - obs[index])
+            lower, upper, scale = config
+            if lower > -np.inf:
+                jacobian[index] += -scale / (-lower + obs[index])
+            if upper < np.inf:
+                jacobian[index] += scale / (upper - obs[index])   
+            
         return jacobian
 
     #Hessian:
     # b / (a - x)^2 upper limit
-    # b / (a - x)^2 lower limit
+    # b / (-a + x)^2 lower limit
     def eval_obs_cost_hess(self, obs):
         hessian = np.zeros((self.system.obs_dim, self.system.obs_dim))
         for boundedObs in self.obsConfiguration:
             variable, config = boundedObs
             index = self.system.observations.index(variable)
-            limit, scale, _ = config
-            hessian[index][index] = scale / ((limit - obs[index])**2)
+            lower, upper, scale = config
+            if lower > -np.inf:
+                hessian[index][index] += scale / ((lower - obs[index])**2)
+            if upper < np.inf:
+                hessian[index][index] += scale / ((upper - obs[index])**2)
+            
         return hessian
 
     def eval_ctrl_cost(self, ctrl):
@@ -132,11 +136,11 @@ class LogBarrierCost(Cost):
         for boundedCtrl in self.ctrlsConfiguration:
             variable, config = boundedCtrl
             index = self.system.controls.index(variable)
-            limit, scale, upper = config
-            self._direction = -1
-            if(upper):
-                self._direction = 1
-            sum = sum + -scale * np.log(limit - (self._direction * ctrl[index]))
+            lower, upper, scale = config
+            if lower != -np.inf:
+                sum = sum + -scale * np.log(lower + ctrl[index])
+            if upper != np.inf:
+                sum = sum + -scale * np.log(upper - ctrl[index]) 
         return sum
     
     def eval_ctrl_cost_diff(self, ctrl):
@@ -144,11 +148,11 @@ class LogBarrierCost(Cost):
         for boundedCtrl in self.ctrlsConfiguration:
             variable, config = boundedCtrl
             index = self.system.controls.index(variable)
-            limit, scale, upper = config
-            self._direction = -1
-            if(upper):
-                self._direction = 1
-            jacobian[index] = self._direction * scale / (limit - ctrl[index])
+            lower, upper, scale = config
+            if lower != -np.inf:
+                jacobian[index] += -scale / (lower + ctrl[index])
+            if upper != np.inf:
+                jacobian[index] += scale / (upper - ctrl[index])   
         return jacobian
 
     def eval_ctrl_cost_hess(self, ctrl):
@@ -156,8 +160,11 @@ class LogBarrierCost(Cost):
         for boundedCtrl in self.ctrlsConfiguration:
             variable, config = boundedCtrl
             index = self.system.controls.index(variable)
-            limit, scale, _ = config
-            hessian[index][index] = scale / ((limit - ctrl[index])**2)
+            lower, upper, scale = config
+            if lower != -np.inf:
+                hessian[index][index] += scale / ((lower + ctrl[index])**2)
+            if upper != np.inf:
+                hessian[index][index] += scale / ((upper - ctrl[index])**2)
         return hessian
 
     def eval_term_obs_cost(self, obs):

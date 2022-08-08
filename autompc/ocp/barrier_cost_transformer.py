@@ -29,16 +29,18 @@ class LogBarrierCostTransformer(OCPTransformer):
         boundedState : String
             Name of observation or control in the system.
 
-        limit : double
-            limit value that barrier is placed at.
+        lower : double
+            lower limit value that barrier is placed at.
+            Default is -np.inf and the barrier isn't placed
 
-        upper : boolean
-            True if the limit is an upper limit.
-            False if the limit is a lower limit.
+        upper : double
+            upper limit value that barrier is placed at.
+            Default is -np.inf and the barrier isn't placed
+
     """
-    def set_limit(self, boundedState, limit, upper):
+    def set_limit(self, boundedState, lower=-np.inf, upper=np.inf):
         if(boundedState in self.system.observations or boundedState in self.system.controls):
-            self._limits[boundedState] = (limit, upper)
+            self._limits[boundedState] = (lower, upper)
         else:
             raise ValueError(str(boundedState) + " is not in system")
 
@@ -82,42 +84,31 @@ class LogBarrierCostTransformer(OCPTransformer):
         for name in (self.system.controls + self.system.observations):
             if name in fixed_dict or name not in self._limits:
                 continue
-            limit, upper = self._limits[name]
-            upper_string = "Upper"
-            if(not upper):
-                upper_string = "Lower"
+            lower, upper = self._limits[name]
             lower_scale, upper_scale, default, log = bounds_dict[name]
-            hyper = CSH.UniformFloatHyperparameter("{}_{}_{}".format(name, upper_string, label),
+            hyper = CSH.UniformFloatHyperparameter("{}_{}".format(name, label),
                     lower=lower_scale, upper=upper_scale, default_value=default, log=log)
-            hyperparameters.append(hyper)
+            hyperparameters.append(hyper)    
         return hyperparameters
 
     def _get_boundedState(self, cfg, label, fixed_dict):
         boundedStates = dict()
         for name in (self.system.controls + self.system.observations):
             if name in fixed_dict:
-                limit, upper = self._limits[name]
+                lower, upper = self._limits[name]
                 scale = self._scale_fixed[name]
-                boundedStates[name] = (limit, scale, upper)
+                boundedStates[name] = (lower, upper, scale)
             elif name in self._limits:
-                limit, upper = self._limits[name]
-                upper_string = "Upper"
-                if(not upper):
-                    upper_string = "Lower"
-                hyper_name = f"{name}_{upper_string}_{label}"
+                lower, upper = self._limits[name]
+                hyper_name = f"{name}_{label}"
                 scale = cfg[hyper_name]
-                boundedStates[name] = (limit, scale, upper)
+                boundedStates[name] = (lower, upper, scale)
         return boundedStates
 
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         for name in self.system.observations + self.system.controls:
-            hyper = CSH.UniformFloatHyperparameter(name+"_Upper_LogBarrier",
-                                                lower=BARRIER_COST_DEFAULT_BOUNDS[0], upper=BARRIER_COST_DEFAULT_BOUNDS[1],
-                                                default_value=BARRIER_COST_DEFAULT_VALUE, log=BARRIER_COST_DEFAULT_LOG
-            )
-            cs.add_hyperparameter(hyper)
-            hyper = CSH.UniformFloatHyperparameter(name+"_Lower_LogBarrier",
+            hyper = CSH.UniformFloatHyperparameter(name+"_LogBarrier",
                                                 lower=BARRIER_COST_DEFAULT_BOUNDS[0], upper=BARRIER_COST_DEFAULT_BOUNDS[1],
                                                 default_value=BARRIER_COST_DEFAULT_VALUE, log=BARRIER_COST_DEFAULT_LOG
             )
