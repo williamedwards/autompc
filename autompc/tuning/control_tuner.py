@@ -220,7 +220,8 @@ class ControlTuner:
         self.max_trials_per_evaluation = max_trials_per_evaluation
         self.control_evaluator = control_evaluator
         if performance_metric is None:
-            performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
+            performance_metric = ControlPerformanceMetric() # DEBUG
+            #performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
         self.performance_metric = performance_metric
 
     def _get_tuning_data(self, controller : Controller, task : List[Task], trajs : List[Trajectory],
