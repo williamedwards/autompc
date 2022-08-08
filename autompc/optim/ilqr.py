@@ -437,10 +437,11 @@ class IterativeLQR(Optimizer):
             self._traj = Trajectory(self.model.state_system, states, 
                 np.vstack([ctrls, np.zeros(self.system.ctrl_dim)]))
             self._gains = Ks
-            return ctrls[0]
+            return np.clip(ctrls[0], self.ubounds[0], self.ubounds[1])
         else:
             #just reuse prior strajectory and gains
-            return self._traj.ctrls[substep]+self._gains[substep]@(obs-self._traj.obs[substep])
+            return np.clip(self._traj.ctrls[substep]+self._gains[substep]@(obs-self._traj.obs[substep]),
+                           self.ubounds[0], self.ubounds[1])
 
     def get_traj(self):
         return self._traj.clone()
