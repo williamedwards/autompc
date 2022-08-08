@@ -15,16 +15,16 @@ import ConfigSpace.hyperparameters as CSH
 import ConfigSpace.conditions as CSC
 
 def construct_default_bounds():
-    return (1e-3, 1e4, 1.0, False)
-
+    return (0, 100, 1.0, False)
+BARRIER_COST_DEFAULT_BOUNDS = (0, 100)
+BARRIER_COST_DEFAULT_VALUE = 1.0
+BARRIER_COST_DEFAULT_LOG = False
 class LogBarrierCostTransformer(OCPTransformer):
     def __init__(self, system):
-        super().__init__(system, 'LogBarrierCostTransformer')
-
         self._scale_bounds = defaultdict(construct_default_bounds) # Key: obsname, Value: (lower, upper, default, log_scale)
         self._limits = {} # Key: obs/ctrlname, Value: (limit, upper)
         self._scale_fixed = {} # Key: obs/ctrlname, Value: limit
-
+        super().__init__(system, 'LogBarrierCostTransformer')
     """
         boundedState : String
             Name of observation or control in the system.
@@ -46,9 +46,6 @@ class LogBarrierCostTransformer(OCPTransformer):
         boundedState : String
             Name of observation or control in the system.
 
-        limit : double
-            limit value that barrier is placed at.
-
         lower_bound : double
             lower bound of configuration space
 
@@ -57,11 +54,15 @@ class LogBarrierCostTransformer(OCPTransformer):
 
         default : double
             default value of configuration space
+        
+        log : boolean
+            Whether hyperparameter should use logarithmic scale. (Default: False)
     """
     def set_bounds(self, boundedState, lower_bound, upper_bound, default, log=False):
         if(boundedState in self.system.observations or boundedState in self.system.controls):
             if(boundedState in self._limits):
                 self._scale_bounds[boundedState] = (lower_bound, upper_bound, default, log)
+
             else:
                 raise ValueError(str(boundedState) + " does not have a configured limit use set_limit")
         else:
@@ -75,7 +76,6 @@ class LogBarrierCostTransformer(OCPTransformer):
                 raise ValueError(str(boundedState) + " does not have a configured limit use set_limit")
         else:
             raise ValueError(str(boundedState) + " is not in system")
-            
 
     def _get_hyperparameters(self, label, bounds_dict, fixed_dict):
         hyperparameters = []
@@ -91,12 +91,6 @@ class LogBarrierCostTransformer(OCPTransformer):
                     lower=lower_scale, upper=upper_scale, default_value=default, log=log)
             hyperparameters.append(hyper)
         return hyperparameters
-
-    def get_configuration_space(self):
-        cs = CS.ConfigurationSpace()
-        hypers = self._get_hyperparameters("LogBarrier", self._scale_bounds, self._scale_fixed)
-        cs.add_hyperparameters(hypers)
-        return cs
 
     def _get_boundedState(self, cfg, label, fixed_dict):
         boundedStates = dict()
@@ -116,7 +110,19 @@ class LogBarrierCostTransformer(OCPTransformer):
         return boundedStates
 
     def get_default_config_space(self):
-        return CS.ConfigurationSpace()
+        cs = CS.ConfigurationSpace()
+        for name in self.system.observations + self.system.controls:
+            hyper = CSH.UniformFloatHyperparameter(name+"_Upper_LogBarrier",
+                                                lower=BARRIER_COST_DEFAULT_BOUNDS[0], upper=BARRIER_COST_DEFAULT_BOUNDS[1],
+                                                default_value=BARRIER_COST_DEFAULT_VALUE, log=BARRIER_COST_DEFAULT_LOG
+            )
+            cs.add_hyperparameter(hyper)
+            hyper = CSH.UniformFloatHyperparameter(name+"_Lower_LogBarrier",
+                                                lower=BARRIER_COST_DEFAULT_BOUNDS[0], upper=BARRIER_COST_DEFAULT_BOUNDS[1],
+                                                default_value=BARRIER_COST_DEFAULT_VALUE, log=BARRIER_COST_DEFAULT_LOG
+            )
+            cs.add_hyperparameter(hyper)
+        return cs
 
     def get_prototype(self, config, ocp):
         return PrototypeOCP(ocp, cost=LogBarrierCost)
