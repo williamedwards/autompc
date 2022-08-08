@@ -296,7 +296,7 @@ class ControlTuner:
             print("------------------------------------------------------------------")
             print("Beginning two-stage tuning")
             print("------------------------------------------------------------------")
-            if 'surr_tune_result' in self.tuning_mode and isinstance(surrogate,AutoSelectModel):
+            if 'surr_tune_result' in tuning_data.keys() and isinstance(surrogate,AutoSelectModel):
                 print("Reusing surrogate model tuning for SysID model to save time")
                 model = surrogate
             else:
@@ -310,7 +310,9 @@ class ControlTuner:
                 print("Cost",tune_result.inc_costs[-1])
                 print("------------------------------------------------------------------")
             controller.fix_option('model',model.name)
-            controller.set_model_hyper_values(model.name,**model.get_config())
+            controller.set_model_hyper_values(model.name,**tune_result.inc_cfg)
+            controller.model.freeze_hyperparameters()
+            
             print()
         
         tuning_data["control_evaluator"] = control_evaluator
