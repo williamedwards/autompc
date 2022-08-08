@@ -252,7 +252,10 @@ class TunablePipeline:
             if opt is None:
                 continue
             opt_config = create_subspace_configuration(config,opt.name,opt.get_config_space())
-            opt.set_config(opt_config)
+            try:
+                opt.set_config(opt_config)
+            except:
+                print('Skipping set_config. Frozen hyperparameters?')
         
     def get_config(self):
         return self._config
