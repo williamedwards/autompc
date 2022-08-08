@@ -186,6 +186,12 @@ class Cost(ABC):
         return np.copy(self.properties['goal'])
     
     @goal.setter
+    def goal(self, goal):
+        """Sets the cost's goal state. (Note: not all costs actually act to
+        drive the system toward a goal).
+        """
+        self.properties['goal'] = np.copy(goal)
+
     def set_goal(self,goal):
         """Sets the cost's goal state. (Note: not all costs actually act to
         drive the system toward a goal).
@@ -279,6 +285,11 @@ class SumCost(Cost):
         return super().goal
 
     @goal.setter
+    def goal(self, goal):
+        super().goal=goal
+        for cost in self.costs:
+            cost.goal = goal
+
     def set_goal(self,goal):
         super().set_goal(goal)
         for cost in self.costs:
@@ -354,9 +365,15 @@ class MulCost(Cost):
         return super().goal
 
     @goal.setter
+    def goal(self, goal):
+        super().goal=goal
+        for cost in self.costs:
+            cost.goal = goal
+
     def set_goal(self,goal):
         super().set_goal(goal)
-        self._cost.goal = goal
+        for cost in self.costs:
+            cost.goal = goal
 
     def __mul__(self, scale):
         if not isinstance(scale,(float,int)):
