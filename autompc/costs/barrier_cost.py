@@ -93,10 +93,11 @@ class LogBarrierCost(Cost):
             variable, config = boundedObs
             index = self.system.observations.index(variable)
             limit, scale, upper = config
-            self._direction = -1
             if(upper):
-                direction = 1
-            sum = sum + -scale * np.log(limit - (direction * obs[index]))
+                self._direction = 1
+            else: 
+                self._direction = -1
+            sum = sum + -scale * np.log(limit - (self._direction * obs[index]))
         return sum
 
     #Jacobian:
@@ -110,8 +111,8 @@ class LogBarrierCost(Cost):
             limit, scale, upper = config
             self._direction = -1
             if(upper):
-                direction = 1
-            jacobian[index] = direction * scale / (limit - obs[index])
+                self._direction = 1
+            jacobian[index] = self._direction * scale / (limit - obs[index])
         return jacobian
 
     #Hessian:
@@ -134,8 +135,8 @@ class LogBarrierCost(Cost):
             limit, scale, upper = config
             self._direction = -1
             if(upper):
-                direction = 1
-            sum = sum + -scale * np.log(limit - (direction * ctrl[index]))
+                self._direction = 1
+            sum = sum + -scale * np.log(limit - (self._direction * ctrl[index]))
         return sum
     
     def eval_ctrl_cost_diff(self, ctrl):
@@ -146,8 +147,8 @@ class LogBarrierCost(Cost):
             limit, scale, upper = config
             self._direction = -1
             if(upper):
-                direction = 1
-            jacobian[index] = direction * scale / (limit - ctrl[index])
+                self._direction = 1
+            jacobian[index] = self._direction * scale / (limit - ctrl[index])
         return jacobian
 
     def eval_ctrl_cost_hess(self, ctrl):
