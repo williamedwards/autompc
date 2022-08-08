@@ -353,9 +353,15 @@ class MulCost(Cost):
         return super().goal
 
     @goal.setter
+    def goal(self, goal):
+        super().goal=goal
+        for cost in self.costs:
+            cost.goal = goal
+
     def set_goal(self,goal):
         super().set_goal(goal)
-        self._cost.goal = goal
+        for cost in self.costs:
+            cost.goal = goal
 
     def __mul__(self, scale):
         if not isinstance(scale,(float,int)):
