@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import namedtuple
 import time
+import os
 import numpy as np
 from ..system import System
 from ..dynamics import Dynamics
@@ -10,7 +11,7 @@ from ..controller import Controller
 from ..task import Task
 from ..utils import simulate
 from typing import Union,List,Tuple,Callable
-
+from joblib import Parallel, delayed
 ControlEvaluationTrial = namedtuple("ControlEvaluationTrial", ["policy","task","dynamics","weight",
     "cost","traj","term_cond","eval_time"])
 
@@ -119,3 +120,28 @@ class StandardEvaluator(ControlEvaluator):
         res = self.evaluate_for_task_dynamics(controller,task,self.dynamics)
         print("Resulting cost",res.cost)
         return res
+
+class ParallelStandardEvaluator(StandardEvaluator):
+    def __call__(self, policy : Union[Policy,Controller]) -> List[ControlEvaluationTrial]:
+        """
+        Evaluates policy on all tasks in parallel.  Default just runs evaluate_for_task
+        on all tasks.
+        
+        Returns
+        --------
+            trial_info (List[ControlEvaluationTrial]):
+                A list of trials evaluated.
+        """
+        if callable(self.tasks):
+            raise ValueError("Can't use a task sampling function in evaluator class {}, must override __call__".format(self.__class__.__name__))
+            
+        results = []
+        def f(task):
+            i, task = task
+            if hasattr(policy,'set_ocp'):  #it's a Controller
+                policy.set_ocp(task)
+            policy.reset()
+            print(f"Evaluating Task {i}")
+            return self.evaluate_for_task(policy, task)
+        results = Parallel(n_jobs=os.cpu_count())(delayed(f)(task) for task in enumerate(self.tasks))
+        return results
