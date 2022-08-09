@@ -85,8 +85,9 @@ class LogBarrierCost(Cost):
 
 
     #Cost Function:
-    # - b * ln ( a - x ) upper limit
-    # - b * ln ( a + x ) lower limit
+    # b = scale
+    # - b * ln ( a - x ) upper limit x < a
+    # - b * ln ( a + x ) lower limit x > a
     def eval_obs_cost(self, obs):
         sum = 0
         for boundedObs in self.obsConfiguration:
@@ -94,9 +95,15 @@ class LogBarrierCost(Cost):
             index = self.system.observations.index(variable)
             lower, upper, scale = config
             if lower > -np.inf:
-                sum = sum + -scale * np.log(-lower + obs[index])
+                if lower >= obs[index]:
+                    sum += np.inf
+                else:
+                    sum = sum + -scale * np.log(-lower + obs[index])
             if upper < np.inf:
-                sum = sum + -scale * np.log(upper - obs[index])           
+                if obs[index] >= upper:
+                    sum += np.inf
+                else:
+                    sum = sum + -scale * np.log(upper - obs[index])           
         return sum
 
     #Jacobian:
@@ -109,9 +116,15 @@ class LogBarrierCost(Cost):
             index = self.system.observations.index(variable)
             lower, upper, scale = config
             if lower > -np.inf:
-                jacobian[index] += -scale / (-lower + obs[index])
+                if lower >= obs[index]:
+                    jacobian[index] += -np.inf
+                else:
+                    jacobian[index] += -scale / (-lower + obs[index])
             if upper < np.inf:
-                jacobian[index] += scale / (upper - obs[index])   
+                if obs[index] >= upper:
+                    jacobian[index] += np.inf
+                else:
+                    jacobian[index] += scale / (upper - obs[index])   
             
         return jacobian
 
@@ -125,9 +138,15 @@ class LogBarrierCost(Cost):
             index = self.system.observations.index(variable)
             lower, upper, scale = config
             if lower > -np.inf:
-                hessian[index][index] += scale / ((lower - obs[index])**2)
+                if lower >= obs[index]:
+                    hessian[index][index] += np.inf
+                else:
+                    hessian[index][index] += scale / ((lower - obs[index])**2)
             if upper < np.inf:
-                hessian[index][index] += scale / ((upper - obs[index])**2)
+                if obs[index] >= upper:
+                    hessian[index][index] += np.inf
+                else:
+                    hessian[index][index] += scale / ((upper - obs[index])**2)
             
         return hessian
 
@@ -137,10 +156,10 @@ class LogBarrierCost(Cost):
             variable, config = boundedCtrl
             index = self.system.controls.index(variable)
             lower, upper, scale = config
-            if lower != -np.inf:
-                sum = sum + -scale * np.log(lower + ctrl[index])
-            if upper != np.inf:
-                sum = sum + -scale * np.log(upper - ctrl[index]) 
+            if lower > -np.inf:
+                sum = sum + -scale * np.log(-lower + ctrl[index])
+            if upper < np.inf:
+                sum = sum + -scale * np.log(upper - ctrl[index])
         return sum
     
     def eval_ctrl_cost_diff(self, ctrl):
@@ -149,9 +168,9 @@ class LogBarrierCost(Cost):
             variable, config = boundedCtrl
             index = self.system.controls.index(variable)
             lower, upper, scale = config
-            if lower != -np.inf:
-                jacobian[index] += -scale / (lower + ctrl[index])
-            if upper != np.inf:
+            if lower > -np.inf:
+                jacobian[index] += -scale / (-lower + ctrl[index])
+            if upper < np.inf:
                 jacobian[index] += scale / (upper - ctrl[index])   
         return jacobian
 
@@ -161,9 +180,9 @@ class LogBarrierCost(Cost):
             variable, config = boundedCtrl
             index = self.system.controls.index(variable)
             lower, upper, scale = config
-            if lower != -np.inf:
-                hessian[index][index] += scale / ((lower + ctrl[index])**2)
-            if upper != np.inf:
+            if lower > -np.inf:
+                hessian[index][index] += scale / ((lower - ctrl[index])**2)
+            if upper < np.inf:
                 hessian[index][index] += scale / ((upper - ctrl[index])**2)
         return hessian
 
