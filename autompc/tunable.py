@@ -115,6 +115,14 @@ class Tunable(ABC):
         for key,defaults in kwargs.items():
             hyperparams[key].default_value = defaults
 
+    def set_hyperparameter_log(self,**kwargs) -> None:
+        """Sets the configuration space log values for a set of
+        hyperparameters, as keyword arguments.
+        """
+        hyperparams = self._configuration_space.get_hyperparameters_dict()
+        for key,log in kwargs.items():
+            hyperparams[key].log = log
+
     def freeze_hyperparameters(self):
         """Denotes that this instance should no longer be tunable."""
         self._configuration_space = ConfigurationSpace()
