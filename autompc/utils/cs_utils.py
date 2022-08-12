@@ -162,20 +162,23 @@ def add_configuration_space(self,
             conditions_to_add.append(condition)
     self.add_conditions(conditions_to_add)
 
-def set_hyper_bounds(cs, hp_name, lower, upper):
+def set_hyper_bounds(cs, hp_name, lower, upper, default_value=None, log=None):
     hp = cs.get_hyperparameter(hp_name)
     if not isinstance(hp, NumericalHyperparameter):
         raise ValueError("Can only call set_hyper_bounds for NumericalHyperparameter")
     name = hp.name
-    default_value = hp.default_value
+    if default_value is None:
+        default_value = hp.default_value
+    if log is None:
+        log = hp.log
     if not (lower < default_value < upper):
         default_value = lower
     if isinstance(hp, UniformFloatHyperparameter):
         new_hp = CS.UniformFloatHyperparameter(name=name, lower=lower,
-                upper=upper, default_value=default_value)
+                upper=upper, default_value=default_value, log=log)
     if isinstance(hp, UniformIntegerHyperparameter):
         new_hp = CS.UniformIntegerHyperparameter(name=name, lower=lower,
-                upper=upper, default_value=default_value)
+                upper=upper, default_value=default_value, log=log)
     cs._hyperparameters[name] = new_hp
 
 def set_hyper_choices(cs, hp_name, choices):
