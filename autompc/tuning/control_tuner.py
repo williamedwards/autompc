@@ -507,6 +507,7 @@ class ControlTuner:
             return eval_cfg
 
         smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
+        print(controller.get_config_space())
         scenario = Scenario({"run_obj" : "quality",
                              "runcount-limit" : n_iters,
                              "cs" : controller.get_config_space(),
@@ -577,7 +578,8 @@ class CfgRunner:
 
     def __call__(self, cfg):
         self.eval_number += 1
-        if self.timeout is None:
+        #if self.timeout is None:
+        if True:
             result = self.run(cfg)
         else:
             #p = multiprocessing.Process(target=self.run_mp, args=(cfg,))
@@ -651,6 +653,7 @@ class CfgRunner:
         performance = performance_metric(trajs)
         info["surr_cost"] = performance
         info["surr_info"] = trajs
+        print('info') # DEBUG
         if not truedyn_evaluator is None:
             trajs = truedyn_evaluator(controller)
             performance = performance_metric(trajs)
@@ -665,5 +668,5 @@ class CfgRunner:
         # if not self.log_file_name is None:
         #     sys.stdout.close()
         #     sys.stderr.close()
-
+        print('returning') # DEBUG
         return info

@@ -208,7 +208,7 @@ class Controller(TunablePipeline,Policy):
                 regularizers.append(transformer)
             elif transformer.name != 'Identity':
                 cost_transformers.append(transformer)
-        cost_transformers.append(dummy)
+        #cost_transformers.append(dummy)
         
         if len(cost_transformers) > 1:
             self.set_component("cost_transformer", cost_transformers)
