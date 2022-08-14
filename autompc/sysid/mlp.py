@@ -102,7 +102,7 @@ class MLP(FullyObservableModel):
       Type of activation function.
     - **lr** *(Type: float, Low: 1e-5, High: 1, Default: 1e-3)*: Adam learning rate for the network.
     """
-    def __init__(self, system, n_train_iters=200, n_batch=64, use_cuda=True):
+    def __init__(self, system, n_train_iters=200, n_batch=64, use_cuda=False):
         super().__init__(system, "MLP")
         self.n_train_iters = n_train_iters
         self.n_batch = n_batch
@@ -228,6 +228,7 @@ class MLP(FullyObservableModel):
         t0 = time.time()
         for i in tqdm(range(self.n_train_iters), file=sys.stdout):
             self._step_train()
+            self.train_time_budget=500
             if self.train_time_budget is not None and time.time()-t0 > self.train_time_budget:
                 print("Reached timeout of %.2fs"%self.train_time_budget)
                 break

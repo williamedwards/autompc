@@ -91,7 +91,7 @@ class IterativeLQR(Optimizer):
     def set_state(self, state):
         self._guess = copy.deepcopy(state["guess"])
 
-    '''def compute_ilqr(self, x0, uguess, u_threshold=1e-3,
+    def compute_ilqr(self, x0, uguess, u_threshold=1e-3,
         ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
@@ -159,13 +159,14 @@ class IterativeLQR(Optimizer):
                 Qux = Qt[dimx:, :dimx]
                 qx = qt[:dimx]
                 qu = qt[dimx:]
-                print(cost)
-                print(cost.incremental_hess(states[t - 1, :obsdim],ctrls[t - 1]))
-                QuuInv = inverse_semidefinite(Quu,1e-2)
-                K = -QuuInv @ Qux
-                k = -QuuInv @ qu
-                # K = -np.linalg.solve(Quu,Qux)
-                # k = -np.linalg.solve(Quu,qu)
+                if self.verbose:
+                    print(cost)
+                    print(cost.incremental_hess(states[t - 1, :obsdim],ctrls[t - 1]))
+                #QuuInv = inverse_semidefinite(Quu,1e-2)
+                #K = -QuuInv @ Qux
+                #k = -QuuInv @ qu
+                K = -np.linalg.solve(Quu,Qux)
+                k = -np.linalg.solve(Quu,qu)
                 lin_cost_reduce += qu.dot(k)
                 quad_cost_reduce += k @ Quu @ k
                 # update Vn and vn
@@ -268,13 +269,13 @@ class IterativeLQR(Optimizer):
         if self.verbose and not converged :
             print('ilqr fails to converge, try a new guess? Last u update is %f ks norm is %f' % (du_norm, ks_norm))
             print('ilqr is not converging...')
-        return converged, states, ctrls, Ks'''
-
-    def compute_ilqr(self, x0, uguess, u_threshold=1e-3, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=True):
+        return converged, states, ctrls, Ks
+    def compute_ilqr_old(self, x0, uguess, u_threshold=1e-3, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=True):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         Here I do not have Hessian correction since I'm certain all my matrices are SPD
         """
+        start = time.time()
         cost = self.ocp.get_cost()
         H = self.horizon
         dt = self.system.dt
@@ -310,7 +311,12 @@ class IterativeLQR(Optimizer):
         ct = np.zeros(dimx + dimu)
         converged = False
         du_norm = np.inf
+        backward_duration=0
+        rollout_duration=0
+        ls_duration=0
+        preloop_duration = time.time()-start
         for itr in range(self.max_iter):
+            start = time.time()
             if self.verbose:
                 print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
@@ -332,13 +338,13 @@ class IterativeLQR(Optimizer):
                 Qt = Ct + Jacs[t - 1].T @ Vn @ Jacs[t - 1]
                 qt = ct + Jacs[t - 1].T @ (vn)  # here Vn @ states[t] may be necessary
                 # ready to compute feedback
-                # Qtinv = np.linalg.inv(Qt)
+                # Qtinv = inverse_semidefinite(Qt[dimx:, dimx:])
                 Ks[t - 1] = -np.linalg.solve(Qt[dimx:, dimx:], Qt[dimx:, :dimx])
                 ks[t - 1] = -np.linalg.solve(Qt[dimx:, dimx:], qt[dimx:])
                 lin_cost_reduce += qt[dimx:].dot(ks[t - 1])
                 quad_cost_reduce += ks[t - 1] @ Qt[dimx:, dimx:] @ ks[t - 1]
-                # Ks[t - 1] = -Qtinv[dimx:, dimx:] @ Qt[dimx:, :dimx]
-                # ks[t - 1] = -Qtinv[dimx:, dimx:] @ qt[dimx:]
+                # Ks[t - 1] = -Qtinv @ Qt[dimx:, :dimx]
+                # ks[t - 1] = -Qtinv @ qt[dimx:]
                 # update Vn and vn
                 Vn = Qt[:dimx, :dimx] + Qt[:dimx, dimx:] @ Ks[t - 1] + Ks[t - 1].T @ Qt[dimx:, :dimx] + Ks[t - 1].T @ Qt[dimx:, dimx:] @ Ks[t - 1]
                 vn = qt[:dimx] + Qt[:dimx, dimx:] @ ks[t - 1] + Ks[t - 1].T @ (qt[dimx:] + Qt[dimx:, dimx:] @ ks[t - 1])
@@ -349,7 +355,9 @@ class IterativeLQR(Optimizer):
             best_obj_estimate_reduction = None
             ks_norm = np.linalg.norm(ks)
             # print('norm of ks = ', np.linalg.norm(ks))
-
+            backward_duration+=time.time()-start
+            #print('Backward pass', duration)
+            start = time.time()
             # Compute rollout for all possible alphas
             alphas = np.array([ls_discount**i for i in range(ls_max_iter)])
             for i in range(ls_max_iter):
@@ -357,10 +365,13 @@ class IterativeLQR(Optimizer):
             for i in range(H):
                 for j, alpha in enumerate(alphas):
                     ls_ctrls[j, i, :] = alpha * ks[i] + ctrls[i] + Ks[i] @ (ls_states[j, i, :] - states[i, :])
-                    if self.ubounds is not None:
-                        ls_ctrls[j, i, :] = np.clip(ls_ctrls[j, i, :], self.ubounds[0], self.ubounds[1])
+                if self.ubounds is not None:
+                    ls_ctrls[:, i, :] = np.clip(ls_ctrls[:, i, :], self.ubounds[0], self.ubounds[1])
                 ls_states[:, i + 1, :] = self.model.pred_batch(ls_states[:, i, :], ls_ctrls[:, i, :])
+            rollout_duration += time.time()-start
+            #print('Rollout: ', duration)
 
+            start = time.time()
             # Now do backtrack line search.
             for lsitr, ls_alpha in enumerate(alphas):
                 new_states = ls_states[lsitr, :, :]
@@ -380,6 +391,9 @@ class IterativeLQR(Optimizer):
                 #ls_alpha *= ls_discount
                 if ks_norm < u_threshold:
                     break
+            ls_duration += time.time()-start
+            #print('Line search: ', duration)
+            
             if self.verbose:
                 print('line search obj %f to %f at alpha = %f' % (obj, new_obj, ls_alpha))
             if best_obj < obj or ks_norm < u_threshold:
@@ -419,7 +433,7 @@ class IterativeLQR(Optimizer):
         if not converged and not silent:
             print('ilqr fails to converge, try a new guess? Last u update is %f ks norm is %f' % (du_norm, ks_norm))
             print('ilqr is not converging...')
-        return converged, states, ctrls, Ks
+        return converged, states, ctrls, Ks, itr, preloop_duration, backward_duration, rollout_duration, ls_duration # DEBUG, no itr
     
     def set_guess(self, guess : Trajectory) -> None:
         assert len(guess) == self.horizon,"Invalid guess provided"
@@ -431,7 +445,14 @@ class IterativeLQR(Optimizer):
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         if substep == 0: 
-            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess)
+            start = time.time()
+            #converged, states, ctrls, Ks, itr, preloop_duration, backward_duration, rollout_duration, ls_duration = self.compute_ilqr_old(obs, self._guess) # DEBUG, no itr
+            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess) # DEBUG, no itr
+            end = time.time()
+            if (end-start > 0.3):
+                print("ILQR timeout: ", end-start)
+                #print('Num iter: ', itr)
+                #print('Breakdown: ', preloop_duration, backward_duration, rollout_duration, ls_duration, preloop_duration+backward_duration+rollout_duration+ls_duration)
             self._guess = np.concatenate((ctrls[1:], ctrls[-1:]*0), axis=0)
             self._traj = Trajectory(self.model.state_system, states, 
                 np.vstack([ctrls, np.zeros(self.system.ctrl_dim)]))

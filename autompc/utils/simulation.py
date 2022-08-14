@@ -10,6 +10,7 @@ from ..sysid.model import Model
 # External library includes
 import numpy as np
 from tqdm import tqdm
+from time import time
 
 def rollout(dynamics : Dynamics, traj : Trajectory, start : int = 0, horizon : int = None) -> Trajectory:
     """
