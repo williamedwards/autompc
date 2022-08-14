@@ -270,8 +270,7 @@ class IterativeLQR(Optimizer):
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks'''
 
-    def compute_ilqr(self, x0, uguess, u_threshold=1e-3, max_iter=50, 
-            ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=True):
+    def compute_ilqr(self, x0, uguess, u_threshold=1e-3, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=True):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         Here I do not have Hessian correction since I'm certain all my matrices are SPD
@@ -311,7 +310,7 @@ class IterativeLQR(Optimizer):
         ct = np.zeros(dimx + dimu)
         converged = False
         du_norm = np.inf
-        for itr in range(max_iter):
+        for itr in range(self.max_iter):
             if self.verbose:
                 print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
