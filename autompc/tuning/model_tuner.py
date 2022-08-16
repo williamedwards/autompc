@@ -60,7 +60,7 @@ class ModelTuner:
     def __init__(self, system : System, trajs : List[Trajectory], model : Optional[Model] = None,
                 eval_holdout=0.25, eval_folds=3, eval_metric="rmse", eval_horizon=1, eval_quantile=None,
                 evaluator : Optional[ModelEvaluator] = None,
-                multi_fidelity=True, verbose=0):
+                multi_fidelity=False, verbose=0):
         """
         Parameters
         ----------
@@ -178,10 +178,10 @@ class ModelTuner:
         else:
             if max_train_time is not None:
                 self.model.set_train_budget(max_train_time)
-            #smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-            #        tae_runner=self._evaluate)
-            smac = SMAC4AC(scenario=scenario, rng=smac_rng,
-                    tae_runner=self._evaluate)
+            smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
+                   tae_runner=self._evaluate)
+            # smac = SMAC4AC(scenario=scenario, rng=smac_rng,
+            #         tae_runner=self._evaluate)
         
         incumbent = smac.optimize()
 

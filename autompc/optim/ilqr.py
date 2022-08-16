@@ -91,8 +91,8 @@ class IterativeLQR(Optimizer):
     def set_state(self, state):
         self._guess = copy.deepcopy(state["guess"])
 
-    '''def compute_ilqr(self, x0, uguess, u_threshold=1e-3,
-        ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3):
+    def compute_ilqr(self, x0, uguess, u_threshold=1e-3,
+        ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, timeout=np.inf):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         """
@@ -134,6 +134,7 @@ class IterativeLQR(Optimizer):
         converged = False
         du_norm = np.inf
         ls_alpha = 1.0
+        start = time.time()
         for itr in range(self.max_iter):
             if self.verbose:
                 print('At iteration %d' % itr)
@@ -264,6 +265,8 @@ class IterativeLQR(Optimizer):
                     print('Convergence achieved within %d iterations' % itr)
                     print('Cost update from %f to %f' % (initcost, obj))
                     print('Final state is ', states[-1])
+                break
+            if time.time()-start > timeout:
                 break
             
         if self.verbose and not converged :
@@ -447,7 +450,7 @@ class IterativeLQR(Optimizer):
             self._traj = Trajectory(self.model.state_system, states, 
                 np.vstack([ctrls, np.zeros(self.system.ctrl_dim)]))
             self._gains = Ks
-            return np.clip(ctrls[0], self.ubounds[0], self.ubounds[1])
+            return ctrls[0]
         else:
             #just reuse prior strajectory and gains
             return np.clip(self._traj.ctrls[substep]+self._gains[substep]@(obs-self._traj.obs[substep]),

@@ -22,6 +22,7 @@ from .model_evaluator import ModelEvaluator
 from .control_evaluator import ControlEvaluator, ParallelStandardEvaluator, StandardEvaluator, ControlEvaluationTrial, trial_to_json
 from .control_performance_metric import ControlPerformanceMetric,ConfidenceBoundPerformanceMetric
 from .bootstrap_evaluator import BootstrapSurrogateEvaluator
+from .parallel_evaluator import ParallelEvaluator
 
 # External library includes
 import numpy as np
@@ -251,6 +252,7 @@ class ControlTuner:
             print("Skipping surrogate tuning, surrogate is a trained model")
             print("------------------------------------------------------------------")
             if control_evaluator is None:
+                #control_evaluator = ParallelEvaluator(StandardEvaluator(controller.system, task, surrogate, 'surr_'), dynamics=surrogate, max_jobs=5)
                 control_evaluator = ParallelStandardEvaluator(controller.system, task, surrogate, 'surr_')
             else:
                 assert not isinstance(control_evaluator,BootstrapSurrogateEvaluator),'Need an evaluator that does not train'
@@ -505,7 +507,6 @@ class ControlTuner:
 
         if debug_return_evaluator:
             return eval_cfg
-
         smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
         print(controller.get_config_space())
         scenario = Scenario({"run_obj" : "quality",
@@ -578,8 +579,7 @@ class CfgRunner:
 
     def __call__(self, cfg):
         self.eval_number += 1
-        #if self.timeout is None:
-        if True:
+        if True: # DEBUG self.timeout is None 
             result = self.run(cfg)
         else:
             #p = multiprocessing.Process(target=self.run_mp, args=(cfg,))
@@ -649,11 +649,11 @@ class CfgRunner:
 
         controller.set_config(cfg)
         controller.build(sysid_trajs)
+        start = time.time()
         trajs = control_evaluator(controller)
-        performance = performance_metric(trajs)
-        info["surr_cost"] = performance
         info["surr_info"] = trajs
-        print('info') # DEBUG
+        info["surr_cost"] = performance
+        performance = performance_metric(trajs)
         if not truedyn_evaluator is None:
             trajs = truedyn_evaluator(controller)
             performance = performance_metric(trajs)

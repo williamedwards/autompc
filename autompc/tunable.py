@@ -77,6 +77,7 @@ class Tunable(ABC):
         AND in the current configuration. Hyperparameters are given
         as keyword arguments. 
         """
+        config = self.get_config()
         for key,value in kwargs.items():
             hyperparam = self._configuration_space.get_hyperparameters_dict()[key]
             if isinstance(hyperparam,CSH.CategoricalHyperparameter):
@@ -84,9 +85,6 @@ class Tunable(ABC):
             else:
                 self._configuration_space._hyperparameters[key] = CSH.Constant(key, value)
             hyperparam.default_value = value
-
-        config = self.get_config()
-        for (key,value)  in kwargs.items():
             config[key] = value
         self.set_config(config)    
     
