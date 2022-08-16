@@ -15,7 +15,7 @@ ControlEvaluationTrial = namedtuple("ControlEvaluationTrial", ["policy","task","
     "cost","traj","term_cond","eval_time"])
 
 def trial_to_json(trial : ControlEvaluationTrial):
-    res = dict(trial)
+    res = trial._asdict()
     res['policy'] = str(trial.policy)
     res['task'] = str(trial.task)
     res['dynamics'] = str(trial.dynamics)
