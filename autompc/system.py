@@ -46,7 +46,7 @@ class System:
         if self._dt is None:
             return '{}({},{})'.format(self.__class__.__name__,observation_str,control_str)
         else:
-            dt_str = "dt={.3f}".format(self._dt)
+            dt_str = "dt={:.3f}".format(self._dt)
             return '{}({},{},{})'.format(self.__class__.__name__,observation_str,control_str,dt_str)
             
 

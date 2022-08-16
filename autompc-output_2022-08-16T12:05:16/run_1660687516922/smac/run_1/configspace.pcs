@@ -1,0 +1,101 @@
+constraint_transformer categorical {_} [_]
+cost_transformer categorical {QuadCostTransformer, _} [QuadCostTransformer]
+model categorical {MLP, SINDy, ARX, Koopman} [MLP]
+optimizer categorical {IterativeLQR, MPPI, LQR, DirectTranscription} [IterativeLQR]
+regularizer categorical {_, GaussRegTransformer} [_]
+ARX:history integer [1, 10] [4]
+DirectTranscription:horizon integer [1, 30] [10]
+GaussRegTransformer:reg_weight real [0.001, 10000.0] [1.0]log
+IterativeLQR:frequency integer [1, 5] [1]
+IterativeLQR:horizon integer [5, 25] [20]
+IterativeLQR:max_iter integer [10, 50] [20]
+Koopman:method categorical {lstsq, lasso, stable} [lstsq]
+Koopman:poly_basis categorical {true, false} [false]
+Koopman:trig_basis categorical {true, false} [false]
+LQR:finite_horizon categorical {true, false} [true]
+MLP:batchnorm categorical {False, True} [False]
+MLP:hidden_size_1 integer [16, 256] [128]
+MLP:lr real [1e-05, 1.0] [0.001]log
+MLP:n_hidden_layers categorical {1, 2, 3, 4} [2]
+MLP:nonlintype categorical {relu, tanh, sigmoid, selu} [relu]
+MPPI:horizon integer [5, 30] [20]
+MPPI:lmda real [0.1, 2.0] [1.0]
+MPPI:num_path integer [100, 1000] [200]
+MPPI:sigma real [0.0001, 2.0] [1.0]
+QuadCostTransformer:dx_F real [0.001, 10000.0] [1.0]log
+QuadCostTransformer:dx_Q real [0.001, 10000.0] [1.0]log
+QuadCostTransformer:omega_F real [0.001, 10000.0] [1.0]log
+QuadCostTransformer:omega_Q real [0.001, 10000.0] [1.0]log
+QuadCostTransformer:theta_F real [0.001, 10000.0] [1.0]log
+QuadCostTransformer:theta_Q real [0.001, 10000.0] [1.0]log
+QuadCostTransformer:u_R real [0.001, 10000.0] [1.0]log
+QuadCostTransformer:x_F real [0.001, 10000.0] [1.0]log
+QuadCostTransformer:x_Q real [0.001, 10000.0] [1.0]log
+SINDy:poly_basis categorical {true, false} [false]
+SINDy:poly_cross_terms categorical {false} [false]
+SINDy:threshold real [1e-05, 10.0] [0.01]log
+SINDy:time_mode categorical {discrete, continuous} [discrete]
+SINDy:trig_basis categorical {true, false} [false]
+Koopman:lasso_alpha real [1e-10, 100.0] [1.0]log
+Koopman:poly_cross_terms categorical {false} [false]
+Koopman:poly_degree integer [2, 8] [3]
+Koopman:trig_freq integer [1, 8] [1]
+Koopman:trig_interaction categorical {false} [false]
+LQR:horizon integer [1, 1000] [10]
+MLP:hidden_size_2 integer [16, 256] [128]
+MLP:hidden_size_3 integer [16, 256] [128]
+MLP:hidden_size_4 integer [16, 256] [128]
+SINDy:poly_degree integer [2, 8] [3]
+SINDy:trig_freq integer [1, 8] [1]
+SINDy:trig_interaction categorical {false} [false]
+
+QuadCostTransformer:dx_F | cost_transformer == QuadCostTransformer
+QuadCostTransformer:dx_Q | cost_transformer == QuadCostTransformer
+QuadCostTransformer:omega_F | cost_transformer == QuadCostTransformer
+QuadCostTransformer:omega_Q | cost_transformer == QuadCostTransformer
+QuadCostTransformer:theta_F | cost_transformer == QuadCostTransformer
+QuadCostTransformer:theta_Q | cost_transformer == QuadCostTransformer
+QuadCostTransformer:u_R | cost_transformer == QuadCostTransformer
+QuadCostTransformer:x_F | cost_transformer == QuadCostTransformer
+QuadCostTransformer:x_Q | cost_transformer == QuadCostTransformer
+ARX:history | model == ARX
+Koopman:method | model == Koopman
+Koopman:poly_basis | model == Koopman
+Koopman:trig_basis | model == Koopman
+MLP:batchnorm | model == MLP
+MLP:hidden_size_1 | model == MLP
+MLP:lr | model == MLP
+MLP:n_hidden_layers | model == MLP
+MLP:nonlintype | model == MLP
+SINDy:poly_basis | model == SINDy
+SINDy:poly_cross_terms | model == SINDy
+SINDy:threshold | model == SINDy
+SINDy:time_mode | model == SINDy
+SINDy:trig_basis | model == SINDy
+DirectTranscription:horizon | optimizer == DirectTranscription
+IterativeLQR:frequency | optimizer == IterativeLQR
+IterativeLQR:horizon | optimizer == IterativeLQR
+IterativeLQR:max_iter | optimizer == IterativeLQR
+LQR:finite_horizon | optimizer == LQR
+MPPI:horizon | optimizer == MPPI
+MPPI:lmda | optimizer == MPPI
+MPPI:num_path | optimizer == MPPI
+MPPI:sigma | optimizer == MPPI
+GaussRegTransformer:reg_weight | regularizer == GaussRegTransformer
+Koopman:lasso_alpha | Koopman:method in {lasso}
+Koopman:poly_cross_terms | Koopman:poly_basis in {true}
+Koopman:poly_degree | Koopman:poly_basis in {true}
+Koopman:trig_freq | Koopman:trig_basis in {true}
+Koopman:trig_interaction | Koopman:trig_basis in {true}
+LQR:horizon | LQR:finite_horizon in {true}
+MLP:hidden_size_2 | MLP:n_hidden_layers in {2, 3, 4}
+MLP:hidden_size_3 | MLP:n_hidden_layers in {3, 4}
+MLP:hidden_size_4 | MLP:n_hidden_layers in {4}
+SINDy:poly_degree | SINDy:poly_basis in {true}
+SINDy:trig_freq | SINDy:trig_basis in {true}
+SINDy:trig_interaction | SINDy:trig_basis in {true}
+
+{cost_transformer=_, optimizer=IterativeLQR}
+{cost_transformer=_, optimizer=LQR}
+{model=MLP, optimizer=LQR}
+{model=SINDy, optimizer=LQR}

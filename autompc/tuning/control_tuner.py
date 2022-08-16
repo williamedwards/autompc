@@ -8,6 +8,7 @@ import contextlib
 import datetime
 import time
 import os, sys, glob, shutil
+import traceback
 from typing import Optional, List
 
 # Internal project include
@@ -319,9 +320,11 @@ class ControlTuner:
         return tuning_data
 
     def _get_restore_run_dir(self, restore_dir):
-        run_dirs = glob.glob(os.path.join(restore_dir, "run_*"))
+        # run_dirs = glob.glob(os.path.join(restore_dir, "run_*"))
+        run_dirs = glob.glob(os.path.join(restore_dir))
         for run_dir in reversed(sorted(run_dirs)):
             if os.path.exists(os.path.join(run_dir, "smac", "run_1", "runhistory.json")):
+            # if os.path.exists(os.path.join(run_dir, "smac", "run_1")):
                 return run_dir
         raise FileNotFoundError("No valid restore files found")
 
@@ -331,9 +334,9 @@ class ControlTuner:
         new_tuning_data = os.path.join(new_run_dir, "tuning_data.pkl")
         shutil.copy(old_tuning_data, new_tuning_data)
         # Copy log
-        old_log = os.path.join(restore_run_dir, "log.txt")
-        new_log = os.path.join(new_run_dir, "log.txt")
-        shutil.copy(old_log, new_log)
+        # old_log = os.path.join(restore_run_dir, "log.txt")
+        # new_log = os.path.join(new_run_dir, "log.txt")
+        # shutil.copy(old_log, new_log)
         # Copy smac trajectory information
         old_traj = os.path.join(restore_run_dir, "smac", "run_1", "traj_aclib2.json")
         new_traj = os.path.join(new_run_dir, "smac", "run_1", "traj_aclib2.json")
@@ -515,11 +518,13 @@ class ControlTuner:
                              })
 
         if not use_default_initial_design:
+            # TODO: use meta learning for the initial_design 
             initial_design = RandomConfigurations
         else:
             initial_design = None
 
-        if not restore_dir:
+        # if not restore_dir:
+        if True:
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
                     initial_design=initial_design,
                     tae_runner=eval_cfg,
@@ -574,7 +579,9 @@ class CfgRunner:
 
     def __call__(self, cfg):
         self.eval_number += 1
-        if self.timeout is None:
+        # TODO: multiprocessing can not work right now
+        # if self.timeout is None:
+        if True:
             result = self.run(cfg)
         else:
             #p = multiprocessing.Process(target=self.run_mp, args=(cfg,))
@@ -603,6 +610,18 @@ class CfgRunner:
                 print("Exit code: ", p.exitcode)
                 return np.inf, dict()
         
+        # for info in result["surr_info"]:
+        #     print(info)
+        #     print(info.policy)
+        #     print(info.task)
+        #     print(info.dynamics)
+        #     print(info.weight)
+        #     print(info.cost)
+        #     print(info.term_cond)
+        #     print(info.eval_time)
+        #     print(info.traj)
+        #     res = dict(info) # bug
+
         result['surr_info'] = [trial_to_json(info) for info in result['surr_info']]
         if 'truedyn_info' in result:
             result['truedyn_info'] = [trial_to_json(info) for info in result['truedyn_info']]
@@ -645,6 +664,8 @@ class CfgRunner:
         controller.set_config(cfg)
         controller.build(sysid_trajs)
         trajs = control_evaluator(controller)
+        # print(trajs)
+        # exit()
         performance = performance_metric(trajs)
         info["surr_cost"] = performance
         info["surr_info"] = trajs

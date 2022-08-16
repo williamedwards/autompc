@@ -1,0 +1,813 @@
+{
+  "hyperparameters": [
+    {
+      "name": "constraint_transformer",
+      "type": "categorical",
+      "choices": [
+        "_"
+      ],
+      "default": "_",
+      "probabilities": null
+    },
+    {
+      "name": "cost_transformer",
+      "type": "categorical",
+      "choices": [
+        "QuadCostTransformer",
+        "_"
+      ],
+      "default": "QuadCostTransformer",
+      "probabilities": null
+    },
+    {
+      "name": "model",
+      "type": "categorical",
+      "choices": [
+        "MLP",
+        "SINDy",
+        "ARX",
+        "Koopman"
+      ],
+      "default": "MLP",
+      "probabilities": null
+    },
+    {
+      "name": "optimizer",
+      "type": "categorical",
+      "choices": [
+        "IterativeLQR",
+        "MPPI",
+        "LQR",
+        "DirectTranscription"
+      ],
+      "default": "IterativeLQR",
+      "probabilities": null
+    },
+    {
+      "name": "regularizer",
+      "type": "categorical",
+      "choices": [
+        "_",
+        "GaussRegTransformer"
+      ],
+      "default": "_",
+      "probabilities": null
+    },
+    {
+      "name": "ARX:history",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 1,
+      "upper": 10,
+      "default": 4
+    },
+    {
+      "name": "DirectTranscription:horizon",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 1,
+      "upper": 30,
+      "default": 10
+    },
+    {
+      "name": "GaussRegTransformer:reg_weight",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "IterativeLQR:frequency",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 1,
+      "upper": 5,
+      "default": 1
+    },
+    {
+      "name": "IterativeLQR:horizon",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 5,
+      "upper": 25,
+      "default": 20
+    },
+    {
+      "name": "IterativeLQR:max_iter",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 10,
+      "upper": 50,
+      "default": 20
+    },
+    {
+      "name": "Koopman:method",
+      "type": "categorical",
+      "choices": [
+        "lstsq",
+        "lasso",
+        "stable"
+      ],
+      "default": "lstsq",
+      "probabilities": null
+    },
+    {
+      "name": "Koopman:poly_basis",
+      "type": "categorical",
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "false",
+      "probabilities": null
+    },
+    {
+      "name": "Koopman:trig_basis",
+      "type": "categorical",
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "false",
+      "probabilities": null
+    },
+    {
+      "name": "LQR:finite_horizon",
+      "type": "categorical",
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "true",
+      "probabilities": null
+    },
+    {
+      "name": "MLP:batchnorm",
+      "type": "categorical",
+      "choices": [
+        false,
+        true
+      ],
+      "default": false,
+      "probabilities": null
+    },
+    {
+      "name": "MLP:hidden_size_1",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 16,
+      "upper": 256,
+      "default": 128
+    },
+    {
+      "name": "MLP:lr",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 1e-05,
+      "upper": 1.0,
+      "default": 0.001
+    },
+    {
+      "name": "MLP:n_hidden_layers",
+      "type": "categorical",
+      "choices": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "default": "2",
+      "probabilities": null
+    },
+    {
+      "name": "MLP:nonlintype",
+      "type": "categorical",
+      "choices": [
+        "relu",
+        "tanh",
+        "sigmoid",
+        "selu"
+      ],
+      "default": "relu",
+      "probabilities": null
+    },
+    {
+      "name": "MPPI:horizon",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 5,
+      "upper": 30,
+      "default": 20
+    },
+    {
+      "name": "MPPI:lmda",
+      "type": "uniform_float",
+      "log": false,
+      "lower": 0.1,
+      "upper": 2.0,
+      "default": 1.0
+    },
+    {
+      "name": "MPPI:num_path",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 100,
+      "upper": 1000,
+      "default": 200
+    },
+    {
+      "name": "MPPI:sigma",
+      "type": "uniform_float",
+      "log": false,
+      "lower": 0.0001,
+      "upper": 2.0,
+      "default": 1.0
+    },
+    {
+      "name": "QuadCostTransformer:dx_F",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "QuadCostTransformer:dx_Q",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "QuadCostTransformer:omega_F",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "QuadCostTransformer:omega_Q",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "QuadCostTransformer:theta_F",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "QuadCostTransformer:theta_Q",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "QuadCostTransformer:u_R",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "QuadCostTransformer:x_F",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "QuadCostTransformer:x_Q",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 0.001,
+      "upper": 10000.0,
+      "default": 1.0
+    },
+    {
+      "name": "SINDy:poly_basis",
+      "type": "categorical",
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "false",
+      "probabilities": null
+    },
+    {
+      "name": "SINDy:poly_cross_terms",
+      "type": "categorical",
+      "choices": [
+        "false"
+      ],
+      "default": "false",
+      "probabilities": null
+    },
+    {
+      "name": "SINDy:threshold",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 1e-05,
+      "upper": 10.0,
+      "default": 0.01
+    },
+    {
+      "name": "SINDy:time_mode",
+      "type": "categorical",
+      "choices": [
+        "discrete",
+        "continuous"
+      ],
+      "default": "discrete",
+      "probabilities": null
+    },
+    {
+      "name": "SINDy:trig_basis",
+      "type": "categorical",
+      "choices": [
+        "true",
+        "false"
+      ],
+      "default": "false",
+      "probabilities": null
+    },
+    {
+      "name": "Koopman:lasso_alpha",
+      "type": "uniform_float",
+      "log": true,
+      "lower": 1e-10,
+      "upper": 100.0,
+      "default": 1.0
+    },
+    {
+      "name": "Koopman:poly_cross_terms",
+      "type": "categorical",
+      "choices": [
+        "false"
+      ],
+      "default": "false",
+      "probabilities": null
+    },
+    {
+      "name": "Koopman:poly_degree",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 2,
+      "upper": 8,
+      "default": 3
+    },
+    {
+      "name": "Koopman:trig_freq",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 1,
+      "upper": 8,
+      "default": 1
+    },
+    {
+      "name": "Koopman:trig_interaction",
+      "type": "categorical",
+      "choices": [
+        "false"
+      ],
+      "default": "false",
+      "probabilities": null
+    },
+    {
+      "name": "LQR:horizon",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 1,
+      "upper": 1000,
+      "default": 10
+    },
+    {
+      "name": "MLP:hidden_size_2",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 16,
+      "upper": 256,
+      "default": 128
+    },
+    {
+      "name": "MLP:hidden_size_3",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 16,
+      "upper": 256,
+      "default": 128
+    },
+    {
+      "name": "MLP:hidden_size_4",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 16,
+      "upper": 256,
+      "default": 128
+    },
+    {
+      "name": "SINDy:poly_degree",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 2,
+      "upper": 8,
+      "default": 3
+    },
+    {
+      "name": "SINDy:trig_freq",
+      "type": "uniform_int",
+      "log": false,
+      "lower": 1,
+      "upper": 8,
+      "default": 1
+    },
+    {
+      "name": "SINDy:trig_interaction",
+      "type": "categorical",
+      "choices": [
+        "false"
+      ],
+      "default": "false",
+      "probabilities": null
+    }
+  ],
+  "conditions": [
+    {
+      "child": "QuadCostTransformer:dx_F",
+      "parent": "cost_transformer",
+      "type": "EQ",
+      "value": "QuadCostTransformer"
+    },
+    {
+      "child": "QuadCostTransformer:dx_Q",
+      "parent": "cost_transformer",
+      "type": "EQ",
+      "value": "QuadCostTransformer"
+    },
+    {
+      "child": "QuadCostTransformer:omega_F",
+      "parent": "cost_transformer",
+      "type": "EQ",
+      "value": "QuadCostTransformer"
+    },
+    {
+      "child": "QuadCostTransformer:omega_Q",
+      "parent": "cost_transformer",
+      "type": "EQ",
+      "value": "QuadCostTransformer"
+    },
+    {
+      "child": "QuadCostTransformer:theta_F",
+      "parent": "cost_transformer",
+      "type": "EQ",
+      "value": "QuadCostTransformer"
+    },
+    {
+      "child": "QuadCostTransformer:theta_Q",
+      "parent": "cost_transformer",
+      "type": "EQ",
+      "value": "QuadCostTransformer"
+    },
+    {
+      "child": "QuadCostTransformer:u_R",
+      "parent": "cost_transformer",
+      "type": "EQ",
+      "value": "QuadCostTransformer"
+    },
+    {
+      "child": "QuadCostTransformer:x_F",
+      "parent": "cost_transformer",
+      "type": "EQ",
+      "value": "QuadCostTransformer"
+    },
+    {
+      "child": "QuadCostTransformer:x_Q",
+      "parent": "cost_transformer",
+      "type": "EQ",
+      "value": "QuadCostTransformer"
+    },
+    {
+      "child": "ARX:history",
+      "parent": "model",
+      "type": "EQ",
+      "value": "ARX"
+    },
+    {
+      "child": "Koopman:method",
+      "parent": "model",
+      "type": "EQ",
+      "value": "Koopman"
+    },
+    {
+      "child": "Koopman:poly_basis",
+      "parent": "model",
+      "type": "EQ",
+      "value": "Koopman"
+    },
+    {
+      "child": "Koopman:trig_basis",
+      "parent": "model",
+      "type": "EQ",
+      "value": "Koopman"
+    },
+    {
+      "child": "MLP:batchnorm",
+      "parent": "model",
+      "type": "EQ",
+      "value": "MLP"
+    },
+    {
+      "child": "MLP:hidden_size_1",
+      "parent": "model",
+      "type": "EQ",
+      "value": "MLP"
+    },
+    {
+      "child": "MLP:lr",
+      "parent": "model",
+      "type": "EQ",
+      "value": "MLP"
+    },
+    {
+      "child": "MLP:n_hidden_layers",
+      "parent": "model",
+      "type": "EQ",
+      "value": "MLP"
+    },
+    {
+      "child": "MLP:nonlintype",
+      "parent": "model",
+      "type": "EQ",
+      "value": "MLP"
+    },
+    {
+      "child": "SINDy:poly_basis",
+      "parent": "model",
+      "type": "EQ",
+      "value": "SINDy"
+    },
+    {
+      "child": "SINDy:poly_cross_terms",
+      "parent": "model",
+      "type": "EQ",
+      "value": "SINDy"
+    },
+    {
+      "child": "SINDy:threshold",
+      "parent": "model",
+      "type": "EQ",
+      "value": "SINDy"
+    },
+    {
+      "child": "SINDy:time_mode",
+      "parent": "model",
+      "type": "EQ",
+      "value": "SINDy"
+    },
+    {
+      "child": "SINDy:trig_basis",
+      "parent": "model",
+      "type": "EQ",
+      "value": "SINDy"
+    },
+    {
+      "child": "DirectTranscription:horizon",
+      "parent": "optimizer",
+      "type": "EQ",
+      "value": "DirectTranscription"
+    },
+    {
+      "child": "IterativeLQR:frequency",
+      "parent": "optimizer",
+      "type": "EQ",
+      "value": "IterativeLQR"
+    },
+    {
+      "child": "IterativeLQR:horizon",
+      "parent": "optimizer",
+      "type": "EQ",
+      "value": "IterativeLQR"
+    },
+    {
+      "child": "IterativeLQR:max_iter",
+      "parent": "optimizer",
+      "type": "EQ",
+      "value": "IterativeLQR"
+    },
+    {
+      "child": "LQR:finite_horizon",
+      "parent": "optimizer",
+      "type": "EQ",
+      "value": "LQR"
+    },
+    {
+      "child": "MPPI:horizon",
+      "parent": "optimizer",
+      "type": "EQ",
+      "value": "MPPI"
+    },
+    {
+      "child": "MPPI:lmda",
+      "parent": "optimizer",
+      "type": "EQ",
+      "value": "MPPI"
+    },
+    {
+      "child": "MPPI:num_path",
+      "parent": "optimizer",
+      "type": "EQ",
+      "value": "MPPI"
+    },
+    {
+      "child": "MPPI:sigma",
+      "parent": "optimizer",
+      "type": "EQ",
+      "value": "MPPI"
+    },
+    {
+      "child": "GaussRegTransformer:reg_weight",
+      "parent": "regularizer",
+      "type": "EQ",
+      "value": "GaussRegTransformer"
+    },
+    {
+      "child": "Koopman:lasso_alpha",
+      "parent": "Koopman:method",
+      "type": "IN",
+      "values": [
+        "lasso"
+      ]
+    },
+    {
+      "child": "Koopman:poly_cross_terms",
+      "parent": "Koopman:poly_basis",
+      "type": "IN",
+      "values": [
+        "true"
+      ]
+    },
+    {
+      "child": "Koopman:poly_degree",
+      "parent": "Koopman:poly_basis",
+      "type": "IN",
+      "values": [
+        "true"
+      ]
+    },
+    {
+      "child": "Koopman:trig_freq",
+      "parent": "Koopman:trig_basis",
+      "type": "IN",
+      "values": [
+        "true"
+      ]
+    },
+    {
+      "child": "Koopman:trig_interaction",
+      "parent": "Koopman:trig_basis",
+      "type": "IN",
+      "values": [
+        "true"
+      ]
+    },
+    {
+      "child": "LQR:horizon",
+      "parent": "LQR:finite_horizon",
+      "type": "IN",
+      "values": [
+        "true"
+      ]
+    },
+    {
+      "child": "MLP:hidden_size_2",
+      "parent": "MLP:n_hidden_layers",
+      "type": "IN",
+      "values": [
+        "2",
+        "3",
+        "4"
+      ]
+    },
+    {
+      "child": "MLP:hidden_size_3",
+      "parent": "MLP:n_hidden_layers",
+      "type": "IN",
+      "values": [
+        "3",
+        "4"
+      ]
+    },
+    {
+      "child": "MLP:hidden_size_4",
+      "parent": "MLP:n_hidden_layers",
+      "type": "IN",
+      "values": [
+        "4"
+      ]
+    },
+    {
+      "child": "SINDy:poly_degree",
+      "parent": "SINDy:poly_basis",
+      "type": "IN",
+      "values": [
+        "true"
+      ]
+    },
+    {
+      "child": "SINDy:trig_freq",
+      "parent": "SINDy:trig_basis",
+      "type": "IN",
+      "values": [
+        "true"
+      ]
+    },
+    {
+      "child": "SINDy:trig_interaction",
+      "parent": "SINDy:trig_basis",
+      "type": "IN",
+      "values": [
+        "true"
+      ]
+    }
+  ],
+  "forbiddens": [
+    {
+      "name": "cost_transformer",
+      "type": "AND",
+      "clauses": [
+        {
+          "name": "cost_transformer",
+          "type": "EQUALS",
+          "value": "_"
+        },
+        {
+          "name": "optimizer",
+          "type": "EQUALS",
+          "value": "IterativeLQR"
+        }
+      ]
+    },
+    {
+      "name": "model",
+      "type": "AND",
+      "clauses": [
+        {
+          "name": "model",
+          "type": "EQUALS",
+          "value": "SINDy"
+        },
+        {
+          "name": "optimizer",
+          "type": "EQUALS",
+          "value": "LQR"
+        }
+      ]
+    },
+    {
+      "name": "model",
+      "type": "AND",
+      "clauses": [
+        {
+          "name": "model",
+          "type": "EQUALS",
+          "value": "MLP"
+        },
+        {
+          "name": "optimizer",
+          "type": "EQUALS",
+          "value": "LQR"
+        }
+      ]
+    },
+    {
+      "name": "cost_transformer",
+      "type": "AND",
+      "clauses": [
+        {
+          "name": "cost_transformer",
+          "type": "EQUALS",
+          "value": "_"
+        },
+        {
+          "name": "optimizer",
+          "type": "EQUALS",
+          "value": "LQR"
+        }
+      ]
+    }
+  ],
+  "python_module_version": "0.4.21",
+  "json_format_version": 0.2
+}
