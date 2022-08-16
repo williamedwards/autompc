@@ -91,7 +91,7 @@ class IterativeLQR(Optimizer):
     def set_state(self, state):
         self._guess = copy.deepcopy(state["guess"])
 
-    def compute_ilqr(self, x0, uguess, u_threshold=1e-3,
+    '''def compute_ilqr(self, x0, uguess, u_threshold=1e-3,
         ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
@@ -270,12 +270,13 @@ class IterativeLQR(Optimizer):
             print('ilqr fails to converge, try a new guess? Last u update is %f ks norm is %f' % (du_norm, ks_norm))
             print('ilqr is not converging...')
         return converged, states, ctrls, Ks
-    def compute_ilqr_old(self, x0, uguess, u_threshold=1e-3, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=True):
+    '''
+    
+    def compute_ilqr(self, x0, uguess, u_threshold=1e-3, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=True):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         Here I do not have Hessian correction since I'm certain all my matrices are SPD
         """
-        start = time.time()
         cost = self.ocp.get_cost()
         H = self.horizon
         dt = self.system.dt
@@ -311,12 +312,7 @@ class IterativeLQR(Optimizer):
         ct = np.zeros(dimx + dimu)
         converged = False
         du_norm = np.inf
-        backward_duration=0
-        rollout_duration=0
-        ls_duration=0
-        preloop_duration = time.time()-start
         for itr in range(self.max_iter):
-            start = time.time()
             if self.verbose:
                 print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
@@ -355,9 +351,7 @@ class IterativeLQR(Optimizer):
             best_obj_estimate_reduction = None
             ks_norm = np.linalg.norm(ks)
             # print('norm of ks = ', np.linalg.norm(ks))
-            backward_duration+=time.time()-start
             #print('Backward pass', duration)
-            start = time.time()
             # Compute rollout for all possible alphas
             alphas = np.array([ls_discount**i for i in range(ls_max_iter)])
             for i in range(ls_max_iter):
@@ -368,10 +362,8 @@ class IterativeLQR(Optimizer):
                 if self.ubounds is not None:
                     ls_ctrls[:, i, :] = np.clip(ls_ctrls[:, i, :], self.ubounds[0], self.ubounds[1])
                 ls_states[:, i + 1, :] = self.model.pred_batch(ls_states[:, i, :], ls_ctrls[:, i, :])
-            rollout_duration += time.time()-start
             #print('Rollout: ', duration)
 
-            start = time.time()
             # Now do backtrack line search.
             for lsitr, ls_alpha in enumerate(alphas):
                 new_states = ls_states[lsitr, :, :]
@@ -391,7 +383,6 @@ class IterativeLQR(Optimizer):
                 #ls_alpha *= ls_discount
                 if ks_norm < u_threshold:
                     break
-            ls_duration += time.time()-start
             #print('Line search: ', duration)
             
             if self.verbose:
@@ -433,7 +424,7 @@ class IterativeLQR(Optimizer):
         if not converged and not silent:
             print('ilqr fails to converge, try a new guess? Last u update is %f ks norm is %f' % (du_norm, ks_norm))
             print('ilqr is not converging...')
-        return converged, states, ctrls, Ks, itr, preloop_duration, backward_duration, rollout_duration, ls_duration # DEBUG, no itr
+        return converged, states, ctrls, Ks
     
     def set_guess(self, guess : Trajectory) -> None:
         assert len(guess) == self.horizon,"Invalid guess provided"
@@ -446,7 +437,6 @@ class IterativeLQR(Optimizer):
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         if substep == 0: 
             start = time.time()
-            #converged, states, ctrls, Ks, itr, preloop_duration, backward_duration, rollout_duration, ls_duration = self.compute_ilqr_old(obs, self._guess) # DEBUG, no itr
             converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess) # DEBUG, no itr
             end = time.time()
             if (end-start > 0.3):
