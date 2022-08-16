@@ -253,6 +253,7 @@ class ControlTuner:
             print("Skipping surrogate tuning, surrogate is a trained model")
             print("------------------------------------------------------------------")
             if control_evaluator is None:
+                #control_evaluator = ParallelEvaluator(StandardEvaluator(controller.system, task, surrogate, 'surr_'), dynamics=surrogate, max_jobs=5)
                 control_evaluator = ParallelStandardEvaluator(controller.system, task, surrogate, 'surr_')
             else:
                 assert not isinstance(control_evaluator,BootstrapSurrogateEvaluator),'Need an evaluator that does not train'

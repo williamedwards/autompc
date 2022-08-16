@@ -122,6 +122,12 @@ class StandardEvaluator(ControlEvaluator):
         return res
 
 class ParallelStandardEvaluator(StandardEvaluator):
+    def __init__(self, system, tasks, dynamics, prefix='',max_jobs=None):
+        super().__init__(system, tasks, dynamics, prefix)
+        if max_jobs is None:
+            self.max_jobs = len(tasks)
+        else:
+            self.max_jobs = max_jobs
     def __call__(self, policy : Union[Policy,Controller]) -> List[ControlEvaluationTrial]:
         """
         Evaluates policy on all tasks in parallel.  Default just runs evaluate_for_task
@@ -143,5 +149,5 @@ class ParallelStandardEvaluator(StandardEvaluator):
             policy.reset()
             print(f"Evaluating Task {i}")
             return self.evaluate_for_task(policy, task)
-        results = Parallel(n_jobs=os.cpu_count())(delayed(f)(task) for task in enumerate(self.tasks))
+        results = Parallel(n_jobs=self.max_jobs)(delayed(f)(task) for task in enumerate(self.tasks))
         return results

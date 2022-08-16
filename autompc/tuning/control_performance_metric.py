@@ -10,6 +10,20 @@ class ControlPerformanceMetric:
     def __call__(self,trials : List[ControlEvaluationTrial]) -> float:
         return np.mean([t.cost for t in trials])
 
+class DistToGoal(ControlPerformanceMetric):
+    def __call__(self,trials : List[ControlEvaluationTrial]) -> float:
+        dists = []
+        for trial in trials:
+            task = trial.task
+            obs_idxs = task.get_cost()._obs_idxs
+            dist = 0
+            for t in range(len(trial.traj)):
+                dist += np.linalg.norm(np.array(trial.traj[t].obs[obs_idxs]) - trial.task.get_cost().goal[obs_idxs])
+            dists.append(dist)
+        performance_metric = np.sum(dists)
+        print("DistToGoal: ", performance_metric)
+        return performance_metric
+
 class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
     """A performance metric that uses a quantile of some statistical
     distribution, and also allows incorporating evaluation time and

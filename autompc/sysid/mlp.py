@@ -28,7 +28,7 @@ def transform_output(xu_means, xu_std, XU):
     return np.vstack(XUt).T
 
 class ForwardNet(torch.nn.Module):
-    def __init__(self, n_in, n_out, hidden_sizes, nonlintype, batchnorm=False):
+    def __init__(self, n_in, n_out, hidden_sizes, nonlintype, batchnorm=True):
         """Specify the feedforward neuro network size and nonlinearity"""
         assert len(hidden_sizes) > 0
         torch.nn.Module.__init__(self)
@@ -228,7 +228,7 @@ class MLP(FullyObservableModel):
         t0 = time.time()
         for i in tqdm(range(self.n_train_iters), file=sys.stdout):
             self._step_train()
-            self.train_time_budget=500
+            self.train_time_budget=500 #DEBUG
             if self.train_time_budget is not None and time.time()-t0 > self.train_time_budget:
                 print("Reached timeout of %.2fs"%self.train_time_budget)
                 break
