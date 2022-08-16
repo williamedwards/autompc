@@ -92,6 +92,7 @@ def simulate(policy : Policy, init_obs, dynamics : Dynamics, term_cond=None, max
             raise ValueError("Trying to do simulate() on an untrained dynamics model?")
     x = init_obs
     traj = DynamicTrajectory(dynamics.system)
+    step_times = []
     
     simstate = dynamics.init_state(init_obs)
     if silent:
@@ -99,8 +100,11 @@ def simulate(policy : Policy, init_obs, dynamics : Dynamics, term_cond=None, max
     else:
         itr = tqdm(range(max_steps), file=sys.stdout)
     for _  in itr:
+        start = time()
         u = policy.step(x)
+        end = time()
         traj.append(x,u)
+        step_times.append(end-start)
         if term_cond is not None and term_cond(traj):
             break
         if len(traj) == max_steps:
@@ -111,4 +115,4 @@ def simulate(policy : Policy, init_obs, dynamics : Dynamics, term_cond=None, max
         simstate = simstate2
         x = dynamics.get_obs(simstate)
     #finalize Trajectory
-    return traj.freeze()
+    return traj.freeze(), step_times
