@@ -90,8 +90,8 @@ class IterativeLQR(Optimizer):
 
     def set_state(self, state):
         self._guess = copy.deepcopy(state["guess"])
-    '''
-    def compute_ilqr(self, x0, uguess, u_threshold=1e-3,
+
+    '''def compute_ilqr(self, x0, uguess, u_threshold=1e-3,
         ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, timeout=np.inf):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
