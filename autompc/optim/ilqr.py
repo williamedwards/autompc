@@ -90,7 +90,7 @@ class IterativeLQR(Optimizer):
 
     def set_state(self, state):
         self._guess = copy.deepcopy(state["guess"])
-
+    '''
     def compute_ilqr(self, x0, uguess, u_threshold=1e-3,
         ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, timeout=np.inf):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
@@ -275,11 +275,12 @@ class IterativeLQR(Optimizer):
         return converged, states, ctrls, Ks
     '''
     
-    def compute_ilqr(self, x0, uguess, u_threshold=1e-3, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, silent=True):
+    def compute_ilqr(self, x0, uguess, u_threshold=1e-3, ls_max_iter=10, ls_discount=0.2, ls_cost_threshold=0.3, timeout=np.inf, silent=True):
         """Use equations from https://medium.com/@jonathan_hui/rl-lqr-ilqr-linear-quadratic-regulator-a5de5104c750 .
         A better version is https://homes.cs.washington.edu/~todorov/papers/TassaIROS12.pdf
         Here I do not have Hessian correction since I'm certain all my matrices are SPD
         """
+        start = time.time()
         cost = self.ocp.get_cost()
         H = self.horizon
         dt = self.system.dt
@@ -316,6 +317,10 @@ class IterativeLQR(Optimizer):
         converged = False
         du_norm = np.inf
         for itr in range(self.max_iter):
+            if time.time()-start > timeout:
+                if self.verbose:
+                    print('Timeout')
+                break
             if self.verbose:
                 print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
@@ -440,7 +445,7 @@ class IterativeLQR(Optimizer):
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         if substep == 0: 
             start = time.time()
-            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess) # DEBUG, no itr
+            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess, timeout=self.system.dt) # DEBUG, no itr
             end = time.time()
             if (end-start > 0.3):
                 print("ILQR timeout: ", end-start)
