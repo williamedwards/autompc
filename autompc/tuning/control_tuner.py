@@ -221,8 +221,8 @@ class ControlTuner:
         self.max_trials_per_evaluation = max_trials_per_evaluation
         self.control_evaluator = control_evaluator
         if performance_metric is None:
-            performance_metric = ControlPerformanceMetric() # DEBUG
-            #performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
+            performance_metric = ControlPerformanceMetric()
+            #performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost) # TODO: Fix this
         self.performance_metric = performance_metric
 
     def _get_tuning_data(self, controller : Controller, task : List[Task], trajs : List[Trajectory],
@@ -508,7 +508,6 @@ class ControlTuner:
         if debug_return_evaluator:
             return eval_cfg
         smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
-        print(controller.get_config_space())
         scenario = Scenario({"run_obj" : "quality",
                              "runcount-limit" : n_iters,
                              "cs" : controller.get_config_space(),
@@ -579,7 +578,7 @@ class CfgRunner:
 
     def __call__(self, cfg):
         self.eval_number += 1
-        if True: # DEBUG self.timeout is None 
+        if self.timeout is None: 
             result = self.run(cfg)
         else:
             #p = multiprocessing.Process(target=self.run_mp, args=(cfg,))
@@ -651,8 +650,8 @@ class CfgRunner:
         controller.build(sysid_trajs)
         trajs = control_evaluator(controller)
         performance = performance_metric(trajs)
-        info["surr_info"] = trajs
         info["surr_cost"] = performance
+        info["surr_info"] = trajs
         if truedyn_evaluator is not None:
             trajs = truedyn_evaluator(controller)
             performance = performance_metric(trajs)

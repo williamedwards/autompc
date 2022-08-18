@@ -113,7 +113,7 @@ class Tunable(ABC):
         for key,defaults in kwargs.items():
             hyperparams[key].default_value = defaults
 
-    def set_hyperparameter_log(self,**kwargs) -> None:
+    def set_hyperparameter_logs(self,**kwargs) -> None:
         """Sets the configuration space log values for a set of
         hyperparameters, as keyword arguments.
         """
@@ -258,10 +258,7 @@ class TunablePipeline:
             if opt is None:
                 continue
             opt_config = create_subspace_configuration(config,opt.name,opt.get_config_space())
-            try:
-                opt.set_config(opt_config)
-            except:
-                print('Skipping set_config. Frozen hyperparameters?')
+            opt.set_config(opt_config)
         
     def get_config(self):
         return self._config

@@ -240,7 +240,7 @@ class IterativeLQR(Optimizer):
                     best_alpha = 1.0
             else:
                 if self.verbose :
-                    print(" fails, best obj",best_obj,"obj",obj,"best_alpha",best_alpha)
+                    print("Line search fails, best obj",best_obj,"obj",obj,"best_alpha",best_alpha)
                 break
             
             # return since update of action is small

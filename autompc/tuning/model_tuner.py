@@ -178,10 +178,10 @@ class ModelTuner:
         else:
             if max_train_time is not None:
                 self.model.set_train_budget(max_train_time)
-            smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                   tae_runner=self._evaluate)
-            # smac = SMAC4AC(scenario=scenario, rng=smac_rng,
-            #         tae_runner=self._evaluate)
+            #smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
+            #        tae_runner=self._evaluate)
+            smac = SMAC4AC(scenario=scenario, rng=smac_rng,
+                    tae_runner=self._evaluate)
         
         incumbent = smac.optimize()
 

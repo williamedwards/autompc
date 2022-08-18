@@ -143,8 +143,6 @@ class Controller(TunablePipeline,Policy):
                 OCPTransformer to set.
         """
         self.ocp_transformers = [ocp_transformer]
-        self.set_component("cost_transformer",self.ocp_transformers)
-
 
     def set_ocp_transformers(self, ocp_transformers : List[OCPTransformer]) -> None:
         """
@@ -156,7 +154,6 @@ class Controller(TunablePipeline,Policy):
                 Set of OCP transformers which can be selected.
         """
         self.ocp_transformers = ocp_transformers
-        self.set_component("cost_transformer",self.ocp_transformers)
 
     def add_ocp_transformer(self, ocp_transformer):
         """
@@ -175,13 +172,6 @@ class Controller(TunablePipeline,Policy):
         also update the current optimizer's target
         """
         self.ocp = ocp
-
-        if self.ocp_transformer:
-            self.transformed_ocp = self.ocp_transformer(self.ocp)
-        else:
-            self.transformed_ocp = self.ocp
-        if self.optimizer:
-            self.optimizer.set_ocp(self.transformed_ocp)
 
     def get_config_space(self):
         """
@@ -208,7 +198,7 @@ class Controller(TunablePipeline,Policy):
                 regularizers.append(transformer)
             elif transformer.name != 'Identity':
                 cost_transformers.append(transformer)
-        #cost_transformers.append(dummy)
+        cost_transformers.append(dummy)
         
         if len(cost_transformers) > 1:
             self.set_component("cost_transformer", cost_transformers)
@@ -456,6 +446,12 @@ class Controller(TunablePipeline,Policy):
                 self.ocp_transformer.train(trajs)
             else:
                 raise ControllerStateError("Specified OCP transformer requires learning from trajectories.")
+                
+        if self.ocp_transformer:
+            self.transformed_ocp = self.ocp_transformer(self.ocp)
+        else:
+            self.transformed_ocp = self.ocp
+        self.optimizer.set_ocp(self.transformed_ocp)
 
         self.reset()
     
