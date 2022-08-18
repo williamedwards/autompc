@@ -173,6 +173,15 @@ class Controller(TunablePipeline,Policy):
         """
         self.ocp = ocp
 
+        if len(self.ocp_transformers) == 1:
+            self.ocp_transformer = self.ocp_transformers[0]
+        if self.ocp_transformer:
+            self.transformed_ocp = self.ocp_transformer(self.ocp)
+        else:
+            self.transformed_ocp = self.ocp
+        if self.optimizer:
+            self.optimizer.set_ocp(self.transformed_ocp)
+
     def get_config_space(self):
         """
         Returns the joint controller configuration space.
