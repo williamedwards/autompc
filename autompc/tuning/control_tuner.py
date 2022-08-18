@@ -649,12 +649,11 @@ class CfgRunner:
 
         controller.set_config(cfg)
         controller.build(sysid_trajs)
-        start = time.time()
         trajs = control_evaluator(controller)
+        performance = performance_metric(trajs)
         info["surr_info"] = trajs
         info["surr_cost"] = performance
-        performance = performance_metric(trajs)
-        if not truedyn_evaluator is None:
+        if truedyn_evaluator is not None:
             trajs = truedyn_evaluator(controller)
             performance = performance_metric(trajs)
             info["truedyn_cost"] = performance
@@ -668,5 +667,4 @@ class CfgRunner:
         # if not self.log_file_name is None:
         #     sys.stdout.close()
         #     sys.stderr.close()
-        print('returning') # DEBUG
         return info

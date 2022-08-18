@@ -444,13 +444,7 @@ class IterativeLQR(Optimizer):
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         if substep == 0: 
-            start = time.time()
-            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess, timeout=self.system.dt) # DEBUG, no itr
-            end = time.time()
-            if (end-start > 0.3):
-                print("ILQR timeout: ", end-start)
-                #print('Num iter: ', itr)
-                #print('Breakdown: ', preloop_duration, backward_duration, rollout_duration, ls_duration, preloop_duration+backward_duration+rollout_duration+ls_duration)
+            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess)
             self._guess = np.concatenate((ctrls[1:], ctrls[-1:]*0), axis=0)
             self._traj = Trajectory(self.model.state_system, states, 
                 np.vstack([ctrls, np.zeros(self.system.ctrl_dim)]))
