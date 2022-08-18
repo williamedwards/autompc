@@ -102,7 +102,7 @@ class MLP(FullyObservableModel):
       Type of activation function.
     - **lr** *(Type: float, Low: 1e-5, High: 1, Default: 1e-3)*: Adam learning rate for the network.
     """
-    def __init__(self, system, n_train_iters=200, n_batch=64, use_cuda=False):
+    def __init__(self, system, n_train_iters=200, n_batch=64, use_cuda=True):
         super().__init__(system, "MLP")
         self.n_train_iters = n_train_iters
         self.n_batch = n_batch
