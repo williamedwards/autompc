@@ -60,7 +60,7 @@ class LogBarrierCost(Cost):
 
     def incremental_hess(self, obs, control): # TODO: Tuple unpacking only supported for python>=3.8
         hess_obs_ctrl = np.zeros((self.system.obs_dim, self.system.ctrl_dim))
-        return *self.incremental_diff(obs, control), self.eval_obs_cost_hess(obs), hess_obs_ctrl, self.eval_ctrl_cost_hess(control)
+        return self.incremental(obs, control), self.eval_obs_cost_diff(obs), self.eval_ctrl_cost_diff(control), self.eval_obs_cost_hess(obs), hess_obs_ctrl, self.eval_ctrl_cost_hess(control)
 
     def terminal(self, obs):
         return 0
@@ -185,12 +185,3 @@ class LogBarrierCost(Cost):
             if upper < np.inf:
                 hessian[index][index] += scale / ((upper - ctrl[index])**2)
         return hessian
-
-    def eval_term_obs_cost(self, obs):
-        return 0
-
-    def eval_term_obs_cost_diff(self, obs):
-        return 0
-
-    def eval_term_obs_cost_hess(self, obs):
-        return 0
