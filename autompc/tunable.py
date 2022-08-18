@@ -116,6 +116,15 @@ class Tunable(ABC):
         for key,defaults in kwargs.items():
             hyperparams[key].default_value = defaults
 
+    def set_hyperparameter_logs(self, **kwargs) -> None:
+        """Sets whether to use log scale for float hyperparameters."""
+        hyperparams = self._configuration_space.get_hyperparameters_dict()
+        for key,log in kwargs.items():
+            hyper = hyperparams[key]
+            if not hasattr(hyper, "log"):
+                raise ValueError("Can only set log for supported hyperparamater types")
+            hyper.log = log
+
     def freeze_hyperparameters(self):
         """Denotes that this instance should no longer be tunable."""
         self._configuration_space = ConfigurationSpace()
