@@ -73,7 +73,7 @@ class LogBarrierCostTransformer(OCPTransformer):
             if(boundedState in self._limits):
                 self.set_hyperparameter_bounds(**{boundedState+"_LogBarrier": (lower_bound,upper_bound)})
                 self.set_hyperparameter_defaults(**{boundedState+"_LogBarrier": default})
-                self.set_hyperparameter_log(**{boundedState+"_LogBarrier": log})
+                self.set_hyperparameter_logs(**{boundedState+"_LogBarrier": log})
             else:
                 raise ValueError(str(boundedState) + " does not have a configured limit use set_limit")
         else:
@@ -100,7 +100,7 @@ class LogBarrierCostTransformer(OCPTransformer):
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         for name in self.system.observations + self.system.controls:
-            hyper = CS.Constant(name+"_LogBarrier", BARRIER_COST_DEFAULT_VALUE)
+            hyper = CS.Constant(name+"_LogBarrier", 0.0)
             cs.add_hyperparameter(hyper)
         return cs
 
