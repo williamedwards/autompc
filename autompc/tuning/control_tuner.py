@@ -20,7 +20,7 @@ from ..trajectory import Trajectory
 from ..dynamics import Dynamics
 from .model_tuner import ModelTuner, ModelTunerResult
 from .model_evaluator import ModelEvaluator
-from .control_evaluator import ControlEvaluator, ParallelStandardEvaluator, StandardEvaluator, ControlEvaluationTrial, trial_to_json
+from .control_evaluator import ControlEvaluator, StandardEvaluator, ControlEvaluationTrial, trial_to_json
 from .control_performance_metric import ControlPerformanceMetric,ConfidenceBoundPerformanceMetric
 from .bootstrap_evaluator import BootstrapSurrogateEvaluator
 from .smac_runner import SMACRunner
@@ -253,8 +253,7 @@ class ControlTuner:
             print("Skipping surrogate tuning, surrogate is a trained model")
             print("------------------------------------------------------------------")
             if control_evaluator is None:
-                #control_evaluator = ParallelEvaluator(StandardEvaluator(controller.system, task, surrogate, 'surr_'), dynamics=surrogate, max_jobs=5)
-                control_evaluator = ParallelStandardEvaluator(controller.system, task, surrogate, 'surr_')
+                control_evaluator = ParallelEvaluator(StandardEvaluator(controller.system, task, surrogate, 'surr_'), dynamics=surrogate, max_jobs=len(task))
             else:
                 assert not isinstance(control_evaluator,BootstrapSurrogateEvaluator),'Need an evaluator that does not train'
         else:

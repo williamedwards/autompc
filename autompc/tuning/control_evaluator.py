@@ -117,37 +117,8 @@ class StandardEvaluator(ControlEvaluator):
 
     def evaluate_for_task(self, controller : Policy, task : Task):
         print("Simulating Trajectory...",end='')
+        controller.set_ocp(task)
+        controller.reset()
         res = self.evaluate_for_task_dynamics(controller,task,self.dynamics)
         print("Resulting cost",res.cost)
         return res
-
-class ParallelStandardEvaluator(StandardEvaluator):
-    def __init__(self, system, tasks, dynamics, prefix='',max_jobs=None):
-        super().__init__(system, tasks, dynamics, prefix)
-        if max_jobs is None:
-            self.max_jobs = len(tasks)
-        else:
-            self.max_jobs = max_jobs
-    def __call__(self, policy : Union[Policy,Controller]) -> List[ControlEvaluationTrial]:
-        """
-        Evaluates policy on all tasks in parallel.  Default just runs evaluate_for_task
-        on all tasks.
-        
-        Returns
-        --------
-            trial_info (List[ControlEvaluationTrial]):
-                A list of trials evaluated.
-        """
-        if callable(self.tasks):
-            raise ValueError("Can't use a task sampling function in evaluator class {}, must override __call__".format(self.__class__.__name__))
-            
-        results = []
-        def f(task):
-            i, task = task
-            if hasattr(policy,'set_ocp'):  #it's a Controller
-                policy.set_ocp(task)
-            policy.reset()
-            print(f"Evaluating Task {i}")
-            return self.evaluate_for_task(policy, task)
-        results = Parallel(n_jobs=self.max_jobs)(delayed(f)(task) for task in enumerate(self.tasks))
-        return results
