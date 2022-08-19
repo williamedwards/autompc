@@ -28,7 +28,7 @@ class ParallelEvaluator(ControlEvaluator):
         return min(self.max_jobs,len(self.dynamics_models)*len(self.tasks))
 
     def run_job(self, controller, job_idx) -> ControlEvaluationTrial:
-        model_idx, task_idx = job_idx % len(self.tasks), job_idx // len(self.tasks)
+        task_idx, model_idx = job_idx % len(self.tasks), job_idx // len(self.tasks)
         surrogate = self.dynamics_models[model_idx]
         print("Simulating Surrogate Trajectory for Model {}, Task {}: ".format(model_idx, task_idx))
         self.evaluator.dynamics = surrogate
