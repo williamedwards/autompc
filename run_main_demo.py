@@ -22,9 +22,15 @@ def run_main(benchmark):
 
     restore_dir = '/home/randomgraph/baoyul2/meta/autompc/autompc-output_2022-08-14T18:04:00/run_1660536240245'
     # End-to-end tuning
-    tuned_controller, tune_result = tuner.run(controller, task, trajs, n_iters=100, rng=np.random.default_rng(100), 
-                                    truedyn=benchmark.dynamics, restore_dir=restore_dir)
-    
+    # tuned_controller, tune_result = tuner.run(controller, task, trajs, n_iters=100, rng=np.random.default_rng(100), 
+    #                                 truedyn=benchmark.dynamics, restore_dir=restore_dir)
+    # tuned_controller, tune_result = tuner.run(controller, task, trajs, n_iters=2, surrogate_tune_iters=2, 
+    #                                 rng=np.random.default_rng(100),
+    #                                 restore_dir=restore_dir)
+    tuned_controller, tune_result = tuner.run(controller, task, trajs, n_iters=2, surrogate_tune_iters=2, 
+                                    rng=np.random.default_rng(100))
+                                    
+
     return tuned_controller, tune_result
 
 if __name__ == "__main__":

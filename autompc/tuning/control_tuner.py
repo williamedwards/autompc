@@ -221,7 +221,8 @@ class ControlTuner:
         self.max_trials_per_evaluation = max_trials_per_evaluation
         self.control_evaluator = control_evaluator
         if performance_metric is None:
-            performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
+            #performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
+            performance_metric = ControlPerformanceMetric() #DEBUG
         self.performance_metric = performance_metric
 
     def _get_tuning_data(self, controller : Controller, task : List[Task], trajs : List[Trajectory],
@@ -524,7 +525,7 @@ class ControlTuner:
             initial_design = None
 
         # if not restore_dir:
-        if True:
+        if True: #DEBUG
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
                     initial_design=initial_design,
                     tae_runner=eval_cfg,
@@ -581,7 +582,7 @@ class CfgRunner:
         self.eval_number += 1
         # TODO: multiprocessing can not work right now
         # if self.timeout is None:
-        if True:
+        if True: #DEBUG
             result = self.run(cfg)
         else:
             #p = multiprocessing.Process(target=self.run_mp, args=(cfg,))
@@ -664,12 +665,10 @@ class CfgRunner:
         controller.set_config(cfg)
         controller.build(sysid_trajs)
         trajs = control_evaluator(controller)
-        # print(trajs)
-        # exit()
         performance = performance_metric(trajs)
         info["surr_cost"] = performance
         info["surr_info"] = trajs
-        if not truedyn_evaluator is None:
+        if truedyn_evaluator is not None:
             trajs = truedyn_evaluator(controller)
             performance = performance_metric(trajs)
             info["truedyn_cost"] = performance

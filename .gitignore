@@ -1,8 +1,10 @@
 smac3-output*
+autompc-output*
 .vscode/
 .venv/
 cache/*
 *.npz
+run_*
 
 *.png
 *.pdf
