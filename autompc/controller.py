@@ -43,7 +43,8 @@ class Controller(TunablePipeline,Policy):
         self.system = system
         self.models = []
         self.optimizers = []
-        self.ocp_transformers = [IdentityTransformer(system)]
+        # self.ocp_transformers = [IdentityTransformer(system)]
+        self.ocp_transformers = [] #DEBUG
         self.model = None                #type: Model
         self.optimizer = None            #type: Optimizer
         self.ocp_transformer = None      #type: OCPTransformer
@@ -173,6 +174,12 @@ class Controller(TunablePipeline,Policy):
         """
         self.ocp = ocp
 
+        #DEBUG 
+        if not self.ocp_transformer:
+            if len(self.ocp_transformers) == 1:
+                self.ocp_transformer = self.ocp_transformers[0]
+        print(self.ocp_transformer)
+        
         if self.ocp_transformer:
             self.transformed_ocp = self.ocp_transformer(self.ocp)
         else:

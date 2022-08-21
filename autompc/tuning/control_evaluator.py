@@ -15,6 +15,8 @@ ControlEvaluationTrial = namedtuple("ControlEvaluationTrial", ["policy","task","
     "cost","traj","term_cond","eval_time"])
 
 def trial_to_json(trial : ControlEvaluationTrial):
+    # cannot convert dictionary update sequence element #0 to a sequence
+    # res = dict(trial)
     res = trial._asdict()
     res['policy'] = str(trial.policy)
     res['task'] = str(trial.task)

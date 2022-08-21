@@ -224,7 +224,8 @@ class MLP(FullyObservableModel):
         t0 = time.time()
         for i in tqdm(range(self.n_train_iters), file=sys.stdout):
             self._step_train()
-            if self.train_time_budget is not None and time.time()-t0 > self.train_time_budget:
+            # if self.train_time_budget is not None and time.time()-t0 > self.train_time_budget:
+            if False:
                 print("Reached timeout of %.2fs"%self.train_time_budget)
                 break
 
