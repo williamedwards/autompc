@@ -5,9 +5,10 @@ import unittest
 
 # Internal library includes
 import autompc as ampc
+from autompc import Trajectory
 from autompc.sysid import ARX
 from autompc.costs import QuadCost, SumCost
-from autompc.ocp import OCP, QuadCostFactory, GaussRegFactory
+from autompc.ocp import OCP, QuadCostTransformer, GaussRegTransformer
 from autompc.optim import IterativeLQR
 
 # External library includes
@@ -39,7 +40,7 @@ def uniform_random_generate(system, task, dynamics, rng, init_min, init_max,
         state0 = [rng.uniform(minval, maxval, 1)[0] for minval, maxval 
                 in zip(init_min, init_max)]
         y = state0[:]
-        traj = ampc.zeros(system, traj_len)
+        traj = Trajectory.zeros(system, traj_len)
         traj.obs[:] = y
         umin, umax = task.get_ctrl_bounds().T
         for i in range(traj_len):
@@ -50,7 +51,7 @@ def uniform_random_generate(system, task, dynamics, rng, init_min, init_max,
         trajs.append(traj)
     return trajs
 
-class QuadCostFactoryTest(unittest.TestCase):
+class QuadCostTransformerTest(unittest.TestCase):
     def setUp(self):
         simple_sys = ampc.System(["x", "y"], ["u"])
         self.system = simple_sys
@@ -66,8 +67,8 @@ class QuadCostFactoryTest(unittest.TestCase):
         self.ocp.set_ctrl_bound("u", -20.0, 20.0)
 
     def test_config_space(self):
-        factory = QuadCostFactory(self.system)
-        cs = factory.get_config_space()
+        transformer = QuadCostTransformer(self.system)
+        cs = transformer.get_config_space()
         self.assertIsInstance(cs, CS.ConfigurationSpace)
 
         hyper_names = cs.get_hyperparameter_names()
@@ -75,21 +76,27 @@ class QuadCostFactoryTest(unittest.TestCase):
         self.assertEqual(set(hyper_names), set(target_hyper_names))
 
     def test_fixed_hyperparameters(self):
-        factory = QuadCostFactory(self.system)
-        factory.fix_Q_value("x", 0.0)
-        factory.fix_F_value("y", 1.5)
-        factory.fix_R_value("u", 2.0)
-        cs = factory.get_config_space()
-        self.assertIsInstance(cs, CS.ConfigurationSpace)
+        transformer = QuadCostTransformer(self.system)
+        transformer.fix_Q_value("x", 0.0)
+        transformer.fix_F_value("y", 1.5)
+        transformer.fix_R_value("u", 2.0)
+        cs = transformer.get_config_space()
 
-        hyper_names = cs.get_hyperparameter_names()
-        target_hyper_names = ["y_Q", "x_F"]
-        self.assertEqual(set(hyper_names), set(target_hyper_names))
+        self.assertIsInstance(cs, CS.ConfigurationSpace)
+        self.assertEqual(cs["x_Q"].lower, 0.0)
+        self.assertEqual(cs["x_Q"].default_value, 0.0)
+        self.assertEqual(cs["x_Q"].upper, 0.0)
+        self.assertEqual(cs["y_F"].lower, 1.5)
+        self.assertEqual(cs["y_F"].default_value, 1.5)
+        self.assertEqual(cs["y_F"].upper, 1.5)
+        self.assertEqual(cs["u_R"].lower, 2.0)
+        self.assertEqual(cs["u_R"].default_value, 2.0)
+        self.assertEqual(cs["u_R"].upper, 2.0)
 
         cfg = cs.get_default_configuration()
 
-        factory.set_config(cfg)
-        transformed_ocp = factory(self.ocp)
+        transformer.set_config(cfg)
+        transformed_ocp = transformer(self.ocp)
         cost = transformed_ocp.get_cost()
 
         self.assertIsInstance(cost, QuadCost)
@@ -100,11 +107,11 @@ class QuadCostFactoryTest(unittest.TestCase):
         self.assertTrue((R == np.diag([2.0])).all())
 
     def test_adjust_bounds(self):
-        factory = QuadCostFactory(self.system)
-        factory.set_Q_bounds("x", 0.01, 50.0, 2.0, False)
-        factory.set_F_bounds("y", 0.05, 25.0, 0.5, True)
-        factory.set_R_bounds("u", 10.0, 20.0, 15.0, False)
-        cs = factory.get_config_space()
+        transformer = QuadCostTransformer(self.system)
+        transformer.set_Q_bounds("x", 0.01, 50.0, 2.0, False)
+        transformer.set_F_bounds("y", 0.05, 25.0, 0.5, True)
+        transformer.set_R_bounds("u", 10.0, 20.0, 15.0, False)
+        cs = transformer.get_config_space()
         self.assertIsInstance(cs, CS.ConfigurationSpace)
         self.assertEqual(cs.get_hyperparameter("x_Q").lower, 0.01)
         self.assertEqual(cs.get_hyperparameter("x_Q").upper, 50.0)
@@ -124,9 +131,9 @@ class QuadCostFactoryTest(unittest.TestCase):
         self.assertEqual(cs.get_hyperparameter("x_F").log, True)
 
     def test_tunable_goal(self):
-        factory = QuadCostFactory(self.system, goal=np.zeros(self.system.obs_dim))
-        factory.set_tunable_goal("x", -10.0, 20.0, 10.0, False)
-        cs = factory.get_config_space()
+        transformer = QuadCostTransformer(self.system)
+        transformer.set_tunable_goal("x", -10.0, 20.0, 10.0, False)
+        cs = transformer.get_config_space()
         self.assertIsInstance(cs, CS.ConfigurationSpace)
         self.assertEqual(cs.get_hyperparameter("x_Goal").lower, -10.0)
         self.assertEqual(cs.get_hyperparameter("x_Goal").upper, 20.0)
@@ -135,18 +142,18 @@ class QuadCostFactoryTest(unittest.TestCase):
 
         cfg = cs.get_default_configuration()
         cfg["x_Goal"] = 5.0
-        factory.set_config(cfg)
-        transformed_ocp = factory(self.ocp)
+        transformer.set_config(cfg)
+        transformed_ocp = transformer(self.ocp)
         cost = transformed_ocp.get_cost()
-        self.assertTrue(np.allclose(cost._goal, np.array([5.0, 0.0])))
+        self.assertTrue(np.allclose(cost.goal, np.array([5.0, 0.0])))
 
     def test_call_factory(self):
-        factory = QuadCostFactory(self.system)
-        cs = factory.get_config_space()
+        transformer = QuadCostTransformer(self.system)
+        cs = transformer.get_config_space()
         cfg = cs.get_default_configuration()
 
-        factory.set_config(cfg)
-        ocp = factory(self.ocp)
+        transformer.set_config(cfg)
+        ocp = transformer(self.ocp)
         cost = ocp.get_cost()
 
         self.assertIsInstance(cost, QuadCost)
@@ -179,19 +186,19 @@ class SumCostTest(unittest.TestCase):
         goal3 = np.array([1.0, 0.0])
         self.cost3 = QuadCost(self.system, Q3, R3, F3, goal3)
 
-    def test_operator_overload(self):
-        sum1 = (self.cost1 + self.cost2) + self.cost3
-        sum2 = self.cost1 + (self.cost2 + self.cost3)
-        sum3 = self.cost1 + self.cost2 + self.cost3
+    # def test_operator_overload(self):
+    #     sum1 = (self.cost1 + self.cost2) + self.cost3
+    #     sum2 = self.cost1 + (self.cost2 + self.cost3)
+    #     sum3 = self.cost1 + self.cost2 + self.cost3
 
-        targ_costs = [self.cost1, self.cost2, self.cost3]
-        for sum_cost in (sum1, sum2, sum3):
-            self.assertEqual(len(sum_cost.costs), len(targ_costs))
-            for cost, targ_cost in zip(sum_cost.costs, targ_costs):
-                self.assertIs(cost, targ_cost)
+    #     targ_costs = [self.cost1, self.cost2, self.cost3]
+    #     for sum_cost in (sum1, sum2, sum3):
+    #         self.assertEqual(len(sum_cost.costs), len(targ_costs))
+    #         for cost, targ_cost in zip(sum_cost.costs, targ_costs):
+    #             self.assertIs(cost, targ_cost)
 
     def test_properties(self):
-        sum1 = self.cost1 + self.cost2
+        sum1 = self.cost1 + self.cost1
         sum2 = self.cost1 + self.cost3
 
         self.assertTrue(sum1.is_quad)
@@ -210,18 +217,23 @@ class SumCostTest(unittest.TestCase):
         sum1 = self.cost1 + self.cost2 + self.cost3
 
         obs = np.array([-1, 1])
+        ctrl = np.array([5.0])
 
-        res = sum1.eval_obs_cost(obs)
-        self.assertEqual(res, 8)
-        res, jac = sum1.eval_obs_cost_diff(obs)
-        self.assertEqual(res, 8)
-        self.assertTrue((jac == np.array([-4,12])).all())
-        res, jac, hess = sum1.eval_obs_cost_hess(obs)
-        self.assertEqual(res, 8)
-        self.assertTrue((jac == np.array([-4,12])).all())
-        self.assertTrue((hess == np.diag([4,12])).all())
+        res = sum1.incremental(obs, ctrl)
+        self.assertEqual(res, 48)
+        res, jac_obs, jac_ctrl = sum1.incremental_diff(obs, ctrl)
+        self.assertEqual(res, 48)
+        self.assertTrue((jac_obs == np.array([-4,12])).all())
+        self.assertTrue((jac_ctrl == np.array([16])).all())
+        res, jac_obs, jac_ctrl, hess_dx2, hess_dxdu, hess_du2 = sum1.incremental_hess(obs, ctrl)
+        self.assertEqual(res, 48)
+        self.assertTrue((jac_obs == np.array([-4,12])).all())
+        self.assertTrue((jac_ctrl == np.array([16])).all())
+        self.assertTrue((hess_dx2 == np.diag([4,12])).all())
+        self.assertTrue((hess_dxdu == np.array([[0],[0]])).all())
+        self.assertTrue((hess_du2 == np.diag([3.2])).all())
 
-class SumCostFactoryTest(unittest.TestCase):
+class SumTransformerTest(unittest.TestCase):
     def setUp(self):
         double_int = ampc.System(["x", "y"], ["u"])
         self.system = double_int
@@ -243,11 +255,11 @@ class SumCostFactoryTest(unittest.TestCase):
                 init_max=[1.0, 1.0], traj_len=20, n_trajs=20)
 
     def test_config_space(self):
-        factory1 = QuadCostFactory(self.system)
-        factory2 = GaussRegFactory(self.system)
+        transformer1 = QuadCostTransformer(self.system)
+        transformer2 = GaussRegTransformer(self.system)
 
-        sum_factory = factory1 + factory2
-        cs = sum_factory.get_config_space()
+        sum_transformer = transformer1 + transformer2
+        cs = sum_transformer.get_config_space()
         self.assertIsInstance(cs, CS.ConfigurationSpace)
 
         cfg = cs.get_default_configuration()
@@ -261,33 +273,34 @@ class SumCostFactoryTest(unittest.TestCase):
                     extr_key = key.split(":")[1]
                     extr_dict[extr_key] = val
             extr_dicts.append(extr_dict)
-        cfg1_dict = factory1.get_default_config().get_dictionary()
-        cfg2_dict = factory2.get_default_config().get_dictionary()
+        cfg1_dict = transformer1.get_default_config().get_dictionary()
+        cfg2_dict = transformer2.get_default_config().get_dictionary()
         self.assertEqual(extr_dicts[0], cfg1_dict)
         self.assertEqual(extr_dicts[1], cfg2_dict)
 
     def test_call(self):
-        factory1 = QuadCostFactory(self.system)
-        factory2 = GaussRegFactory(self.system)
-        sum_factory = factory1 + factory2
+        transformer1 = QuadCostTransformer(self.system)
+        transformer2 = GaussRegTransformer(self.system)
+        sum_transformer = transformer1 + transformer2
 
-        cfg = sum_factory.get_default_config()
-        cfg1 = factory1.get_default_config()
-        cfg2 = factory2.get_default_config()
+        cfg = sum_transformer.get_default_config()
+        cfg1 = transformer1.get_default_config()
+        cfg2 = transformer2.get_default_config()
 
-        sum_factory.set_config(cfg)
-        factory1.set_config(cfg1)
-        factory2.set_config(cfg2)
-        factory2.train(self.trajs)
-        cost = sum_factory(self.ocp).get_cost()
-        cost1 = factory1(self.ocp).get_cost()
-        cost2 = factory2(self.ocp).get_cost()
+        sum_transformer.set_config(cfg)
+        transformer1.set_config(cfg1)
+        transformer2.set_config(cfg2)
+        transformer2.train(self.trajs)
+        cost = sum_transformer(self.ocp).get_cost()
+        cost1 = transformer1(self.ocp).get_cost()
+        cost2 = transformer2(self.ocp).get_cost()
 
         self.assertIsInstance(cost, SumCost)
 
         obs = np.array([-1, 2])
-        val = cost.eval_obs_cost(obs)
-        val1 = cost1.eval_obs_cost(obs)
-        val2 = cost2.eval_obs_cost(obs)
+        ctrl = np.array([5])
+        val = cost.incremental(obs, ctrl)
+        val1 = cost1.incremental(obs, ctrl)
+        val2 = cost2.incremental(obs, ctrl)
 
         self.assertEqual(val, val1+val2)

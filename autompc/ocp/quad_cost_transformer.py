@@ -52,7 +52,10 @@ class QuadCostTransformer(OCPTransformer):
         """
         if not obsname in self.system.observations:
             raise ValueError("obsname not recognized")
-        self._goal_tunable[obsname] = (lower_bound, upper_bound, default, log)
+        hyper = CSH.UniformFloatHyperparameter(obsname+"_Goal",
+                lower=lower_bound, upper=upper_bound, default_value=default, log=log)
+        cs = self.get_config_space()
+        cs.add_hyperparameter(hyper)
 
     def fix_Q_value(self, obsname, value):
         """
@@ -103,6 +106,8 @@ class QuadCostTransformer(OCPTransformer):
         self.set_hyperparameter_bounds(**args)
         args[obsname+'_Q'] = default
         self.set_hyperparameter_defaults(**args)
+        args[obsname+'_Q'] = log
+        self.set_hyperparameter_logs(**args)
 
     def set_R_bounds(self, ctrlname, lower_bound, upper_bound, default, log=False):
         """
@@ -120,6 +125,8 @@ class QuadCostTransformer(OCPTransformer):
         self.set_hyperparameter_bounds(**args)
         args[ctrlname+'_R'] = default
         self.set_hyperparameter_defaults(**args)
+        args[ctrlname+'_R'] = log
+        self.set_hyperparameter_logs(**args)
 
     def set_F_bounds(self, obsname, lower_bound, upper_bound, default, log=False):
         """
@@ -137,6 +144,8 @@ class QuadCostTransformer(OCPTransformer):
         self.set_hyperparameter_bounds(**args)
         args[obsname+'_F'] = default
         self.set_hyperparameter_defaults(**args)
+        args[obsname+'_F'] = log
+        self.set_hyperparameter_logs(**args)
 
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
@@ -173,22 +182,36 @@ class QuadCostTransformer(OCPTransformer):
     def get_prototype(self, config, ocp):
         return PrototypeOCP(ocp, cost=QuadCost)
 
-    def __call__(self, ocp):
+    def _get_cost_matrices(self):
         config = self.get_config()
+
         Qdiag = [config[name+"_Q"] for name in self.system.observations]
         Rdiag = [config[name+"_R"] for name in self.system.controls]
         Fdiag = [config[name+"_F"] for name in self.system.observations]
+
         Q = np.diag(Qdiag)
         R = np.diag(Rdiag)
         F = np.diag(Fdiag)
-        goal = ocp.cost.goal
-        if len(self._goal_tunable)>0:
-            goal = np.copy(goal)
-            for key in self._goal_tunable:
-                index = self.system.observations.index(key)
-                goal[index] = config[key+"_goal"]
+
+        return Q, R, F
+
+    def _get_goal(self, ocp):
+        config = self.get_config()
+
+        goal = np.copy(ocp.cost.goal)
+        for index, obs_name in enumerate(self.system.observations):
+            if f"{obs_name}_Goal" in config:
+                goal[index] = config[f"{obs_name}_Goal"]
+
+        return goal
+        
+
+    def __call__(self, ocp):
+        Q, R, F = self._get_cost_matrices()
+        goal = self._get_goal(ocp)
 
         new_cost = QuadCost(self.system, Q, R, F, goal=goal)
         new_ocp = copy.deepcopy(ocp)
         new_ocp.set_cost(new_cost)
-        return  new_ocp
+
+        return new_ocp
