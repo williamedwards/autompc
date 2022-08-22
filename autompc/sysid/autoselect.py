@@ -138,3 +138,9 @@ class AutoSelectModel (Model, TunablePipeline):
         if self.selected_model is None:
             return False
         return self.selected_model.is_diff
+
+    @property
+    def state_system(self) -> System:
+        if self.selected_model is None:
+            raise False
+        return self.selected_model.state_system
