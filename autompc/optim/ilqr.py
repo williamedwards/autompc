@@ -444,7 +444,7 @@ class IterativeLQR(Optimizer):
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         if substep == 0: 
-            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess)
+            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess, timeout=self.system.dt)
             self._guess = np.concatenate((ctrls[1:], ctrls[-1:]*0), axis=0)
             self._traj = Trajectory(self.model.state_system, states, 
                 np.vstack([ctrls, np.zeros(self.system.ctrl_dim)]))
