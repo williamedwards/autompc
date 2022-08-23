@@ -1,11 +1,8 @@
-# Created by William Edwards (wre2@illinois.edu), 2021-01-09
-
 # Standard library includes
 import sys, time
 
 # External library includes
 import numpy as np
-# import mujoco_py
 import mujoco_py
 
 # Project includes
@@ -16,20 +13,7 @@ from ..task import Task
 from ..trajectory import Trajectory
 from ..costs import Cost, QuadCost
 
-def viz_halfcheetah_traj(env, traj, repeat):
-    for _ in range(repeat):
-        env.reset()
-        qpos = traj[0].obs[:9]
-        qvel = traj[0].obs[9:]
-        env.set_state(qpos, qvel)
-        for i in range(len(traj)):
-            u = traj[i].ctrl
-            env.step(u)
-            env.render()
-            time.sleep(0.05)
-        time.sleep(1)
-
-def halfcheetah_dynamics(env, x, u, n_frames=5):
+def mujoco_dynamics(env, x, u, n_frames=5):
     old_state = env.sim.get_state()
     old_qpos = old_state[1]
     qpos = x[:len(old_qpos)]
@@ -47,11 +31,13 @@ def halfcheetah_dynamics(env, x, u, n_frames=5):
 
     return np.concatenate([new_qpos, new_qvel])
 
-class HalfcheetahCost(Cost):
+#TODO: Cost is used for controller tuning.
+#Different data may have different costs. 
+class MujocoCost(Cost):
     def __init__(self, env):
-        Cost.__init__(self,None)
+        super().__init__(self, None)
         self.env = env
-
+    
     def __call__(self, traj):
         cum_reward = 0.0
         for i in range(len(traj)-1):
@@ -59,13 +45,12 @@ class HalfcheetahCost(Cost):
             reward_run = (traj[i+1, "x0"] - traj[i, "x0"]) / self.env.dt
             cum_reward += reward_ctrl + reward_run
         return 200 - cum_reward
-
+    
     def incremental(self,obs,ctrl):
         raise NotImplementedError
 
     def terminal(self,obs):
         raise NotImplementedError
-
 
 def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     rng = np.random.default_rng(seed)
@@ -80,67 +65,46 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
             action = env.action_space.sample()
             traj[j-1].ctrl[:] = action
             #obs, reward, done, info = env.step(action)
-            obs = halfcheetah_dynamics(env, traj[j-1].obs[:], action)
+            obs = mujoco_dynamics(env, traj[j-1].obs[:], action)
             traj[j].obs[:] = obs
         trajs.append(traj)
     return trajs
 
-
-class HalfcheetahBenchmark(Benchmark):
-    """
-    This benchmark uses the OpenAI gym halfcheetah benchmark and is consistent with the
-    experiments in the ICRA 2021 paper. The benchmark reuqires OpenAI gym and mujoco_py
-    to be installed.  The performance metric is
-    :math:`200-R` where :math:`R` is the gym reward.
-    """
-    def __init__(self, data_gen_method="uniform_random"):
-        name = "halfcheetah"
+class OpenAIBenchmark(Benchmark):
+    def __init__(self, name, data_gen_method="uniform_random"):
         system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
 
         import gym, mujoco_py
-        env = gym.make("HalfCheetah-v2")
+        env = gym.make(name)
         self.env = env
 
         system.dt = env.dt
-        cost = HalfcheetahCost(env)
-        task = Task(system,cost)
-        task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
-        init_obs = np.concatenate([env.init_qpos, env.init_qvel])
-        task.set_init_obs(init_obs)
-        task.set_num_steps(200)
+        task = Task(system)
 
-        factory = QuadCost(system, goal = np.zeros(system.obs_dim))
-        for obs in system.observations:
-            if not obs in ["x1", "x6", "x7", "x8", "x9"]:
-                factory.fix_Q_value(obs, 0.0)
-            if not obs in ["x1", "x9"]:
-                factory.fix_F_value(obs, 0.0)
-        factory.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
-        self.cost_factory = factory
+        # cost = MujocoCost(env)
+        # task = Task(system,cost)
+        # task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
+        # init_obs = np.concatenate([env.init_qpos, env.init_qvel])
+        # task.set_init_obs(init_obs)
+        # task.set_num_steps(200)
 
+        # factory = QuadCost(system, goal = np.zeros(system.obs_dim))
+        # for obs in system.observations:
+        #     if not obs in ["x1", "x6", "x7", "x8", "x9"]:
+        #         factory.fix_Q_value(obs, 0.0)
+        #     if not obs in ["x1", "x9"]:
+        #         factory.fix_F_value(obs, 0.0)
+        # factory.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
+        # self.cost_factory = factory
 
         super().__init__(name, system, task, data_gen_method)
 
     def dynamics(self, x, u):
-        return halfcheetah_dynamics(self.env,x,u)
-
+        return mujoco_dynamics(self.env,x,u)
+    
     def gen_trajs(self, seed, n_trajs, traj_len=200):
         return gen_trajs(self.env, self.system, n_trajs, traj_len, seed)
-
-    def visualize(self, traj, repeat):
-        """
-        Visualize the half-cheetah trajectory using Gym functions.
-
-        Parameters
-        ----------
-        traj : Trajectory
-            Trajectory to visualize
-
-        repeat : int
-            Number of times to repeat trajectory in visualization
-        """
-        viz_halfcheetah_traj(self.env, traj, repeat)
-
+    
     @staticmethod
     def data_gen_methods():
         return ["uniform_random"]

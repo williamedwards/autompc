@@ -145,7 +145,9 @@ class SINDy(FullyObservableModel):
                 function_names=function_names)
         self.basis_funcs = basis_funcs
 
+        # DEBUG
         max_iter = 20 if self.train_time_budget is None else int(self.train_time_budget*STLSQ_ITERS_PER_SECOND)
+        # max_iter = 20
         if self.time_mode == "continuous":
             sindy_model = ps.SINDy(feature_library=library, 
                     discrete_time=False,

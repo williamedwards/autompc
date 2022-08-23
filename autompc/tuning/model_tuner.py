@@ -106,7 +106,8 @@ class ModelTuner:
         self.system = system
         self.model = model           # type: Model
         self.evaluator = evaluator   # type: ModelEvaluator
-        self.multi_fidelity = multi_fidelity
+        # self.multi_fidelity = multi_fidelity
+        self.multi_fidelity = False #DEBUG
         self.verbose = verbose
 
     def _evaluate(self, cfg, seed=None, budget=None):
@@ -115,7 +116,7 @@ class ModelTuner:
             print(cfg)
             print("Seed",seed,"budget",budget)
         self.model.set_config(cfg)
-        self.model.set_train_budget(budget)
+        # self.model.set_train_budget(budget)
         value = self.evaluator(self.model)
         if self.verbose:
             print("Model Score ", value)

@@ -2,6 +2,7 @@
 
 import numpy as np
 import numpy.linalg as la
+from typing import Optional
 
 from .cost import Cost
 
@@ -42,11 +43,14 @@ class ThresholdCost(Cost):
             self._obs_idxs = [system.observations.index(obs) for obs in observations]
         if self._obs_idxs is None:
             self._obs_idxs = list(range(0, system.obs_dim))
+        
+        #DEBUG
         if len(goal) < self.system.obs_dim:
             full_goal = np.zeros(self.system.obs_dim)
             full_goal[self._obs_idxs] = goal
             goal = full_goal
-        self.set_goal(goal)
+        # self.set_goal(goal)
+        super(__class__, self.__class__).set_goal.__set__(self, goal)
 
     def incremental(self, obs, ctrl):
         if (la.norm(obs[self._obs_idxs] - self.goal[self._obs_idxs], np.inf) 
@@ -57,6 +61,14 @@ class ThresholdCost(Cost):
 
     def terminal(self, obs):
         return 0.0
+    
+    @property
+    def goal(self) -> Optional[np.ndarray]:
+        return super(ThresholdCost, self).goal
+    
+    @goal.setter
+    def set_goal(self, goal):
+        return super(ThresholdCost, self.__class__).set_goal.fset(self, goal)
 
 
 class BoxThresholdCost(Cost):

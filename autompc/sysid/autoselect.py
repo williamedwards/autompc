@@ -52,7 +52,8 @@ class AutoSelectModel (Model, TunablePipeline):
         pipeline = TunablePipeline.get_configured_pipeline(self)
         self.selected_model = pipeline[0]
         #configure budget properties
-        self.selected_model.set_train_time(self.train_time_limit)
+        # DEBUG: model does not have attribute set_train_time
+        # self.selected_model.set_train_time(self.train_time_limit)
     
     def selected(self) -> Model:
         return self.selected_model
