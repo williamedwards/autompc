@@ -13,6 +13,7 @@ from autompc.costs.barrier_cost import LogBarrierCost
 # Internal libary includes
 from .optimizer import Optimizer
 from ..trajectory import Trajectory
+from ..cost import LogBarrierCost
 
 def inverse_semidefinite(A, damping=1e-3):
     w,V = np.linalg.eigh(A)
