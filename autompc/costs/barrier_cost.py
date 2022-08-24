@@ -6,7 +6,7 @@ import numpy.linalg as la
 from .cost import Cost
 
 class LogBarrierCost(Cost):
-    def __init__(self, system, boundedStates):
+    def __init__(self, system, obs_bounds, ctrl_bounds, scales):
         """
         Create barrier cost that approximates an inequality constraint.
         Function does not exist outside the limit.
@@ -16,32 +16,36 @@ class LogBarrierCost(Cost):
         ----------
         system : System
             Robot system object.
-        boundedState : dict
-            Dictionary of { "observation/control name" : (limit, scale, upper)}
+        scales : dict
+            Dictionary of { "observation/control name" : scale}
                 observation/control (x) : String
-                    Observation/control name for which limit is specified.
-                limit (a) : double
-                    limit value a that barrier is placed at.
+                    Observation/control name for which barrier is placed.
                 scale (b) : double
                     Positive scalar to magnify the cost function.
                     scale: (0, inf)
-                upper : boolean
-                    True if the limit is an upper limit.
-                    False if the limit is a lower limit.
         """
         super().__init__(system)
+        self.obs_bounds = obs_bounds
+        self.ctrl_bounds = ctrl_bounds
+        self.scales = scales
+
         self.obsConfiguration = []
         self.ctrlsConfiguration = []
 
-        for variable in boundedStates.keys():
-            config = boundedStates[variable]
+        for variable in scales.keys():
+            scale = scales[variable]
             # Check that scale is positive
-            if(config[1] < 0):
-                raise ValueError(f"{variable}'s log barrier must be positive, was {config[1]}")
+            if(scale < 0):
+                raise ValueError(f"{variable}'s log barrier scale must be positive, was {scale}")
+            elif scale == 0:
+                # Skip constructing barrier since transformer scale 0
+                continue
             elif(variable in system.observations):
-                self.obsConfiguration.append([variable, config])
+                lower, upper = obs_bounds[self.system.observations.index(variable)]
+                self.obsConfiguration.append([variable, (lower, upper, scale)])
             elif(variable in system.controls):
-                self.ctrlsConfiguration.append([variable, config])
+                lower, upper = ctrl_bounds[self.system.controls.index(variable)]
+                self.ctrlsConfiguration.append([variable, (lower, upper, scale)])
             else:
                 raise ValueError(f"Variable {variable} is not in the given system")
         
@@ -74,13 +78,13 @@ class LogBarrierCost(Cost):
     def __add__(self, rhs):
         if isinstance(rhs, LogBarrierCost):
             if (self.goal is None and rhs.goal is None) or np.all(self.goal == rhs.goal):
-                return LogBarrierCost(self.system, self.boundedStates+rhs.boundedStates)
+                return LogBarrierCost(self.system, self.obs_bounds, self.ctrl_bounds, self.scales+rhs.scales)
         return Cost.__add__(self, rhs)
 
     def __mul__(self, rhs):
         if not isinstance(rhs, (float, int)):
             raise ValueError("* only supports product with numbers")
-        new_cost = LogBarrierCost(self.system, self.boundedStates)
+        new_cost = LogBarrierCost(self.system, self.obs_bounds, self.ctrl_bounds, self.scales)
         return new_cost
 
 
