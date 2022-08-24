@@ -9,6 +9,7 @@ import numpy.linalg as la
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
+from autompc.costs.barrier_cost import LogBarrierCost
 # Internal libary includes
 from .optimizer import Optimizer
 from ..trajectory import Trajectory
@@ -309,7 +310,31 @@ class IterativeLQR(Optimizer):
             states[i + 1], jx, ju = self.model.pred_diff(states[i], ctrls[i])
             Jacs[i, :, :dimx] = jx
             Jacs[i, :, dimx:] = ju
+        
+        obs = self.model.get_obs(states)
+        # Elastic barrier
+        if not self.ocp.is_feasible(Trajectory(self.system, obs[1:], ctrls)):
+            print('trajectory left the feasible region')
+            eps=1e-3
+            obs_bounds = self.ocp.get_obs_bounds()
+            ctrl_bounds = self.ocp.get_ctrl_bounds()
+            obs_lower = obs_bounds[:,0]
+            obs_upper = obs_bounds[:,1]
+            ctrls_lower = ctrl_bounds[:,0]
+            ctrls_upper = ctrl_bounds[:,1]
+            # print(np.any(obs>obs_upper, axis=0))
+            # print(obs_bounds[np.any(obs>obs_upper, axis=0),1])
+            # print(max(obs[:,np.any(obs>obs_upper, axis=0)],default=None)+eps)
+            obs_bounds[np.any(obs<obs_lower, axis=0),0] = min(obs[:,np.any(obs<obs_lower, axis=0)],default=None)-eps
+            obs_bounds[np.any(obs>obs_upper, axis=0),1] = max(obs[:,np.any(obs>obs_upper, axis=0)],default=None)+eps
+            ctrl_bounds[np.any(ctrls<ctrls_lower, axis=0),0] = min(ctrls[:,np.any(ctrls<ctrls_lower, axis=0)],default=None)-eps
+            ctrl_bounds[np.any(ctrls>ctrls_upper, axis=0),1] = max(ctrls[:,np.any(ctrls>ctrls_upper, axis=0)],default=None)+eps
+            barrier_cost = LogBarrierCost(self.system, obs_bounds, ctrl_bounds, cost._costs[1].scales)
+            cost._costs[1]=barrier_cost
         obj = eval_obj(states, ctrls)
+        quad_cost, barrier_cost = eval_debug(states, ctrls)
+        self.debug_log(states, ctrls, obj, quad_cost, barrier_cost)
+        
         initcost = obj
         # start iteration from here
         Ct = np.zeros((dimx + dimu, dimx + dimu))

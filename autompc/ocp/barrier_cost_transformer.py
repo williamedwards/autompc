@@ -3,6 +3,7 @@
 # Standard library includes
 import copy
 from collections import defaultdict
+from multiprocessing.sharedctypes import Value
 
 # Internal library includes
 from .ocp_transformer import OCPTransformer, PrototypeOCP
@@ -19,6 +20,7 @@ BARRIER_COST_DEFAULT_VALUE = 1.0
 BARRIER_COST_DEFAULT_LOG = False
 class LogBarrierCostTransformer(OCPTransformer):
     def __init__(self, system):
+        self._scales = {}
         self._limits = {} # Key: obs/ctrlname, Value: (limit, upper)
         super().__init__(system, 'LogBarrierCostTransformer')
     """
@@ -79,6 +81,19 @@ class LogBarrierCostTransformer(OCPTransformer):
         else:
             raise ValueError(str(boundedState) + " is not in system")
 
+    def set_tunable_scale(self, boundedState, lower=BARRIER_COST_DEFAULT_BOUNDS[0],
+                                              upper=BARRIER_COST_DEFAULT_BOUNDS[1],
+                                              default_value=BARRIER_COST_DEFAULT_VALUE,
+                                              log=BARRIER_COST_DEFAULT_LOG):
+        if(boundedState in self.system.observations or boundedState in self.system.controls):
+            # Changing the scale hyperparameter from Constant to default UniformFloatHyperparameter
+            cs = self.get_config_space()
+            hp = cs.get_hyperparameter(boundedState+'_LogBarrier')
+            name = hp.name
+            new_hp = CS.UniformFloatHyperparameter(hp.name, lower, upper, default_value, log=log)            
+            cs._hyperparameters[name] = new_hp
+        else:
+            raise ValueError(str(boundedState) + " is not in system")
     def set_fixed_scale(self, boundedState, scale):
         if(boundedState in self.system.observations or boundedState in self.system.controls):
             if(boundedState in self._limits):
@@ -88,14 +103,13 @@ class LogBarrierCostTransformer(OCPTransformer):
         else:
             raise ValueError(str(boundedState) + " is not in system")
 
-    def _get_boundedState(self, cfg, label):
-        boundedStates = dict()
-        for name in self._limits.keys():
-            lower, upper = self._limits[name]
-            hyper_name = f"{name}_{label}"
-            scale = cfg[hyper_name]
-            boundedStates[name] = (lower, upper, scale)
-        return boundedStates
+    def _get_scales(self):
+        cfg = self.get_config()
+        scales = dict()
+        for hyper_name in cfg:
+            name = hyper_name[:-11] # Removing suffix "_LogBarrier" from the hyperparameter name
+            scales[name] = cfg[hyper_name]
+        return scales
 
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
@@ -114,10 +128,8 @@ class LogBarrierCostTransformer(OCPTransformer):
         return {}
 
     def __call__(self, ocp):
-        boundedStates = self._get_boundedState(self.get_config(), "LogBarrier")
-        new_cost = LogBarrierCost(self.system, boundedStates)
         new_ocp = copy.deepcopy(ocp)
+        scales = self._get_scales()
+        new_cost = LogBarrierCost(self.system, ocp.get_obs_bounds(), ocp.get_ctrl_bounds(), scales)
         new_ocp.set_cost(new_cost)
         return new_ocp
-
-    
