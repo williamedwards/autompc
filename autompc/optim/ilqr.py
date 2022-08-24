@@ -6,10 +6,10 @@ import time
 # External library includes
 import numpy as np
 import numpy.linalg as la
+import pandas as pd # DEBUG
 from ConfigSpace import ConfigurationSpace
 from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 
-from autompc.costs.barrier_cost import LogBarrierCost
 # Internal libary includes
 from .optimizer import Optimizer
 from ..trajectory import Trajectory
@@ -288,11 +288,25 @@ class IterativeLQR(Optimizer):
         dt = self.system.dt
 
         def eval_obj(xs, us):
+            if xs.max()>110.0:
+                print(xs.max())
+                print(cost._costs[1].obs_bounds)
             obj = 0
             for i in range(H):
                 obj += dt * cost.incremental(xs[i, :self.system.obs_dim],us[i])
             obj += cost.terminal(xs[-1, :self.system.obs_dim])
             return obj
+
+        # DEBUG - logging barrier and quad cost
+        def eval_debug(xs, us):
+            quad_cost = 0
+            barrier_cost = 0
+            for i in range(H):
+                quad_cost += dt * cost._costs[0].incremental(xs[i, :self.system.obs_dim],us[i])
+                barrier_cost += dt * cost._costs[1].incremental(xs[i, :self.system.obs_dim],us[i])
+            quad_cost += cost._costs[0].terminal(xs[-1, :self.system.obs_dim])
+            barrier_cost += cost._costs[1].terminal(xs[-1, :self.system.obs_dim])
+            return quad_cost, barrier_cost
 
         dimx, dimu = self.model.state_dim, self.system.ctrl_dim
         obsdim = self.system.obs_dim
@@ -483,3 +497,19 @@ class IterativeLQR(Optimizer):
 
     def get_traj(self):
         return self._traj.clone()
+
+    '''
+    DEBUG
+    Temporary method to log preview rollout
+    At the beginning and the end of a simulation/robot run, one should call the followng:
+    import pandas as pd
+    optimizer.log_df = pd.DataFrame(columns=['States', 'Ctrls', 'Cost'])
+    ######
+    Run
+    ######
+    optimizer.log_df.to_csv(filename)
+    '''
+    def debug_log(self, states, ctrls, step_cost, quad_cost, barrier_cost):
+        states = str(states.tolist())
+        ctrls = str(ctrls.tolist())
+        self.log_df = pd.concat([self.log_df, pd.DataFrame({'States':states, 'Ctrls':ctrls, 'Cost':step_cost, 'Quad': quad_cost, 'Barrier':barrier_cost}, index=[len(self.log_df)])])
