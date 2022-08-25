@@ -13,7 +13,7 @@ from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 # Internal libary includes
 from .optimizer import Optimizer
 from ..trajectory import Trajectory
-from ..cost import LogBarrierCost
+from ..costs import LogBarrierCost
 
 def inverse_semidefinite(A, damping=1e-3):
     w,V = np.linalg.eigh(A)
