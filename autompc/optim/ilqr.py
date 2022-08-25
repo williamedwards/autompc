@@ -337,9 +337,7 @@ class IterativeLQR(Optimizer):
             obs_upper = obs_bounds[:,1]
             ctrls_lower = ctrl_bounds[:,0]
             ctrls_upper = ctrl_bounds[:,1]
-            # print(np.any(obs>obs_upper, axis=0))
-            # print(obs_bounds[np.any(obs>obs_upper, axis=0),1])
-            # print(max(obs[:,np.any(obs>obs_upper, axis=0)],default=None)+eps)
+            
             obs_bounds[np.any(obs<obs_lower, axis=0),0] = min(obs[:,np.any(obs<obs_lower, axis=0)],default=None)-eps
             obs_bounds[np.any(obs>obs_upper, axis=0),1] = max(obs[:,np.any(obs>obs_upper, axis=0)],default=None)+eps
             ctrl_bounds[np.any(ctrls<ctrls_lower, axis=0),0] = min(ctrls[:,np.any(ctrls<ctrls_lower, axis=0)],default=None)-eps
@@ -347,8 +345,11 @@ class IterativeLQR(Optimizer):
             barrier_cost = LogBarrierCost(self.system, obs_bounds, ctrl_bounds, cost._costs[1].scales)
             cost._costs[1]=barrier_cost
         obj = eval_obj(states, ctrls)
-        quad_cost, barrier_cost = eval_debug(states, ctrls)
-        self.debug_log(states, ctrls, obj, quad_cost, barrier_cost)
+        try:
+            quad_cost, barrier_cost = eval_debug(states, ctrls)
+            self.debug_log(states, ctrls, obj, quad_cost, barrier_cost)
+        except:
+            pass
         
         initcost = obj
         # start iteration from here
