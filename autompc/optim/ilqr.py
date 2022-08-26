@@ -288,9 +288,6 @@ class IterativeLQR(Optimizer):
         dt = self.system.dt
 
         def eval_obj(xs, us):
-            if xs.max()>110.0:
-                print(xs.max())
-                print(cost._costs[1].obs_bounds)
             obj = 0
             for i in range(H):
                 obj += dt * cost.incremental(xs[i, :self.system.obs_dim],us[i])
@@ -299,6 +296,9 @@ class IterativeLQR(Optimizer):
 
         # DEBUG - logging barrier and quad cost
         def eval_debug(xs, us):
+            # if xs.max()>110.0:
+            #     print(xs.max())
+            #     print(cost._costs[1].obs_bounds)
             quad_cost = 0
             barrier_cost = 0
             for i in range(H):
@@ -328,7 +328,7 @@ class IterativeLQR(Optimizer):
         
         obs = self.model.get_obs(states)
         # Elastic barrier
-        if not self.ocp.is_feasible(Trajectory(self.system, obs[1:], ctrls)):
+        if not self.ocp.is_feasible(Trajectory(self.system, obs[:-1], ctrls)):
             print('trajectory left the feasible region')
             eps=1e-3
             obs_bounds = self.ocp.get_obs_bounds()
