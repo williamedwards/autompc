@@ -169,6 +169,30 @@ class Controller(TunablePipeline,Policy):
         self.ocp_transformers.append(ocp_transformer)
         self._init_transformer_components()
 
+    def _init_transformer_components(self):
+        #transformer pipeline is a little more complex
+        dummy = NonTunable()
+        dummy.name = '_'
+        cost_transformers = []
+        constraint_transformers = [dummy]
+        regularizers = [dummy]
+        for transformer in self.ocp_transformers:
+            if 'Bound' in transformer.name and transformer.name != 'DeleteBoundsTransformer':
+                constraint_transformers.append(transformer)
+            elif 'Reg' in transformer.name:
+                regularizers.append(transformer)
+            elif transformer.name != 'Identity':
+                cost_transformers.append(transformer)
+        #cost_transformers.append(dummy)
+        
+        if len(cost_transformers):
+            self.set_component("cost_transformer", cost_transformers)
+        self.set_component("constraint_transformer", constraint_transformers)
+        if len(regularizers) > 1:
+            self.set_component("regularizer", regularizers)
+
+        self._forbid_incompatible_configurations()
+
     def set_ocp(self, ocp):
         """
         Set the OCP. If the controller is already running, this will
