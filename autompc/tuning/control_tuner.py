@@ -463,6 +463,7 @@ class ControlCfgEvaluator:
         print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
         controller = self.controller.clone()
 
+        controller.get_config_space() # Temporarily adding it to configure OCPTransformers properly
         info = dict()
         controller.set_config(cfg)
         controller.build(self.sysid_trajs)
