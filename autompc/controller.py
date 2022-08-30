@@ -143,6 +143,7 @@ class Controller(TunablePipeline,Policy):
                 OCPTransformer to set.
         """
         self.ocp_transformers = [ocp_transformer]
+        self._init_transformer_components()
 
     def set_ocp_transformers(self, ocp_transformers : List[OCPTransformer]) -> None:
         """
@@ -154,6 +155,7 @@ class Controller(TunablePipeline,Policy):
                 Set of OCP transformers which can be selected.
         """
         self.ocp_transformers = ocp_transformers
+        self._init_transformer_components()
 
     def add_ocp_transformer(self, ocp_transformer):
         """
@@ -165,6 +167,31 @@ class Controller(TunablePipeline,Policy):
                 OCP transformer to be added.
         """
         self.ocp_transformers.append(ocp_transformer)
+        self._init_transformer_components()
+
+    def _init_transformer_components(self):
+        #transformer pipeline is a little more complex
+        dummy = NonTunable()
+        dummy.name = '_'
+        cost_transformers = []
+        constraint_transformers = [dummy]
+        regularizers = [dummy]
+        for transformer in self.ocp_transformers:
+            if 'Bound' in transformer.name and transformer.name != 'DeleteBoundsTransformer':
+                constraint_transformers.append(transformer)
+            elif 'Reg' in transformer.name:
+                regularizers.append(transformer)
+            elif transformer.name != 'Identity':
+                cost_transformers.append(transformer)
+        #cost_transformers.append(dummy)
+        
+        if len(cost_transformers):
+            self.set_component("cost_transformer", cost_transformers)
+        self.set_component("constraint_transformer", constraint_transformers)
+        if len(regularizers) > 1:
+            self.set_component("regularizer", regularizers)
+
+        self._forbid_incompatible_configurations()
 
     def set_ocp(self, ocp):
         """
@@ -194,28 +221,7 @@ class Controller(TunablePipeline,Policy):
         if not self.ocp_transformers:
             raise ControllerStateError("Must add OCP transformer before config space can be generated")
 
-        #transformer pipeline is a little more complex
-        dummy = NonTunable()
-        dummy.name = '_'
-        cost_transformers = []
-        constraint_transformers = [dummy]
-        regularizers = [dummy]
-        for transformer in self.ocp_transformers:
-            if 'Bound' in transformer.name and transformer.name != 'DeleteBoundsTransformer':
-                constraint_transformers.append(transformer)
-            elif 'Reg' in transformer.name:
-                regularizers.append(transformer)
-            elif transformer.name != 'Identity':
-                cost_transformers.append(transformer)
-        #cost_transformers.append(dummy)
-        
-        if len(cost_transformers):
-            self.set_component("cost_transformer", cost_transformers)
-        self.set_component("constraint_transformer", constraint_transformers)
-        if len(regularizers) > 1:
-            self.set_component("regularizer", regularizers)
-
-        self._forbid_incompatible_configurations()
+        self._init_transformer_components()
 
         cs = super().get_config_space()
         return cs
