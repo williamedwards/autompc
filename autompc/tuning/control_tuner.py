@@ -645,6 +645,7 @@ class CfgRunner:
         performance_metric = tuning_data["performance_metric"]  # type : ControlPerformanceMetric
         info = dict()
 
+        controller.get_config_space() # Temporarily adding it to configure OCPTransformers properly
         controller.set_config(cfg)
         controller.build(sysid_trajs)
         trajs = control_evaluator(controller)
