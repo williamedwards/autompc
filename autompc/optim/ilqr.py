@@ -13,7 +13,7 @@ from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
 # Internal libary includes
 from .optimizer import Optimizer
 from ..trajectory import Trajectory
-from ..costs import LogBarrierCost
+from ..costs import LogBarrierCost, SumCost
 
 def inverse_semidefinite(A, damping=1e-3):
     w,V = np.linalg.eigh(A)
@@ -295,6 +295,11 @@ class IterativeLQR(Optimizer):
             return obj
 
         # DEBUG - logging barrier and quad cost
+        # DEBUG #
+        self.timeout=False
+        self.barrier = not self.ocp.is_obs_feasible(x0)
+        self.barrierhorizon=False
+        #########
         def eval_debug(xs, us):
             # if xs.max()>110.0:
             #     print(xs.max())
@@ -328,8 +333,9 @@ class IterativeLQR(Optimizer):
         
         obs = self.model.get_obs(states)
         # Bounds adjustment
-        if not self.ocp.is_feasible(Trajectory(self.system, obs[:-1], ctrls)):
+        if not self.ocp.is_feasible(Trajectory(self.system, obs[:-1], ctrls)) and isinstance(cost, SumCost):
             print('trajectory left the feasible region')
+            self.barrierhorizon=True
             eps=1e-3
             obs_bounds = self.ocp.get_obs_bounds()
             ctrl_bounds = self.ocp.get_ctrl_bounds()
@@ -345,11 +351,8 @@ class IterativeLQR(Optimizer):
             barrier_cost = LogBarrierCost(self.system, obs_bounds, ctrl_bounds, cost._costs[1].scales)
             cost._costs[1]=barrier_cost
         obj = eval_obj(states, ctrls)
-        try:
-            quad_cost, barrier_cost = eval_debug(states, ctrls)
-            self.debug_log(states, ctrls, obj, quad_cost, barrier_cost)
-        except:
-            pass
+        self.quad_cost, self.barrier_cost = eval_debug(states, ctrls)
+        self.step_cost=obj
         
         initcost = obj
         # start iteration from here
@@ -359,6 +362,7 @@ class IterativeLQR(Optimizer):
         du_norm = np.inf
         for itr in range(self.max_iter):
             if time.time()-start > timeout:
+                self.timeout=True
                 if self.verbose:
                     print('Timeout')
                 break
@@ -485,7 +489,13 @@ class IterativeLQR(Optimizer):
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         if substep == 0: 
-            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess)#, timeout=self.system.dt)
+            converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess, timeout=self.system.dt)
+            self.debug_log(states, ctrls)
+            try:
+                self.debug_log(states, ctrls)
+            except:
+                pass
+
             self._guess = np.concatenate((ctrls[1:], ctrls[-1:]*0), axis=0)
             self._traj = Trajectory(self.model.state_system, states, 
                 np.vstack([ctrls, np.zeros(self.system.ctrl_dim)]))
@@ -504,13 +514,13 @@ class IterativeLQR(Optimizer):
     Temporary method to log preview rollout
     At the beginning and the end of a simulation/robot run, one should call the followng:
     import pandas as pd
-    optimizer.log_df = pd.DataFrame(columns=['States', 'Ctrls', 'Cost'])
+    optimizer.log_df = pd.DataFrame(columns=['States', 'Ctrls', 'Cost', 'Quad', 'Barrier', 'ActiveBarrier','BarrierHorizon', 'Timeout'])
     ######
     Run
     ######
     optimizer.log_df.to_csv(filename)
     '''
-    def debug_log(self, states, ctrls, step_cost, quad_cost, barrier_cost):
+    def debug_log(self, states, ctrls):
         states = str(states.tolist())
         ctrls = str(ctrls.tolist())
-        self.log_df = pd.concat([self.log_df, pd.DataFrame({'States':states, 'Ctrls':ctrls, 'Cost':step_cost, 'Quad': quad_cost, 'Barrier':barrier_cost}, index=[len(self.log_df)])])
+        self.log_df = pd.concat([self.log_df, pd.DataFrame({'States':states, 'Ctrls':ctrls, 'Cost':self.step_cost, 'Quad': self.quad_cost, 'Barrier':self.barrier_cost, 'Timeout':self.timeout, 'ActiveBarrier':self.barrier, 'BarrierHorizon':self.barrierhorizon}, index=[len(self.log_df)])])
