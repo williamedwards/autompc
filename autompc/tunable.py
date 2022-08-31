@@ -251,14 +251,22 @@ class TunablePipeline:
         return cs
     
     def set_config(self, config):
-        from .utils.cs_utils import create_subspace_configuration
+        from .utils.cs_utils import create_subspace_configuration_and_return_consumed
         self._config = config
+        consumed_keys = set()
         for name in self._component_order:
+            consumed_keys.add(name)
             opt = _get_choice_by_name(self._components[name], config[name])
             if opt is None:
                 continue
-            opt_config = create_subspace_configuration(config,opt.name,opt.get_config_space())
+            opt_config, opt_consumed_keys = create_subspace_configuration_and_return_consumed(config,opt.name,opt.get_config_space())
             opt.set_config(opt_config)
+            consumed_keys.update(opt_consumed_keys)
+
+        # Check all keys have been consumed
+        for key in config.keys():
+            if key not in consumed_keys:
+                raise ValueError(f"Unused hyperparameter {key}")
         
     def get_config(self):
         return self._config

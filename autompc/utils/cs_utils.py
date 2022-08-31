@@ -45,6 +45,16 @@ def create_subspace_configuration(cfg, prefix, sub_cs, delimiter=":", **kwargs):
             values[_get_subkey(key, delimiter)] = val
     return Configuration(sub_cs, values=values, **kwargs)
 
+def create_subspace_configuration_and_return_consumed(cfg, prefix, sub_cs, delimiter=":", **kwargs):
+    prefix = prefix + delimiter
+    values = dict()
+    consumed_keys = set()
+    for key, val in cfg.get_dictionary().items():
+        if key.startswith(prefix):
+            values[_get_subkey(key, delimiter)] = val
+            consumed_keys.add(key)
+    return Configuration(sub_cs, values=values, **kwargs), consumed_keys
+
 def transfer_subspace_configuration(source_cfg, source_prefix, dest_cfg, dest_prefix,
         delimiter=":"):
     source_prefix = source_prefix + delimiter
