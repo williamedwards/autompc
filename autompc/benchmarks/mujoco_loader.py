@@ -72,11 +72,11 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
 
 class OpenAIBenchmark(Benchmark):
     def __init__(self, name, data_gen_method="uniform_random"):
-        system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
-
+        
         import gym, mujoco_py
         env = gym.make(name)
         self.env = env
+        system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
 
         system.dt = env.dt
         task = Task(system)

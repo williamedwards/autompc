@@ -47,24 +47,24 @@ def halfcheetah_dynamics(env, x, u, n_frames=5):
 
     return np.concatenate([new_qpos, new_qvel])
 
-class HalfcheetahCost(Cost):
-    def __init__(self, env):
-        Cost.__init__(self,None)
-        self.env = env
+# class HalfcheetahCost(Cost):
+#     def __init__(self, env):
+#         Cost.__init__(self,None)
+#         self.env = env
 
-    def __call__(self, traj):
-        cum_reward = 0.0
-        for i in range(len(traj)-1):
-            reward_ctrl = -0.1 * np.square(traj[i].ctrl).sum()
-            reward_run = (traj[i+1, "x0"] - traj[i, "x0"]) / self.env.dt
-            cum_reward += reward_ctrl + reward_run
-        return 200 - cum_reward
+#     def __call__(self, traj):
+#         cum_reward = 0.0
+#         for i in range(len(traj)-1):
+#             reward_ctrl = -0.1 * np.square(traj[i].ctrl).sum()
+#             reward_run = (traj[i+1, "x0"] - traj[i, "x0"]) / self.env.dt
+#             cum_reward += reward_ctrl + reward_run
+#         return 200 - cum_reward
 
-    def incremental(self,obs,ctrl):
-        raise NotImplementedError
+#     def incremental(self,obs,ctrl):
+#         raise NotImplementedError
 
-    def terminal(self,obs):
-        raise NotImplementedError
+#     def terminal(self,obs):
+#         raise NotImplementedError
 
 
 def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
@@ -95,28 +95,42 @@ class HalfcheetahBenchmark(Benchmark):
     """
     def __init__(self, data_gen_method="uniform_random"):
         name = "halfcheetah"
-        system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
+        # system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
 
         import gym, mujoco_py
-        env = gym.make("HalfCheetah-v2")
+        names = ["HalfCheetah-v2", "Hopper-v2", "Walker2d-v2", 
+                "Swimmer-v2", "Reacher-v2",
+                "InvertedPendulum-v2", "InvertedDoublePendulum-v2", 
+                "Ant-v2", "Humanoid-v2", "HumanoidStandup-v2"]
+        name = names[2]
+        print(name)
+
+        env = gym.make(name)
         self.env = env
 
-        system.dt = env.dt
-        cost = HalfcheetahCost(env)
-        task = Task(system,cost)
-        task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
-        init_obs = np.concatenate([env.init_qpos, env.init_qvel])
-        task.set_init_obs(init_obs)
-        task.set_num_steps(200)
+        x_num = env.observation_space.shape[0]+1 #17
+        u_num = env.action_space.shape[0] #6
+        print(x_num, u_num)
+        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt) #18, 6
 
-        factory = QuadCost(system, goal = np.zeros(system.obs_dim))
-        for obs in system.observations:
-            if not obs in ["x1", "x6", "x7", "x8", "x9"]:
-                factory.fix_Q_value(obs, 0.0)
-            if not obs in ["x1", "x9"]:
-                factory.fix_F_value(obs, 0.0)
-        factory.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
-        self.cost_factory = factory
+        system.dt = env.dt
+        task = Task(system)
+
+        # cost = HalfcheetahCost(env)
+        # task = Task(system,cost)
+        # task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
+        # init_obs = np.concatenate([env.init_qpos, env.init_qvel])
+        # task.set_init_obs(init_obs)
+        # task.set_num_steps(200)
+
+        # factory = QuadCost(system, goal = np.zeros(system.obs_dim))
+        # for obs in system.observations:
+        #     if not obs in ["x1", "x6", "x7", "x8", "x9"]:
+        #         factory.fix_Q_value(obs, 0.0)
+        #     if not obs in ["x1", "x9"]:
+        #         factory.fix_F_value(obs, 0.0)
+        # factory.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
+        # self.cost_factory = factory
 
 
         super().__init__(name, system, task, data_gen_method)
