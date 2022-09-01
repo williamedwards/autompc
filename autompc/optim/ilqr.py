@@ -490,7 +490,6 @@ class IterativeLQR(Optimizer):
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
         if substep == 0: 
             converged, states, ctrls, Ks = self.compute_ilqr(obs, self._guess, timeout=self.system.dt)
-            self.debug_log(states, ctrls)
             try:
                 self.debug_log(states, ctrls)
             except:
