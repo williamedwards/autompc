@@ -29,63 +29,6 @@ class LogBarrierCostTransformer(OCPTransformer):
             super().__init__(system, 'InverseBarrierCostTransformer')
         else:
             raise ValueError
-    """
-        boundedState : String
-            Name of observation or control in the system.
-
-        lower : double
-            lower limit value that barrier is placed at.
-            Default is -np.inf and the barrier isn't placed
-
-        upper : double
-            upper limit value that barrier is placed at.
-            Default is -np.inf and the barrier isn't placed
-
-    """
-    def set_limit(self, boundedState, lower=-np.inf, upper=np.inf):
-        if(boundedState in self.system.observations or boundedState in self.system.controls):
-            # Setting the lower and upper limit 
-            self._limits[boundedState] = (lower, upper)
-
-            # Changing the scale hyperparameter from Constant to default UniformFloatHyperparameter
-            cs = self.get_config_space()
-            hp = cs.get_hyperparameter(boundedState+'_LogBarrier')
-            name = hp.name
-            new_hp = CS.UniformFloatHyperparameter(name=hp.name, 
-                                                   lower=BARRIER_COST_DEFAULT_BOUNDS[0],
-                                                   upper=BARRIER_COST_DEFAULT_BOUNDS[1],
-                                                   default_value=BARRIER_COST_DEFAULT_VALUE,
-                                                   log=BARRIER_COST_DEFAULT_LOG)
-            cs._hyperparameters[name] = new_hp
-        else:
-            raise ValueError(str(boundedState) + " is not in system")
-
-    """
-        boundedState : String
-            Name of observation or control in the system.
-
-        lower_bound : double
-            lower bound of configuration space
-
-        upper_bound : double
-            upper bound of configuration space
-
-        default : double
-            default value of configuration space
-        
-        log : boolean
-            Whether hyperparameter should use logarithmic scale. (Default: False)
-    """
-    def set_bounds(self, boundedState, lower_bound, upper_bound, default, log=False):
-        if(boundedState in self.system.observations or boundedState in self.system.controls):
-            if(boundedState in self._limits):
-                self.set_hyperparameter_bounds(**{boundedState+"_LogBarrier": (lower_bound,upper_bound)})
-                self.set_hyperparameter_defaults(**{boundedState+"_LogBarrier": default})
-                self.set_hyperparameter_logs(**{boundedState+"_LogBarrier": log})
-            else:
-                raise ValueError(str(boundedState) + " does not have a configured limit use set_limit")
-        else:
-            raise ValueError(str(boundedState) + " is not in system")
 
     def set_tunable_scale(self, boundedState, lower=BARRIER_COST_DEFAULT_BOUNDS[0],
                                               upper=BARRIER_COST_DEFAULT_BOUNDS[1],

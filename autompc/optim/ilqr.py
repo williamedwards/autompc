@@ -349,6 +349,7 @@ class IterativeLQR(Optimizer):
             ctrl_bounds[np.any(ctrls<ctrls_lower, axis=0),0] = np.where(ctrls<ctrls_lower, ctrls-eps, ctrls).min(axis=0)[np.any(ctrls<ctrls_lower, axis=0)]
             ctrl_bounds[np.any(ctrls>ctrls_upper, axis=0),1] = np.where(ctrls>ctrls_upper, ctrls+eps, ctrls).max(axis=0)[np.any(ctrls>ctrls_upper, axis=0)]
             barrier_cost = LogBarrierCost(self.system, obs_bounds, ctrl_bounds, cost._costs[1].scales)
+            cost = copy.deepcopy(cost)
             cost._costs[1]=barrier_cost
         obj = eval_obj(states, ctrls)
         self.quad_cost, self.barrier_cost = eval_debug(states, ctrls)
