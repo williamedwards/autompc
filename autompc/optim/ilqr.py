@@ -15,10 +15,13 @@ from .optimizer import Optimizer
 from ..trajectory import Trajectory
 from ..costs import LogBarrierCost, SumCost
 
+BOUNDS_ADJUSTMENT_EPS = 1e-3
+
 def inverse_semidefinite(A, damping=1e-3):
     w,V = np.linalg.eigh(A)
     winv = np.divide(1.0,(w + damping))
     return np.multiply(V.T,winv) @ V
+
 class IterativeLQR(Optimizer):
     """
     Iterative Linear Quadratic Regulator (ILQR) can be considered as a Dynamic Programming (DP) method to solve trajectory optimization problems.
@@ -68,6 +71,7 @@ class IterativeLQR(Optimizer):
         self._guess = None
         self._traj = None
         self._gains = None
+        self._adjusted_cost = None
         self._step = 0
 
     def set_ocp(self, ocp):
@@ -336,7 +340,7 @@ class IterativeLQR(Optimizer):
         if not self.ocp.is_feasible(Trajectory(self.system, obs[:-1], ctrls)) and isinstance(cost, SumCost):
             print('trajectory left the feasible region')
             self.barrierhorizon=True
-            eps=1e-3
+            eps=BOUNDS_ADJUSTMENT_EPS
             obs_bounds = self.ocp.get_obs_bounds()
             ctrl_bounds = self.ocp.get_ctrl_bounds()
             obs_lower = obs_bounds[:,0]
@@ -351,6 +355,7 @@ class IterativeLQR(Optimizer):
             barrier_cost = LogBarrierCost(self.system, obs_bounds, ctrl_bounds, cost._costs[1].scales)
             cost = copy.deepcopy(cost)
             cost._costs[1]=barrier_cost
+        self._adjusted_cost = cost
         obj = eval_obj(states, ctrls)
         self.quad_cost, self.barrier_cost = eval_debug(states, ctrls)
         self.step_cost=obj
