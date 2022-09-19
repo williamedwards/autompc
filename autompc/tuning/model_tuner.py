@@ -165,7 +165,8 @@ class ModelTuner:
                              "cs": cs,
                              "deterministic": "true",
                              'cutoff' : 600,
-                             "limit_resources" : False
+                             "limit_resources" : False,
+                             "abort_on_first_run_crash": False
                              })
 
         if self.multi_fidelity and SMAC4_MF_AVAILABLE:
@@ -179,11 +180,12 @@ class ModelTuner:
         else:
             if max_train_time is not None:
                 self.model.set_train_budget(max_train_time)
-            #smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
+            # smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
             #        tae_runner=self._evaluate)
             smac = SMAC4AC(scenario=scenario, rng=smac_rng,
                     tae_runner=self._evaluate)
         
+        # smac.solver.tae_runner.use_pynisher = False
         incumbent = smac.optimize()
 
         inc_cost = float("inf")

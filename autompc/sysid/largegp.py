@@ -25,7 +25,12 @@ from .model import Model,FullyObservableModel
 def transform_input(xu_means, xu_std, XU):
     XUt = []
     for i in range(XU.shape[1]):
-        XUt.append((XU[:,i] - xu_means[i]) / xu_std[i])
+        # Ut.append((XU[:,i] - xu_means[i]) / xu_std[i])
+        # DEBUG
+        if xu_std[i] == 0:
+            XUt.append(XU[:,i] - xu_means[i])
+        else:
+            XUt.append((XU[:,i] - xu_means[i]) / xu_std[i])
     return np.vstack(XUt).T
 
 def transform_output(xu_means, xu_std, XU):

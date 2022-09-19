@@ -64,7 +64,8 @@ class Koopman(Model):
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         # method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "lasso", "stable"])
-        method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "stable"]) #DEBUG
+        # method = CSH.CategoricalHyperparameter("method", choices=["lstsq", "stable"]) #DEBUG
+        method = CSH.CategoricalHyperparameter("method", choices=["lstsq"])
         # lasso_alpha = CSH.UniformFloatHyperparameter("lasso_alpha", 
         #         lower=1e-10, upper=1e2, default_value=1.0, log=True)
         # use_lasso_alpha = CSC.InCondition(child=lasso_alpha, parent=method, 
@@ -185,7 +186,8 @@ class Koopman(Model):
         
         XU = np.concatenate((X, U), axis = 0) # stack X and U together
         if self.method == "lstsq": # Least Squares Solution
-            AB = np.dot(Y, sla.pinv2(XU))
+            # AB = np.dot(Y, sla.pinv2(XU))
+            AB = np.dot(Y, sla.pinv(XU))
             A = AB[:n, :n]
             B = AB[:n, n:]
         elif self.method == "lasso":  # Call lasso regression on coefficients

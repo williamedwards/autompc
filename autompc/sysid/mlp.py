@@ -18,7 +18,13 @@ from .model import Model,FullyObservableModel
 def transform_input(xu_means, xu_std, XU):
     XUt = []
     for i in range(XU.shape[1]):
-        XUt.append((XU[:,i] - xu_means[i]) / xu_std[i])
+        # DEBUG: Sometimes mean and std are 0
+        # print("MLP DEBUG", xu_means[i], xu_std[i])
+        if xu_std[i] == 0:
+            print(xu_std[i])
+            XUt.append(XU[:,i] - xu_means[i])
+        else:
+            XUt.append((XU[:,i] - xu_means[i]) / xu_std[i])
     return np.vstack(XUt).T
 
 def transform_output(xu_means, xu_std, XU):
@@ -170,6 +176,7 @@ class MLP(FullyObservableModel):
         self.dY = dY
 
     def _prepare_data(self):
+        # print("XU", self.XU) #DEBUG
         self.xu_means = np.mean(self.XU, axis=0)
         self.xu_std = np.std(self.XU, axis=0)
         XUt = transform_input(self.xu_means, self.xu_std, self.XU)
@@ -216,6 +223,7 @@ class MLP(FullyObservableModel):
         dY = np.concatenate([traj.obs[1:,:] - traj.obs[:-1,:] for traj in trajs])
         U = np.concatenate([traj.ctrls[:-1,:] for traj in trajs])
         XU = np.concatenate((X, U), axis = 1) # stack X and U together
+        
         self._set_pairs(XU, dY)
         self._prepare_data()
         self._init_train(seed)

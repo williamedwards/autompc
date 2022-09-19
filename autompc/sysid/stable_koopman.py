@@ -5,7 +5,7 @@ __copyright__ = "Copyright (C) 2004 Giorgos Mamakoukas"
 from pdb import set_trace
 
 import numpy as np
-from scipy.linalg import polar, pinv2, solve_discrete_lyapunov, sqrtm
+from scipy.linalg import polar, pinv, solve_discrete_lyapunov, sqrtm
 import math
 from scipy import io
 import time
@@ -57,7 +57,7 @@ def stabilize_discrete(Xs, Xu, Y, S = None, U = None, B = None, Bcon = None, max
     if S is None:
         # Initialization of S, U, and B
         S = np.identity(n)
-        temp = Y.dot(pinv2(X))
+        temp = Y.dot(pinv(X))
         [U, B] = polar(temp[:Nx,:Nx])
         B = projectPSD(B, 0, 1)
         Bcon = temp[:Nx, Nx:]

@@ -38,23 +38,18 @@ def halfcheetah_dynamics(env, x, u, n_frames=5):
     old_state = env.sim.get_state()
     old_qpos = old_state[1]
     old_qvel = old_state[2]
-    print("x:", x, ", size", len(x)) #x according to the observation space
-    print("old_qpos size", len(old_qpos))
-    print("old_qvel size", len(old_qvel))
+    # print("x:", x, ", size", len(x)) #x according to the observation space
+    # print("old_qpos size", len(old_qpos))
+    # print("old_qvel size", len(old_qvel))
 
     qpos = x[:len(old_qpos)]
     qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
-    
-    # print(len(qpos), len(qvel)) #DEBUG
 
     # Represents a snapshot of the simulator's state.
     new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel, old_state.act, old_state.udd_state)
     env.sim.set_state(new_state)
     #env.sim.forward()
-    
-    print("u", u)
-    # print("new state", new_state)
-    print("env control", env.sim.data.ctrl[:]) #sim.data.ctrl is the control signal that is sent to the actuators in the simulation.
+
     env.sim.data.ctrl[:] = u
     for _ in range(n_frames):
         env.sim.step()
@@ -97,7 +92,7 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     qpos, qvel = state[1], state[2]
     for i in range(num_trajs):
         init_obs = env.reset()
-        print("observation len", len(init_obs))
+        # print("observation len", len(init_obs))
         traj = Trajectory.zeros(system, traj_len)
 
         # if len(init_obs) % 2 == 0:
@@ -144,7 +139,7 @@ class HalfcheetahBenchmark(Benchmark):
             x_num = obs_shape
 
         u_num = env.action_space.shape[0]
-        print(x_num, u_num)
+        # print(x_num, u_num)
         system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt) #18, 6
 
         system.dt = env.dt
@@ -204,23 +199,21 @@ def meta_dynamics(env, x, u, n_frames=5):
     old_state = env.sim.get_state()
     old_qpos = old_state[1]
     old_qvel = old_state[2]
-    print("x:", x, ", size", len(x)) #x according to the observation space
-    print("old_qpos size", len(old_qpos))
-    print("old_qvel size", len(old_qvel))
+    # print("x:", x, ", size", len(x)) #x according to the observation space
+    # print("old_qpos size", len(old_qpos))
+    # print("old_qvel size", len(old_qvel))
 
     qpos = x[:len(old_qpos)]
     qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
-    
-    # print(len(qpos), len(qvel)) #DEBUG
 
     # Represents a snapshot of the simulator's state.
     new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel, old_state.act, old_state.udd_state)
     env.sim.set_state(new_state)
     #env.sim.forward()
     
-    print("u", u)
-    # print("new state", new_state)
-    print("env control", env.sim.data.ctrl[:]) #sim.data.ctrl is the control signal that is sent to the actuators in the simulation.
+    # print("u", u)
+    # # print("new state", new_state)
+    # print("env control", env.sim.data.ctrl[:]) #sim.data.ctrl is the control signal that is sent to the actuators in the simulation.
     # env.sim.data.ctrl[:] = u
     for _ in range(n_frames):
         env.sim.step()
@@ -243,7 +236,7 @@ def meta_gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     qpos, qvel = state[1], state[2]
     for i in range(num_trajs):
         init_obs = env.reset()
-        print("observation len", len(init_obs))
+        # print("observation len", len(init_obs))
         traj = Trajectory.zeros(system, traj_len)
 
         # if len(init_obs) % 2 == 0:
@@ -287,7 +280,7 @@ class MetaBenchmark(Benchmark):
                 'stick-pull-v2', 'push-wall-v2', 'reach-wall-v2', 'shelf-place-v2', 'sweep-into-v2', 
                 'sweep-v2', 'window-open-v2', 'window-close-v2']
 
-        name  = names[0]
+        name  = random.choice(names)
         print(name)
 
         ml1 = metaworld.ML1(name)

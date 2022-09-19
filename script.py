@@ -68,3 +68,15 @@ from autompc.sysid import MLP
 # info.traj
 # info.term_cond
 # info.eval_time
+
+import gym, mujoco_py
+name = "Reacher-v2"
+print(name)
+
+env = gym.make(name)
+"""
+MjSimState(time=0.0, qpos=array([-0.05334441, -0.07832176, -0.08205703, -0.12420648]), 
+qvel=array([ 0.00288581, -0.00276853,  0.        ,  0.        ]), act=None, udd_state={})
+"""
+print("theta", env.sim.data.qpos.flat[:2])
+print(env.get_body_com("fingertip"))
