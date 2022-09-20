@@ -45,12 +45,10 @@ def ant_dynamics(env, x, u, n_frames=5):
 
     qpos = x[:len(old_qpos)]
     qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
-    print("input qvel", qvel)
 
     # Represents a snapshot of the simulator's state.
     new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel, old_state.act, old_state.udd_state)
     env.sim.set_state(new_state)
-    print(new_state)
 
     env.sim.data.ctrl[:] = u
     for _ in range(n_frames):
@@ -116,6 +114,7 @@ class AntBenchmark(Benchmark):
 
         env = gym.make(name)
         self.env = env
+        self.name = name
         obs_shape = env.observation_space.shape[0]
 
         x_num = 29

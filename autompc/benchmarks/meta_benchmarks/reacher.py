@@ -100,6 +100,7 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
 
     for i in range(num_trajs):
         init_obs = env.reset()
+        print(init_obs)
         # print("observation len", len(init_obs))
         traj = Trajectory.zeros(system, traj_len)
 
@@ -123,15 +124,9 @@ class ReacherBenchmark(Benchmark):
 
         env = gym.make(name)
         self.env = env
-        # state = env.sim.get_state()
-        # qpos = state[1]
-        # qvel = state[2]
+        self.name = name
         obs_shape = env.observation_space.shape[0]
 
-        # if obs_shape < len(qpos) + len(qvel):
-        #     x_num = len(qpos) + len(qvel)
-        # else:
-        #     x_num = obs_shape
         x_num = obs_shape
         u_num = env.action_space.shape[0]
         system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt) #18, 6

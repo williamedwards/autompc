@@ -47,6 +47,7 @@ def halfcheetah_dynamics(env, x, u, n_frames=5):
 
     # Represents a snapshot of the simulator's state.
     new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel, old_state.act, old_state.udd_state)
+    print(new_state)
     env.sim.set_state(new_state)
     #env.sim.forward()
 
@@ -239,10 +240,6 @@ def meta_gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
         # print("observation len", len(init_obs))
         traj = Trajectory.zeros(system, traj_len)
 
-        # if len(init_obs) % 2 == 0:
-        #     traj[0].obs[:] = np.concatenate([[0, 0], init_obs])
-        # else:
-        #     traj[0].obs[:] = np.concatenate([[0], init_obs])
         if len(init_obs) < len(qpos) + len(qvel):
             add_zeros = np.zeros(len(qpos) + len(qvel) - len(init_obs))
             traj[0].obs[:] = np.concatenate([add_zeros, init_obs])
@@ -280,14 +277,15 @@ class MetaBenchmark(Benchmark):
                 'stick-pull-v2', 'push-wall-v2', 'reach-wall-v2', 'shelf-place-v2', 'sweep-into-v2', 
                 'sweep-v2', 'window-open-v2', 'window-close-v2']
 
-        name  = random.choice(names)
+        # name  = random.choice(names)
+        # name = names[2]
         print(name)
 
         ml1 = metaworld.ML1(name)
         env = ml1.train_classes[name]()
         self.env = env
 
-        random.seed(1)
+        random.seed(2022)
         task = random.choice(ml1.train_tasks)
         env.set_task(task)
 
@@ -295,6 +293,8 @@ class MetaBenchmark(Benchmark):
         qpos = state[1]
         qvel = state[2]
         obs_shape = env.observation_space.shape[0]
+        print('qpos {}, qvel {}'.format(len(qpos), len(qvel)))
+        print('obs shape {}, state shape {} \n'.format(obs_shape, env.action_space.shape[0]))
 
         if obs_shape < len(qpos) + len(qvel):
             x_num = len(qpos) + len(qvel)
@@ -302,7 +302,7 @@ class MetaBenchmark(Benchmark):
             x_num = obs_shape
 
         u_num = env.action_space.shape[0]
-        print(x_num, u_num)
+        # print(x_num, u_num)
         system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt) #18, 6
 
         system.dt = env.dt

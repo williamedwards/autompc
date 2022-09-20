@@ -98,13 +98,12 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
 
     for i in range(num_trajs):
         init_obs = env.reset()
-        print(init_obs)
+        # print(init_obs)
         # print("observation len", len(init_obs))
         traj = Trajectory.zeros(system, traj_len)
 
         new_init_qpos = np.array([init_obs[0], np.arctan2(init_obs[1], init_obs[3]), np.arctan2(init_obs[2], init_obs[4])])
         new_init_obs = np.concatenate([new_init_qpos, init_obs[5:8]])
-        # print(new_init_obs)
 
         traj[0].obs[:] = new_init_obs     
 
@@ -126,7 +125,7 @@ class IDPBenchmark(Benchmark):
 
         env = gym.make(name)
         self.env = env
-        print(env.sim.data.qfrc_constraint)
+        self.name = name
         obs_shape = env.observation_space.shape[0]
 
         x_num = 6
