@@ -31,17 +31,9 @@ def viz_halfcheetah_traj(env, traj, repeat):
         time.sleep(1)
 
 def humanoidStandup_dynamics(env, x, u, n_frames=5):
-    """
-    x: traj[j-1].obs[:]
-    u: action
-    """
     old_state = env.sim.get_state()
-    # print(old_state)
     old_qpos = old_state[1]
     old_qvel = old_state[2]
-    # print("x:", x, ", size", len(x)) #x according to the observation space
-    # print("old_qpos size", len(old_qpos))
-    # print("old_qvel size", len(old_qvel))
 
     qpos = x[:len(old_qpos)]
     qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
@@ -91,7 +83,6 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     env.action_space.seed(int(rng.integers(1 << 30)))
     for i in range(num_trajs):
         init_obs = env.reset()
-        # print(init_obs)
         traj = Trajectory.zeros(system, traj_len)
 
         new_init_obs = np.concatenate([[0,0], init_obs[:45]])
@@ -116,11 +107,10 @@ class HumanoidStandupBenchmark(Benchmark):
         env = gym.make(name)
         self.env = env
         self.name = name
-        obs_shape = env.observation_space.shape[0]
 
-        x_num = 24+23
+        x_num = 24+23 # len(qpos)+len(qvel)
         u_num = env.action_space.shape[0]
-        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt) #18, 6
+        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt)
 
         system.dt = env.dt
         task = Task(system)

@@ -19,9 +19,7 @@ def transform_input(xu_means, xu_std, XU):
     XUt = []
     for i in range(XU.shape[1]):
         # DEBUG: Sometimes mean and std are 0
-        # print("MLP DEBUG", xu_means[i], xu_std[i])
         if xu_std[i] == 0:
-            print(xu_std[i])
             XUt.append(XU[:,i] - xu_means[i])
         else:
             XUt.append((XU[:,i] - xu_means[i]) / xu_std[i])

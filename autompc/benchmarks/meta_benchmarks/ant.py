@@ -31,17 +31,9 @@ def viz_halfcheetah_traj(env, traj, repeat):
         time.sleep(1)
 
 def ant_dynamics(env, x, u, n_frames=5):
-    """
-    x: traj[j-1].obs[:]
-    u: action
-    """
     old_state = env.sim.get_state()
-    # print(old_state)
     old_qpos = old_state[1]
     old_qvel = old_state[2]
-    # print("x:", x, ", size", len(x)) #x according to the observation space
-    # print("old_qpos size", len(old_qpos))
-    # print("old_qvel size", len(old_qvel))
 
     qpos = x[:len(old_qpos)]
     qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
@@ -115,11 +107,10 @@ class AntBenchmark(Benchmark):
         env = gym.make(name)
         self.env = env
         self.name = name
-        obs_shape = env.observation_space.shape[0]
 
-        x_num = 29
+        x_num = 29 # len(qpos) + len(qvel)
         u_num = env.action_space.shape[0]
-        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt) #18, 6
+        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt)
 
         system.dt = env.dt
         task = Task(system)

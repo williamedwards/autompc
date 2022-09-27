@@ -31,23 +31,15 @@ def viz_halfcheetah_traj(env, traj, repeat):
         time.sleep(1)
 
 def halfcheetah_dynamics(env, x, u, n_frames=5):
-    """
-    x: traj[j-1].obs[:]
-    u: action
-    """
     old_state = env.sim.get_state()
     old_qpos = old_state[1]
     old_qvel = old_state[2]
-    # print("x:", x, ", size", len(x)) #x according to the observation space
-    # print("old_qpos size", len(old_qpos))
-    # print("old_qvel size", len(old_qvel))
 
     qpos = x[:len(old_qpos)]
     qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
 
     # Represents a snapshot of the simulator's state.
     new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel, old_state.act, old_state.udd_state)
-    print(new_state)
     env.sim.set_state(new_state)
     #env.sim.forward()
 
@@ -58,9 +50,6 @@ def halfcheetah_dynamics(env, x, u, n_frames=5):
     new_qpos = env.sim.data.qpos
     new_qvel = env.sim.data.qvel
     out = np.concatenate([new_qpos, new_qvel])
-    if len(out) < len(x):
-        add_zeros = np.zeros(len(x)-len(out))
-        out = np.concatenate([out, add_zeros])
 
     return out
 
@@ -93,18 +82,10 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     qpos, qvel = state[1], state[2]
     for i in range(num_trajs):
         init_obs = env.reset()
-        # print("observation len", len(init_obs))
         traj = Trajectory.zeros(system, traj_len)
 
-        # if len(init_obs) % 2 == 0:
-        #     traj[0].obs[:] = np.concatenate([[0, 0], init_obs])
-        # else:
-        #     traj[0].obs[:] = np.concatenate([[0], init_obs])
-        if len(init_obs) < len(qpos) + len(qvel):
-            add_zeros = np.zeros(len(qpos) + len(qvel) - len(init_obs))
-            traj[0].obs[:] = np.concatenate([add_zeros, init_obs])
-        else:
-            traj[0].obs[:] = init_obs       
+        add_zeros = np.zeros(len(qpos) + len(qvel) - len(init_obs))
+        traj[0].obs[:] = np.concatenate([add_zeros, init_obs])       
 
         for j in range(1, traj_len):
             action = env.action_space.sample()
@@ -132,16 +113,10 @@ class HalfcheetahBenchmark(Benchmark):
         state = env.sim.get_state()
         qpos = state[1]
         qvel = state[2]
-        obs_shape = env.observation_space.shape[0]
 
-        if obs_shape < len(qpos) + len(qvel):
-            x_num = len(qpos) + len(qvel)
-        else:
-            x_num = obs_shape
-
+        x_num = len(qpos) + len(qvel)
         u_num = env.action_space.shape[0]
-        # print(x_num, u_num)
-        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt) #18, 6
+        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt)
 
         system.dt = env.dt
         task = Task(system)
@@ -200,9 +175,6 @@ def meta_dynamics(env, x, u, n_frames=5):
     old_state = env.sim.get_state()
     old_qpos = old_state[1]
     old_qvel = old_state[2]
-    # print("x:", x, ", size", len(x)) #x according to the observation space
-    # print("old_qpos size", len(old_qpos))
-    # print("old_qvel size", len(old_qvel))
 
     qpos = x[:len(old_qpos)]
     qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
@@ -280,19 +252,25 @@ class MetaBenchmark(Benchmark):
         # name  = random.choice(names)
         # name = names[2]
         print(name)
+        self.name = name
 
         ml1 = metaworld.ML1(name)
         env = ml1.train_classes[name]()
         self.env = env
 
-        random.seed(2022)
-        task = random.choice(ml1.train_tasks)
+        # random.seed(2022)
+        # task = random.choice(ml1.train_tasks)
+        task = ml1.train_tasks[0]
         env.set_task(task)
 
         state = env.sim.get_state()
         qpos = state[1]
         qvel = state[2]
+        print('qpos', qpos)
+        print('qvel', qvel)
         obs_shape = env.observation_space.shape[0]
+        print('obs', env._get_obs())
+        # exit()
         print('qpos {}, qvel {}'.format(len(qpos), len(qvel)))
         print('obs shape {}, state shape {} \n'.format(obs_shape, env.action_space.shape[0]))
 

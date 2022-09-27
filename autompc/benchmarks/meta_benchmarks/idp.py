@@ -31,16 +31,9 @@ def viz_halfcheetah_traj(env, traj, repeat):
         time.sleep(1)
 
 def idp_dynamics(env, x, u, n_frames=5):
-    """
-    x: traj[j-1].obs[:]
-    u: action
-    """
     old_state = env.sim.get_state()
     old_qpos = old_state[1]
     old_qvel = old_state[2]
-    # print("x:", x, ", size", len(x)) #x according to the observation space
-    # print("old_qpos size", len(old_qpos))
-    # print("old_qvel size", len(old_qvel))
 
     qpos = x[:len(old_qpos)]
     qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
@@ -50,9 +43,6 @@ def idp_dynamics(env, x, u, n_frames=5):
     env.sim.set_state(new_state)
     #env.sim.forward()
     
-    # print("u", u)
-    # print("new state", new_state)
-    # print("env control", env.sim.data.ctrl[:]) #sim.data.ctrl is the control signal that is sent to the actuators in the simulation.
     env.sim.data.ctrl[:] = u
     for _ in range(n_frames):
         env.sim.step()
@@ -60,12 +50,6 @@ def idp_dynamics(env, x, u, n_frames=5):
     new_qpos = env.sim.data.qpos
     new_qvel = env.sim.data.qvel
 
-    # out = np.concatenate([ 
-    #                         new_qpos.flat[:1], #cart x pos
-    #                         np.sin(new_qpos[1:]), # link angles
-    #                         np.cos(new_qpos[1:]),
-    #                         np.clip(new_qvel, -10, 10),
-    #                     ])
     out = np.concatenate([new_qpos, new_qvel])
 
     return out
@@ -98,8 +82,6 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
 
     for i in range(num_trajs):
         init_obs = env.reset()
-        # print(init_obs)
-        # print("observation len", len(init_obs))
         traj = Trajectory.zeros(system, traj_len)
 
         new_init_qpos = np.array([init_obs[0], np.arctan2(init_obs[1], init_obs[3]), np.arctan2(init_obs[2], init_obs[4])])
@@ -126,11 +108,10 @@ class IDPBenchmark(Benchmark):
         env = gym.make(name)
         self.env = env
         self.name = name
-        obs_shape = env.observation_space.shape[0]
 
-        x_num = 6
+        x_num = 6 # len(qpos) + len(qvel)
         u_num = env.action_space.shape[0]
-        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt) #18, 6
+        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt)
 
         system.dt = env.dt
         task = Task(system)
