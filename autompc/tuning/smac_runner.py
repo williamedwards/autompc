@@ -51,6 +51,7 @@ class SMACRunner:
             raise Exception("Run directory already exists")
         output_dir.mkdir(parents=True, exist_ok=True)
         run_dir.mkdir()
+        eval_result_dir.mkdir()
         smac_dir.mkdir(exist_ok=True)
         (smac_dir / "run_1").mkdir(exist_ok=True)
 
@@ -112,7 +113,7 @@ class SMACRunner:
         else:
             initial_design = None
 
-        cfg_runner = CfgRunner(run_dir=run_dir, timeout=eval_timeout, log_file_name=run_dir/"log.txt")
+        cfg_runner = CfgRunner(run_dir=run_dir, eval_result_dir=eval_result_dir, timeout=eval_timeout, log_file_name=run_dir/"log.txt")
 
         if not self.restore:
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
@@ -137,10 +138,11 @@ class SMACRunner:
         return inc_cfg, smac.runhistory
 
 class CfgRunner:
-    def __init__(self, run_dir=None, timeout=None, log_file_name=None):
+    def __init__(self, run_dir, eval_result_dir, timeout=None, log_file_name=None):
         self.run_dir = run_dir
         self.timeout = timeout
         self.log_file_name = log_file_name
+        self.eval_result_dir = eval_result_dir
         self.eval_number = 0
 
     def get_cfg_evaluator(self):
@@ -153,22 +155,21 @@ class CfgRunner:
             result = self.run_mp(cfg)
         else:
             ctx = multiprocessing.get_context("spawn")
-            q = ctx.Queue()
-            p = ctx.Process(target=self.run_mp, args=(cfg, q))
+            result_file  = self.eval_result_dir / f"result_{self.eval_number}.pkl"
+            p = ctx.Process(target=self.run_mp, args=(cfg, result_file))
             start_time = time.time()
+
             p.start()
             timeout = False
             while p.is_alive():
                 if time.time() - start_time > self.timeout:
                     timeout = True
                     break
-                try:
-                    result = q.get(block=True, timeout=10.0)
-                    print("Queue received")
-                    break
-                except queue.Empty:
-                    continue
             p.join(timeout=1)
+
+            with open(result_file, "rb") as f:
+                result = pickle.load(f)
+
             if timeout:
                 print("CfgRunner: Evaluation timed out")
                 p.terminate()
@@ -181,7 +182,7 @@ class CfgRunner:
         return result
 
 
-    def run_mp(self, cfg, q):
+    def run_mp(self, cfg, result_file):
         cfg_evaluator = self.get_cfg_evaluator()
         if not self.log_file_name is None:
             with open(self.log_file_name, "a") as f:
@@ -191,11 +192,12 @@ class CfgRunner:
                     except Exception as e:
                         print("Exception raised: \n", str(e))
                         raise e
-                    print("Putting result...")
+                    print("Saving result...")
                     print(f"{result=}")
-                    #q.put(result, block=True)
-                    q.put("result", block=True)
+                    with open(result_file, "wb") as f:
+                        pickle.dump(result, f)
                     print("Done.")
         else:
             result = cfg_evaluator(cfg)
-            q.put(result)
+            with open(result_file, "wb") as f:
+                pickle.dump(result, f)
