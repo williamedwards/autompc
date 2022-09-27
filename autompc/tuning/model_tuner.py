@@ -97,9 +97,11 @@ class ModelTuner:
                 raise ValueError("system and model.system must match")
         if evaluator is None:
             if eval_folds <= 1:
-                evaluator = HoldoutModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, holdout_prop=eval_holdout)
+                evaluator = HoldoutModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, holdout_prop=eval_holdout,
+                    rng=np.random.default_rng(100))
             else:
-                evaluator = CrossValidationModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, num_folds=eval_folds)
+                evaluator = CrossValidationModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, num_folds=eval_folds,
+                    rng=np.random.default_rng(100))
         else:
             evaluator.trajs = trajs
         
