@@ -131,7 +131,7 @@ class Tunable(ABC):
 
     def is_tunable(self):
         """Denotes that this instance is not tunable"""
-        return len(self._configuration_space.get_hyperparameters_dict())>=0
+        return len(self._configuration_space.get_hyperparameters_dict())>0
 
 
 class NonTunable(Tunable):

@@ -8,6 +8,7 @@ import contextlib
 import datetime
 import time
 import os, sys, glob, shutil
+from dataclasses import dataclass
 from typing import Optional, List
 
 # Internal project include
@@ -17,11 +18,12 @@ from ..sysid.autoselect import AutoSelectModel
 from ..controller import Controller
 from ..trajectory import Trajectory
 from ..dynamics import Dynamics
-from .model_tuner import ModelTuner
+from .model_tuner import ModelTuner, ModelTuneResult
 from .model_evaluator import ModelEvaluator
 from .control_evaluator import ControlEvaluator, StandardEvaluator, ControlEvaluationTrial, trial_to_json
 from .control_performance_metric import ControlPerformanceMetric,ConfidenceBoundPerformanceMetric
 from .bootstrap_evaluator import BootstrapSurrogateEvaluator
+from .smac_runner import SMACRunner
 
 # External library includes
 import numpy as np
@@ -220,10 +222,11 @@ class ControlTuner:
         self.max_trials_per_evaluation = max_trials_per_evaluation
         self.control_evaluator = control_evaluator
         if performance_metric is None:
-            performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
+            # performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
+            performance_metric = ControlPerformanceMetric()
         self.performance_metric = performance_metric
 
-    def _get_tuning_data(self, controller : Controller, task : List[Task], trajs : List[Trajectory],
+    def _get_cfg_evaluator(self, controller : Controller, task : List[Task], trajs : List[Trajectory],
                             truedyn : Optional[Dynamics], rng, surrogate_tune_iters : int):
         surrogate = self.surrogate
         if surrogate is None:
@@ -312,53 +315,21 @@ class ControlTuner:
             controller.fix_option('model',model.name)
             controller.set_model_hyper_values(model.name,**model.get_config())
             print()
-        
-        tuning_data["control_evaluator"] = control_evaluator
-        tuning_data["truedyn_evaluator"] = truedyn_evaluator
 
-        return tuning_data
+        cfg_evaluator = ControlCfgEvaluator(
+            controller=controller,
+            performance_metric=self.performance_metric,
+            sysid_trajs=sysid_trajs,
+            control_evaluator=control_evaluator,
+            truedyn_evaluator=truedyn_evaluator)
 
-    def _get_restore_run_dir(self, restore_dir):
-        run_dirs = glob.glob(os.path.join(restore_dir, "run_*"))
-        for run_dir in reversed(sorted(run_dirs)):
-            if os.path.exists(os.path.join(run_dir, "smac", "run_1", "runhistory.json")):
-                return run_dir
-        raise FileNotFoundError("No valid restore files found")
+        return cfg_evaluator
 
-    def _copy_restore_data(self, restore_run_dir, new_run_dir):
-        # Copy tuning data
-        old_tuning_data = os.path.join(restore_run_dir, "tuning_data.pkl")
-        new_tuning_data = os.path.join(new_run_dir, "tuning_data.pkl")
-        shutil.copy(old_tuning_data, new_tuning_data)
-        # Copy log
-        old_log = os.path.join(restore_run_dir, "log.txt")
-        new_log = os.path.join(new_run_dir, "log.txt")
-        shutil.copy(old_log, new_log)
-        # Copy smac trajectory information
-        old_traj = os.path.join(restore_run_dir, "smac", "run_1", "traj_aclib2.json")
-        new_traj = os.path.join(new_run_dir, "smac", "run_1", "traj_aclib2.json")
-        shutil.copy(old_traj, new_traj)
-
-    def _load_smac_restore_data(self, restore_run_dir, scenario):
-        # Load runhistory
-        rh_path = os.path.join(restore_run_dir, "smac", "run_1", "runhistory.json")
-        runhistory = RunHistory()
-        runhistory.load_json(rh_path, scenario.cs)
-        # Load stats
-        stats_path = os.path.join(restore_run_dir, "smac", "run_1", "stats.json")
-        stats = Stats(scenario)
-        stats.load(stats_path)
-        # Load trajectory
-        traj_path = os.path.join(restore_run_dir, "smac", "run_1", "traj_aclib2.json")
-        trajectory = TrajLogger.read_traj_aclib_format(fn=traj_path, cs=scenario.cs)
-        incumbent = trajectory[-1]["incumbent"]
-
-        return runhistory, stats, incumbent
-
-    def _get_tune_result(self, tuning_data, runhistory):
+    def _get_tune_result(self, cfg_evaluator, runhistory):
         cfgs, inc_cfgs, costs, inc_costs, truedyn_costs, inc_truedyn_costs, \
             surr_infos, truedyn_infos =  [], [], [], [], [], [], [], []
         inc_cost = float("inf")
+        inc_cfg = None
 
         for key, val in runhistory.data.items():
             #parse additional data from additional_info dict
@@ -380,7 +351,7 @@ class ControlTuner:
                 truedyn_costs.append(val.additional_info["truedyn_cost"])
                 truedyn_infos.append(val.additional_info["truedyn_info"])
 
-        surr_tune_result = tuning_data.get("surr_tune_result",None)
+        surr_tune_result = cfg_evaluator.surr_tune_result
 
         tune_result = ControlTunerResult(inc_cfg = inc_cfg,
                 cfgs = cfgs,
@@ -450,217 +421,62 @@ class ControlTuner:
         tune_result : PipelineTuneResult
             Additional tuning information.
         """
-
-        # Initialize output directories
-        if output_dir is None:
-            output_dir = "autompc-output_" + datetime.datetime.now().isoformat(timespec="seconds")
-        run_dir = os.path.join(output_dir, 
-            "run_{}".format(int(1000.0*datetime.datetime.utcnow().timestamp())))
-        smac_dir = os.path.join(run_dir, "smac")
-        eval_result_dir = os.path.join(run_dir, "eval_results")
-
-        if restore_dir:
-            restore_run_dir = self._get_restore_run_dir(restore_dir)
-
-        if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
-        if os.path.exists(run_dir):
-            raise Exception("Run directory already exists")
-        os.mkdir(run_dir)
-
-        if not os.path.exists(smac_dir):
-            os.mkdir(smac_dir)
-        if not os.path.exists(eval_result_dir):
-            os.mkdir(eval_result_dir)
-        if not os.path.exists(os.path.join(smac_dir, "run_1")):
-            os.mkdir(os.path.join(smac_dir, "run_1"))
-        if save_all_controllers:
-            controller_save_dir = os.path.join(run_dir, "saved_controllers")
-            if not os.path.exists(controller_save_dir):
-                os.mkdir(controller_save_dir)
-        else:
-            controller_save_dir = None
+        # TODO handle save_all_controllers
+        smac_runner = SMACRunner(output_dir, restore_dir, use_default_initial_design)
         
         if isinstance(tasks, Task):
             tasks = [tasks]
 
-        if not restore_dir:
+        if not smac_runner.restore:
             controller = controller.clone()
             controller.set_ocp(tasks[0].get_ocp())
-            tuning_data = self._get_tuning_data(controller, tasks, trajs, truedyn, rng, surrogate_tune_iters)
-            with open(os.path.join(run_dir, "tuning_data.pkl"), "wb") as f:
-                pickle.dump(tuning_data, f)
+            cfg_evaluator = self._get_cfg_evaluator(controller, tasks, trajs, truedyn, rng, surrogate_tune_iters)
         else:
-            self._copy_restore_data(restore_run_dir, run_dir)
-            with open(os.path.join(run_dir, "tuning_data.pkl"), "rb") as f:
-                tuning_data = pickle.load(f)
-            #surrogate_tune_result = tuning_data["surr_tune_result"]
+            cfg_evaluator = smac_runner.restore_cfg_evaluator()
 
-        eval_cfg = CfgRunner(run_dir=run_dir, timeout=eval_timeout,
-            controller_save_dir=controller_save_dir, eval_result_dir=eval_result_dir,
-            max_eval_jobs=max_eval_jobs)
+        cs = controller.get_config_space()
 
-        if debug_return_evaluator:
-            return eval_cfg
-
-        smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
-        scenario = Scenario({"run_obj" : "quality",
-                             "runcount-limit" : n_iters,
-                             "cs" : controller.get_config_space(),
-                             "deterministic" : "true",
-                             "limit_resources" : False,
-                             "abort_on_first_run_crash" : False,
-                             "save_results_instantly" : True,
-                             "output_dir" : smac_dir
-                             })
-
-        if not use_default_initial_design:
-            initial_design = RandomConfigurations
-        else:
-            initial_design = None
-
-        if not restore_dir:
-            smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                    initial_design=initial_design,
-                    tae_runner=eval_cfg,
-                    run_id = 1
-                    )
-        else:
-            runhistory, stats, incumbent = self._load_smac_restore_data(restore_run_dir, scenario)
-            smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-                    initial_design=initial_design,
-                    tae_runner=eval_cfg,
-                    run_id = 1,
-                    runhistory=runhistory,
-                    stats=stats,
-                    restore_incumbent=incumbent
-                    )  
-
-        inc_cfg = smac.optimize()
+        inc_cfg, run_history  = smac_runner.run(cs, cfg_evaluator, n_iters, rng, eval_timeout)
 
         # Generate final model and controller
         tuned_controller = controller.clone()
         tuned_controller.set_ocp(tasks[0].get_ocp())
         tuned_controller.set_config(inc_cfg)
-        tuned_controller.build(tuning_data["sysid_trajs"])
+        tuned_controller.build(cfg_evaluator.sysid_trajs)
 
-        tune_result = self._get_tune_result(tuning_data, smac.runhistory)
+        tune_result = self._get_tune_result(cfg_evaluator, run_history)
 
         return tuned_controller, tune_result
 
-
-
-class CfgRunner:
-    def __init__(self, tuning_data=None, run_dir=None, timeout=None, log_file_name=None,
-                    controller_save_dir=None, eval_result_dir=None, max_eval_jobs=1):
-        if tuning_data is None and run_dir is None:
-            raise ValueError("Either tuning_data or run_dir must be passed")
-        self.tuning_data = tuning_data
-        self.run_dir = run_dir
-        self.timeout = timeout
-        if log_file_name is None and run_dir is not None:
-            log_file_name = os.path.join(run_dir, "log.txt")
-        self.log_file_name = log_file_name
-        self.eval_number = 0
-        self.controller_save_dir = controller_save_dir
-        self.eval_result_dir = eval_result_dir
-        self.max_eval_jobs = max_eval_jobs
-
-    def get_tuning_data(self):
-        if not self.tuning_data is None:
-            return self.tuning_data
-        with open(os.path.join(self.run_dir, "tuning_data.pkl"), "rb") as f:
-            return pickle.load(f)
+@dataclass
+class ControlCfgEvaluator:
+    controller: Controller
+    performance_metric: ControlPerformanceMetric
+    sysid_trajs: List[Trajectory]
+    control_evaluator: ControlEvaluator
+    truedyn_evaluator: ControlEvaluator
+    surr_tune_result: Optional[ModelTuneResult] = None
 
     def __call__(self, cfg):
-        self.eval_number += 1
-        if self.timeout is None:
-            result = self.run(cfg)
-        else:
-            #p = multiprocessing.Process(target=self.run_mp, args=(cfg,))
-            ctx = multiprocessing.get_context("spawn")
-            q = ctx.Queue()
-            p = ctx.Process(target=self.run_mp, args=(cfg, q))
-            start_time = time.time()
-            p.start()
-            timeout = False
-            while p.is_alive():
-                if time.time() - start_time > self.timeout:
-                    timeout = True
-                    break
-                try:
-                    result = q.get(block=True, timeout=10.0)
-                    break
-                except queue.Empty:
-                    continue
-            p.join(timeout=1)
-            if timeout:
-                print("CfgRunner: Evaluation timed out")
-                p.terminate()
-                return np.inf, dict()
-            if p.exitcode != 0:
-                print("CfgRunner: Exception during evaluation")
-                print("Exit code: ", p.exitcode)
-                return np.inf, dict()
-        
-        result['surr_info'] = [trial_to_json(info) for info in result['surr_info']]
-        if 'truedyn_info' in result:
-            result['truedyn_info'] = [trial_to_json(info) for info in result['truedyn_info']]
-        return result['surr_cost'],dict(result)
-
-    def run_mp(self, cfg, q):
-        if not self.log_file_name is None:
-            with open(self.log_file_name, "a") as f:
-                with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-                    try:
-                        result = self.run(cfg)
-                    except Exception as e:
-                        print("Exception raised: \n", str(e))
-                        raise e
-                    print("Putting Result... ", end="")
-                    q.put(result)
-                    print("Done.")
-        else:
-            result = self.run(cfg)
-            q.put(result)
-
-    # def dispatch_eval_jobs(self, controller, evaluator):
-    #     ctx = multiprocessing.get_context("spawn")
-    #     active_qs = []
-    #     active_ps = []
-    #     job_idx = 0
-    #     for _ in range(self.max_eval_jobs):
-    #     with open 
-
-    def run(self, cfg):
         print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
-        tuning_data = self.get_tuning_data()
-        controller = tuning_data["controller"].clone()
-        sysid_trajs = tuning_data["sysid_trajs"]
-        control_evaluator = tuning_data["control_evaluator"]  # type : ControlEvaluator
-        truedyn_evaluator = tuning_data["truedyn_evaluator"]  # type : ControlEvaluator
-        performance_metric = tuning_data["performance_metric"]  # type : ControlPerformanceMetric
+        controller = self.controller.clone()
+
         info = dict()
-
         controller.set_config(cfg)
-        controller.build(sysid_trajs)
-        trajs = control_evaluator(controller)
-        performance = performance_metric(trajs)
+        controller.build(self.sysid_trajs)
+        trials = self.control_evaluator(controller)
+        performance = self.performance_metric(trials)
         info["surr_cost"] = performance
-        info["surr_info"] = trajs
-        if not truedyn_evaluator is None:
-            trajs = truedyn_evaluator(controller)
-            performance = performance_metric(trajs)
+        info["surr_info"] = list(map(trial_to_json, trials))
+        if not self.truedyn_evaluator is None:
+            trajs = self.truedyn_evaluator(controller)
+            performance = self.performance_metric(trajs)
             info["truedyn_cost"] = performance
-            info["truedyn_info"] = trajs
+            info["truedyn_info"] = list(map(trial_to_json, trials))
         
-        if self.controller_save_dir:
-            controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
-            with open(controller_save_fn, "wb") as f:
-                pickle.dump(controller, f)
+        # if self.controller_save_dir:
+        #     controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
+        #     with open(controller_save_fn, "wb") as f:
+        #         pickle.dump(controller, f)
 
-        # if not self.log_file_name is None:
-        #     sys.stdout.close()
-        #     sys.stderr.close()
-
-        return info
+        return info["surr_cost"], info

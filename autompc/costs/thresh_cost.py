@@ -46,7 +46,7 @@ class ThresholdCost(Cost):
             full_goal = np.zeros(self.system.obs_dim)
             full_goal[self._obs_idxs] = goal
             goal = full_goal
-        self.set_goal(goal)
+        self.goal = goal
 
     def incremental(self, obs, ctrl):
         if (la.norm(obs[self._obs_idxs] - self.goal[self._obs_idxs], np.inf) 

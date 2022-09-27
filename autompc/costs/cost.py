@@ -186,7 +186,7 @@ class Cost(ABC):
         return np.copy(self.properties['goal'])
     
     @goal.setter
-    def set_goal(self,goal):
+    def goal(self,goal):
         """Sets the cost's goal state. (Note: not all costs actually act to
         drive the system toward a goal).
         """

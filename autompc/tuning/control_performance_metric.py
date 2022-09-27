@@ -8,7 +8,7 @@ class ControlPerformanceMetric:
     for tuning.  Default implementation just averages the cost.
     """
     def __call__(self,trials : List[ControlEvaluationTrial]) -> float:
-        return np.mean(t.cost for t in trials)
+        return np.mean([t.cost for t in trials])
 
 
 class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
@@ -61,7 +61,8 @@ class NormalDistribution:
         self.sigma = np.std(values)
 
     def __call__(self, quantile):
-        return norm.ppf(quantile, loc=self.mu, scale=self.sigma)
+        if self.sigma > 0:
+            return norm.ppf(quantile, loc=self.mu, scale=self.sigma)
 
     def __str__(self):
         return "<Normal Distribution, mean={}, std={}>".format(
