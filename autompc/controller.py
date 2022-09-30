@@ -199,9 +199,6 @@ class Controller(TunablePipeline,Policy):
         also update the current optimizer's target
         """
         self.ocp = ocp
-
-        if len(self.ocp_transformers) == 1:
-            self.ocp_transformer = self.ocp_transformers[0]
         if self.ocp_transformer:
             self.transformed_ocp = self.ocp_transformer(self.ocp)
         else:
