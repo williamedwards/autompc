@@ -52,7 +52,8 @@ class AutoSelectModel (Model, TunablePipeline):
         pipeline = TunablePipeline.get_configured_pipeline(self)
         self.selected_model = pipeline[0]
         #configure budget properties
-        self.selected_model.set_train_time(self.train_time_limit)
+        if self.train_time_limit is not None:
+            self.selected_model.set_train_time(self.train_time_limit)
     
     def selected(self) -> Model:
         return self.selected_model
@@ -138,3 +139,9 @@ class AutoSelectModel (Model, TunablePipeline):
         if self.selected_model is None:
             return False
         return self.selected_model.is_diff
+
+    @property
+    def state_system(self) -> System:
+        if self.selected_model is None:
+            raise False
+        return self.selected_model.state_system

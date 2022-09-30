@@ -201,12 +201,12 @@ class Cost(ABC):
     def __mul__(self, rhs):
         if not isinstance(rhs,(int,float)):
             raise ValueError("Can only multiply by a float")
-        return MulCost(self.system, [self, rhs])
+        return MulCost(self.system, self, rhs)
         
     def __rmul__(self, lhs):
         if not isinstance(lhs,(int,float)):
             raise ValueError("Can only multiply by a float")
-        return MulCost(self.system, [self, lhs])
+        return MulCost(self.system, self, lhs)
 
 
 class SumCost(Cost):

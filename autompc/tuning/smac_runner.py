@@ -155,8 +155,8 @@ class CfgRunner:
             result = self.run_mp(cfg)
         else:
             ctx = multiprocessing.get_context("spawn")
-            result_file  = self.eval_result_dir / f"result_{self.eval_number}.pkl"
-            p = ctx.Process(target=self.run_mp, args=(cfg, result_file))
+            q = ctx.Queue()
+            p = ctx.Process(target=self.run_mp, args=(cfg, q))
             start_time = time.time()
 
             p.start()
@@ -165,10 +165,13 @@ class CfgRunner:
                 if time.time() - start_time > self.timeout:
                     timeout = True
                     break
-            p.join(timeout=1)
+                try:
+                    result = q.get(timeout=10, block=True)
+                    break
+                except queue.Empty:
+                    pass
 
-            with open(result_file, "rb") as f:
-                result = pickle.load(f)
+            p.join(timeout=1)
 
             if timeout:
                 print("CfgRunner: Evaluation timed out")
@@ -182,7 +185,7 @@ class CfgRunner:
         return result
 
 
-    def run_mp(self, cfg, result_file):
+    def run_mp(self, cfg, q):
         cfg_evaluator = self.get_cfg_evaluator()
         if not self.log_file_name is None:
             with open(self.log_file_name, "a") as f:
@@ -192,12 +195,9 @@ class CfgRunner:
                     except Exception as e:
                         print("Exception raised: \n", str(e))
                         raise e
-                    print("Saving result...")
-                    print(f"{result=}")
-                    with open(result_file, "wb") as f:
-                        pickle.dump(result, f)
+                    print("Putting result...")
+                    q.put(result)
                     print("Done.")
         else:
             result = cfg_evaluator(cfg)
-            with open(result_file, "wb") as f:
-                pickle.dump(result, f)
+            q.put(result)

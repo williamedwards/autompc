@@ -22,7 +22,7 @@ class ThresholdCost(Cost):
 
         goal : Numpy array
             Goal position. Can either be length system.obs_dim or
-            # of observations in
+            # of observations in obs_range.
 
         obs_range : (int, int)
             First (inclusive and last (exclusive) index of observations

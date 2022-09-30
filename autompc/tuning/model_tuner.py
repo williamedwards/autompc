@@ -60,7 +60,7 @@ class ModelTuner:
     def __init__(self, system : System, trajs : List[Trajectory], model : Optional[Model] = None,
                 eval_holdout=0.25, eval_folds=3, eval_metric="rmse", eval_horizon=1, eval_quantile=None,
                 evaluator : Optional[ModelEvaluator] = None,
-                multi_fidelity=True, verbose=0):
+                multi_fidelity=False, verbose=0):
         """
         Parameters
         ----------
@@ -97,9 +97,12 @@ class ModelTuner:
                 raise ValueError("system and model.system must match")
         if evaluator is None:
             if eval_folds <= 1:
-                evaluator = HoldoutModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, holdout_prop=eval_holdout)
+                evaluator = HoldoutModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, holdout_prop=eval_holdout,
+                    rng=np.random.default_rng(100))
             else:
-                evaluator = CrossValidationModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, num_folds=eval_folds)
+                print("Foo")
+                evaluator = CrossValidationModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, num_folds=eval_folds,
+                    rng=np.random.default_rng(100))
         else:
             evaluator.trajs = trajs
         
@@ -115,7 +118,8 @@ class ModelTuner:
             print(cfg)
             print("Seed",seed,"budget",budget)
         self.model.set_config(cfg)
-        self.model.set_train_budget(budget)
+        if budget > 0:
+            self.model.set_train_budget(budget)
         value = self.evaluator(self.model)
         if self.verbose:
             print("Model Score ", value)
