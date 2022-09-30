@@ -22,14 +22,8 @@ class LogBarrierCostTransformer(OCPTransformer):
     def __init__(self, system, barrier_type='log'):
         self._scales = {}
         self._limits = {} # Key: obs/ctrlname, Value: (limit, upper)
-        self.barrier_type = barrier_type
-        if self.barrier_type == 'log':
-            super().__init__(system, 'LogBarrierCostTransformer')
-        elif self.barrier_type == 'inverse':
-            super().__init__(system, 'InverseBarrierCostTransformer')
-        else:
-            raise ValueError
-
+        super().__init__(system, 'LogBarrierCostTransformer')
+        
     def set_tunable_scale(self, boundedState, lower=BARRIER_COST_DEFAULT_BOUNDS[0],
                                               upper=BARRIER_COST_DEFAULT_BOUNDS[1],
                                               default_value=BARRIER_COST_DEFAULT_VALUE,
@@ -37,10 +31,7 @@ class LogBarrierCostTransformer(OCPTransformer):
         if(boundedState in self.system.observations or boundedState in self.system.controls):
             # Changing the scale hyperparameter from Constant to default UniformFloatHyperparameter
             cs = self.get_config_space()
-            if self.barrier_type == 'log':
-                hp = cs.get_hyperparameter(boundedState+'_LogBarrier')
-            elif self.barrier_type == 'inverse':
-                hp = cs.get_hyperparameter(boundedState+'_InverseBarrier')
+            hp = cs.get_hyperparameter(boundedState+'_LogBarrier')
             name = hp.name
             new_hp = CS.UniformFloatHyperparameter(hp.name, lower, upper, default_value, log=log)            
             cs._hyperparameters[name] = new_hp
@@ -48,10 +39,7 @@ class LogBarrierCostTransformer(OCPTransformer):
             raise ValueError(str(boundedState) + " is not in system")
     def set_fixed_scale(self, boundedState, scale):
         if(boundedState in self.system.observations or boundedState in self.system.controls):
-            if self.barrier_type == 'log':
-                self.fix_hyperparameters(**{boundedState+"_LogBarrier": scale})
-            elif self.barrier_type == 'inverse':
-                self.fix_hyperparameters(**{boundedState+"_InverseBarrier": scale})
+            self.fix_hyperparameters(**{boundedState+"_LogBarrier": scale})
         else:
             raise ValueError(str(boundedState) + " is not in system")
 
@@ -71,10 +59,7 @@ class LogBarrierCostTransformer(OCPTransformer):
         return cs
 
     def get_prototype(self, config, ocp):
-        if self.barrier_type == 'log':
-            return PrototypeOCP(ocp, cost=LogBarrierCost)
-        elif self.barrier_type == 'inverse':
-            return PrototypeOCP(ocp, cost=InverseBarrierCost)
+        return PrototypeOCP(ocp, cost=LogBarrierCost)
 
     def is_compatible(self, ocp):
         return True
@@ -85,9 +70,6 @@ class LogBarrierCostTransformer(OCPTransformer):
     def __call__(self, ocp):
         new_ocp = copy.deepcopy(ocp)
         scales = self._get_scales()
-        if self.barrier_type == 'log':
-            new_cost = LogBarrierCost(self.system, ocp.get_obs_bounds(), ocp.get_ctrl_bounds(), scales)
-        elif self.barrier_type == 'inverse':
-            new_cost = InverseBarrierCost(self.system, ocp.get_obs_bounds(), ocp.get_ctrl_bounds(), scales)
+        new_cost = LogBarrierCost(self.system, ocp.get_obs_bounds(), ocp.get_ctrl_bounds(), scales)
         new_ocp.set_cost(new_cost)
         return new_ocp
