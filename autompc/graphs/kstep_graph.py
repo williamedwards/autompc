@@ -11,7 +11,7 @@ class KstepPredAccGraph:
     """
     Create k-step model prediction accuracy graph.
     """
-    def __init__(self, system, trajs, kmax, logscale=False, metric="rmse"):
+    def __init__(self, system, trajs, kmax, logscale=False, metric="rmse", obs_names=None):
         """
         Parameters
         ----------
@@ -29,10 +29,15 @@ class KstepPredAccGraph:
 
         metric : string
             Prediction accuracy metric to use. One of "rmse" or "rmsmens"
+
+        obs_names : List of string
+            If specified, the metric will be calculated only in the dimensions named here
         """
+        self.system = system
         self.kmax = kmax
         self.trajs = trajs
         self.logscale = logscale
+        self.obs_names=obs_names
         self.models = []
         self.labels = []
         self.plot_kwargs = []
@@ -45,6 +50,12 @@ class KstepPredAccGraph:
             self.metric = get_model_abs_error
         else:
             raise ValueError("Unknown error metric")
+
+        if obs_names is None:
+            self.obs_names=self.system.observations
+        else: 
+            self.obs_names=obs_names
+            
 
     def add_model(self, model, label, plot_kwargs=dict()):
         """
@@ -79,7 +90,9 @@ class KstepPredAccGraph:
             Axes in which to create graph
         """
         for model, label, kwargs in zip(self.models, self.labels, self.plot_kwargs):
-            rmses = [self.metric(model, self.trajs, horizon) 
+            obs_mask = np.zeros(self.system.obs_dim, dtype=int)
+            obs_mask[[self.system.observations.index(obs_name) for obs_name in self.obs_names]]=True
+            rmses = [self.metric(model, self.trajs, horizon, obs_mask) 
                         for horizon in range(1, self.kmax)] 
             ax.plot(rmses, label=label, **kwargs)
 
