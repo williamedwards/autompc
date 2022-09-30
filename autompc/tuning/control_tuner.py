@@ -659,7 +659,7 @@ class CfgRunner:
             info["truedyn_info"] = trajs
         
         if self.controller_save_dir:
-            controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
+            controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}_metric_{}.pkl".format(self.eval_number, performance))
             with open(controller_save_fn, "wb") as f:
                 pickle.dump(controller, f)
 
