@@ -23,7 +23,7 @@ def get_model_residuals(model : Model, trajs : List[Trajectory], horizon=1) -> n
         resids.append(resid)
     return np.vstack(resids)
 
-def get_model_rmse(model : Model, trajs : List[Trajectory], horizon:int=1) -> float:
+def get_model_rmse(model : Model, trajs : List[Trajectory], horizon:int=1, obs_mask=None) -> float:
     """
     Computes (unnormalized) RMSE at fixed horizon
 
@@ -39,14 +39,17 @@ def get_model_rmse(model : Model, trajs : List[Trajectory], horizon:int=1) -> fl
         Prediction horizon at which to evaluate.
         Default is 1.
     """
+    if obs_mask is None:
+        obs_mask = np.ones(model.state_dim, dtype=int)
+    obs_mask = obs_mask.astype(int)
     sqerrss = []
     for traj in trajs:
         state = np.array([model.traj_to_state(traj[:i+1]) for i in range(len(traj)-horizon)])
         for k in range(horizon):
             state = model.pred_batch(state, traj.ctrls[k:-(horizon-k), :])
-        obs_traj = [model.get_obs(s) for s in state]
-        actual = traj.obs[horizon:]
-        sqerrs = (obs_traj - actual) ** 2
+        obs_traj = np.array([model.get_obs(s) for s in state])
+        actual = np.array(traj.obs[horizon:])
+        sqerrs = (obs_traj[obs_mask] - actual[obs_mask]) ** 2
         sqerrss.append(sqerrs)
     sqerrs = np.concatenate(sqerrss)
     rmse = np.sqrt(np.mean(sqerrs, axis=None)*trajs[0].system.obs_dim)
