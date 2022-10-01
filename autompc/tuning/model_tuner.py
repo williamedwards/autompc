@@ -158,7 +158,7 @@ class ModelTuner:
             tune_result.inc_cfg to reconsruct the model.
         """
         if rng is None:
-            rng = np.random.default_rng()
+            rng = np.random.default_rng(100)
         cs = self.model.get_config_space()
         self.evaluator.rng = rng
         smac_rng = np.random.RandomState(rng.integers(1 << 31))
