@@ -108,8 +108,8 @@ class ModelTuner:
         self.system = system
         self.model = model           # type: Model
         self.evaluator = evaluator   # type: ModelEvaluator
-        # self.multi_fidelity = multi_fidelity
-        self.multi_fidelity = False #DEBUG
+        self.multi_fidelity = multi_fidelity
+        # self.multi_fidelity = True #DEBUG
         self.verbose = verbose
 
     def _evaluate(self, cfg, seed=None, budget=None):
