@@ -38,9 +38,6 @@ def reacher_dynamics(env, x, u, n_frames=5):
     old_state = env.sim.get_state()
     old_qpos = old_state[1]
     old_qvel = old_state[2]
-    # print("x:", x, ", size", len(x)) #x according to the observation space
-    # print("old_qpos size", len(old_qpos))
-    # print("old_qvel size", len(old_qvel))
 
     qpos = x[:len(old_qpos)]
     qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
@@ -50,9 +47,6 @@ def reacher_dynamics(env, x, u, n_frames=5):
     env.sim.set_state(new_state)
     #env.sim.forward()
     
-    # print("u", u)
-    # print("new state", new_state)
-    # print("env control", env.sim.data.ctrl[:]) #sim.data.ctrl is the control signal that is sent to the actuators in the simulation.
     env.sim.data.ctrl[:] = u
     for _ in range(n_frames):
         env.sim.step()
@@ -60,15 +54,7 @@ def reacher_dynamics(env, x, u, n_frames=5):
     new_qpos = env.sim.data.qpos
     new_qvel = env.sim.data.qvel
 
-    theta = new_qpos.flat[:2]
-    
-    out = np.concatenate([
-                            np.cos(theta), 
-                            np.sin(theta), 
-                            new_qpos.flat[2:], 
-                            new_qvel.flat[:2],
-                            env.get_body_com("fingertip") - env.get_body_com("target"),
-                        ])
+    out = np.concatenate([new_qpos, new_qvel])
 
     return out
 
@@ -100,11 +86,14 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
 
     for i in range(num_trajs):
         init_obs = env.reset()
-        print(init_obs)
-        # print("observation len", len(init_obs))
-        traj = Trajectory.zeros(system, traj_len)
 
-        traj[0].obs[:] = init_obs      
+        traj = Trajectory.zeros(system, traj_len)
+        
+        new_init_qpos = np.array([np.arctan2(init_obs[2], init_obs[0]), np.arctan2(init_obs[3], init_obs[1]), init_obs[4], init_obs[5]])
+        new_init_qvel = np.concatenate([init_obs[6:8], np.zeros(2)])
+        new_init_obs = np.concatenate([new_init_qpos, new_init_qvel])
+
+        traj[0].obs[:] = new_init_obs      
 
         for j in range(1, traj_len):
             action = env.action_space.sample()
@@ -125,9 +114,8 @@ class ReacherBenchmark(Benchmark):
         env = gym.make(name)
         self.env = env
         self.name = name
-        obs_shape = env.observation_space.shape[0]
 
-        x_num = obs_shape
+        x_num = 4+4
         u_num = env.action_space.shape[0]
         system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt) #18, 6
 

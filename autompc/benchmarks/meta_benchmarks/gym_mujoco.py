@@ -20,6 +20,10 @@ This benchmark file includes the following 5 env from OpenAI gym mujoco:
 HalfCheetah-v2, Hoppe-v2, InvertedPendulum-v2, Swimmer-v2, Walker2D-v2    
 """
 
+gym_names = ["HalfCheetah-v2", "Hopper-v2", "Walker2d-v2", "Swimmer-v2", "InvertedPendulum-v2", 
+              "Reacher-v2", "InvertedDoublePendulum-v2", 
+              "Ant-v2", "Humanoid-v2", "HumanoidStandup-v2"]
+
 def viz_halfcheetah_traj(env, traj, repeat):
     for _ in range(repeat):
         env.reset()
@@ -81,14 +85,19 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     trajs = []
     env.seed(int(rng.integers(1 << 30)))
     env.action_space.seed(int(rng.integers(1 << 30)))
-    state = env.sim.get_state()
-    qpos, qvel = state[1], state[2]
+    
     for i in range(num_trajs):
         init_obs = env.reset()
+        state = env.sim.get_state()
+        qpos, qvel = state[1], state[2]
         traj = Trajectory.zeros(system, traj_len)
-
-        add_zeros = np.zeros(len(qpos) + len(qvel) - len(init_obs))
-        traj[0].obs[:] = np.concatenate([add_zeros, init_obs])       
+        
+        if len(init_obs) < len(qpos) + len(qvel):
+            add_zeros = np.zeros(len(qpos) + len(qvel) - len(init_obs))
+            traj[0].obs[:] = np.concatenate([add_zeros, init_obs])
+        else:
+            traj[0].obs[:] = np.concatenate([qpos, qvel])
+                  
 
         for j in range(1, traj_len):
             action = env.action_space.sample()

@@ -76,7 +76,7 @@ def meta_gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     env.action_space.seed(int(rng.integers(1 << 30)))
     
     for i in range(num_trajs):
-        init_obs = env.reset()
+        # init_obs = env.reset()
         state = env.sim.get_state()
         qpos, qvel = state[1], state[2]
         traj = Trajectory.zeros(system, traj_len)       
