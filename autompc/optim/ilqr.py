@@ -15,8 +15,6 @@ from .optimizer import Optimizer
 from ..trajectory import Trajectory
 from ..costs import LogBarrierCost, SumCost
 
-BOUNDS_ADJUSTMENT_EPS = 1e-3
-
 def inverse_semidefinite(A, damping=1e-3):
     w,V = np.linalg.eigh(A)
     winv = np.divide(1.0,(w + damping))
