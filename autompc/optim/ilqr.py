@@ -350,9 +350,13 @@ class IterativeLQR(Optimizer):
             obs_bounds[np.any(obs>obs_upper, axis=0),1] = np.where(obs>obs_upper, obs+eps, obs).max(axis=0)[np.any(obs>obs_upper, axis=0)]
             ctrl_bounds[np.any(ctrls<ctrls_lower, axis=0),0] = np.where(ctrls<ctrls_lower, ctrls-eps, ctrls).min(axis=0)[np.any(ctrls<ctrls_lower, axis=0)]
             ctrl_bounds[np.any(ctrls>ctrls_upper, axis=0),1] = np.where(ctrls>ctrls_upper, ctrls+eps, ctrls).max(axis=0)[np.any(ctrls>ctrls_upper, axis=0)]
-            barrier_cost = LogBarrierCost(self.system, obs_bounds, ctrl_bounds, cost._costs[1].scales)
+            
             cost = copy.deepcopy(cost)
-            cost._costs[1]=barrier_cost
+            if isinstance(cost, SumCost):
+                for i, c in enumerate(cost._costs):
+                    if isinstance(c, BarrierCost):
+                        cost._costs[i] = c.__class__(self.system, obs_bounds, ctrl_bounds, c.scales)
+            
         self._adjusted_cost = cost
         obj = eval_obj(states, ctrls)
         self.quad_cost, self.barrier_cost = eval_debug(states, ctrls)
