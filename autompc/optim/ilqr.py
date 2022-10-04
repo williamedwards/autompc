@@ -354,7 +354,7 @@ class IterativeLQR(Optimizer):
             cost = copy.deepcopy(cost)
             if isinstance(cost, SumCost):
                 for i, c in enumerate(cost._costs):
-                    if isinstance(c, BarrierCost):
+                    if isinstance(c, BarrierCost) and c.is_hard:
                         cost._costs[i] = c.__class__(self.system, obs_bounds, ctrl_bounds, c.scales)
             
         self._adjusted_cost = cost
