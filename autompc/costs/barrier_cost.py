@@ -5,13 +5,10 @@ import numpy.linalg as la
 
 from .cost import Cost
 
-class LogBarrierCost(Cost):
+class BarrierCost(Cost):
     def __init__(self, system, obs_bounds, ctrl_bounds, scales):
         """
-        Create barrier cost that approximates an inequality constraint.
-        Function does not exist outside the limit.
-        where : - b * ln ( a - x ) for upper limit
-                - b * ln ( a + x ) for lower limit
+        Abstract Class that encompasses both soft and hard barrier costs. 
         Parameters
         ----------
         system : System
@@ -32,11 +29,10 @@ class LogBarrierCost(Cost):
         self.obsConfiguration = []
         self.ctrlsConfiguration = []
 
-        for variable in scales.keys():
-            scale = scales[variable]
+        for variable, scale in scales.items():
             # Check that scale is positive
             if(scale < 0):
-                raise ValueError(f"{variable}'s log barrier scale must be positive, was {scale}")
+                raise ValueError(f"{variable}'s barrier scale must be positive, was {scale}")
             elif scale == 0:
                 # Skip constructing barrier since transformer scale 0
                 continue
@@ -48,23 +44,183 @@ class LogBarrierCost(Cost):
                 self.ctrlsConfiguration.append([variable, (lower, upper, scale)])
             else:
                 raise ValueError(f"Variable {variable} is not in the given system")
-        
-        # Configs
-        self._is_quad = False
-        self._is_convex = True
-        self._is_diff = True
-        self._is_twice_diff = True
-        self._has_goal = False
+    
+    @property
+    def is_hard(self) -> bool:
+        """
+        True if cost is a hard barrier
+        """
+        return NotImplementedError
 
+    def barrier(self, value, lower, upper) -> float:
+        return NotImplementedError
+        
+    def barrier_diff(self, value, lower, upper) -> float:
+        return NotImplementedError
+
+    def barrier_hess(self, value, lower, upper) -> float:
+        return NotImplementedError
+    
     def incremental(self, obs, control):
-        return self.eval_obs_cost(obs) + self.eval_ctrl_cost(control)
+        sum = 0
+        # Observation cost
+        for boundedObs in self.obsConfiguration:
+            variable, config = boundedObs
+            index = self.system.observations.index(variable)
+            lower, upper, scale = config
+            lower_barrier_cost, upper_barrier_cost = self.barrier(obs[index], lower, upper)
+            if lower > -np.inf:
+                if lower >= obs[index]:
+                    if self.is_hard:
+                        sum += np.inf
+                    else:
+                        sum += scale * lower_barrier_cost
+                else:
+                    if self.is_hard:
+                        sum += scale * lower_barrier_cost
+            if upper < np.inf:
+                if obs[index] >= upper:
+                    if self.is_hard:
+                        sum += np.inf
+                    else:
+                        sum += scale * upper_barrier_cost
+                else:
+                    if self.is_hard:
+                        sum += scale * upper_barrier_cost
+
+        # Control cost
+        for boundedCtrl in self.ctrlsConfiguration:
+            variable, config = boundedCtrl
+            index = self.system.controls.index(variable)
+            lower, upper, scale = config
+            lower_barrier_cost, upper_barrier_cost = self.barrier(control[index], lower, upper)
+            if lower > -np.inf:
+                if lower >= obs[index]:
+                    if self.is_hard:
+                        sum += np.inf
+                    else:
+                        sum += scale * lower_barrier_cost
+                else:
+                    if self.is_hard:
+                        sum += scale * lower_barrier_cost
+            if upper < np.inf:
+                if obs[index] >= upper:
+                    if self.is_hard:
+                        sum += np.inf
+                    else:
+                        sum += scale * upper_barrier_cost
+                else:
+                    if self.is_hard:
+                        sum += scale * upper_barrier_cost
+        return sum
 
     def incremental_diff(self, obs, control):
-        return self.incremental(obs, control), self.eval_obs_cost_diff(obs), self.eval_ctrl_cost_diff(control)
+        obs_jacobian = np.zeros(self.system.obs_dim)
+        for boundedObs in self.obsConfiguration:
+            variable, config = boundedObs
+            index = self.system.observations.index(variable)
+            lower, upper, scale = config
+            lower_barrier_diff, upper_barrier_diff = self.barrier_diff(obs[index], lower, upper)
+            if lower > -np.inf:
+                if lower >= obs[index]:
+                    if self.is_hard:
+                        obs_jacobian[index] += -np.inf
+                    else:
+                        obs_jacobian[index] += scale * lower_barrier_diff
+                else:
+                    if self.is_hard:
+                        obs_jacobian[index] += scale * lower_barrier_diff
+            if upper < np.inf:
+                if obs[index] >= upper:
+                    if self.is_hard:
+                        obs_jacobian[index] += np.inf
+                    else:
+                        obs_jacobian[index] += scale * upper_barrier_diff
+                else:
+                    if self.is_hard:
+                        obs_jacobian[index] += scale * upper_barrier_diff
 
-    def incremental_hess(self, obs, control): # TODO: Tuple unpacking only supported for python>=3.8
-        hess_obs_ctrl = np.zeros((self.system.obs_dim, self.system.ctrl_dim))
-        return self.incremental(obs, control), self.eval_obs_cost_diff(obs), self.eval_ctrl_cost_diff(control), self.eval_obs_cost_hess(obs), hess_obs_ctrl, self.eval_ctrl_cost_hess(control)
+        ctrl_jacobian = np.zeros(self.system.obs_dim)
+        for boundedCtrl in self.ctrlsConfiguration:
+            variable, config = boundedCtrl
+            index = self.system.controls.index(variable)
+            lower, upper, scale = config
+            lower_barrier_diff, upper_barrier_diff = self.barrier_diff(control[index], lower, upper)
+            if lower > -np.inf:
+                if lower >= obs[index]:
+                    if self.is_hard:
+                        ctrl_jacobian[index] += -np.inf
+                    else:
+                        ctrl_jacobian[index] += scale * lower_barrier_diff
+                else:
+                    if self.is_hard:
+                        ctrl_jacobian[index] += scale * lower_barrier_diff
+            if upper < np.inf:
+                if obs[index] >= upper:
+                    if self.is_hard:
+                        ctrl_jacobian[index] += np.inf
+                    else:
+                        ctrl_jacobian[index] += scale * upper_barrier_diff
+                else:
+                    if self.is_hard:
+                        ctrl_jacobian[index] += scale * upper_barrier_diff
+
+        return self.incremental(obs, control), obs_jacobian, ctrl_jacobian
+
+    def incremental_hess(self, obs, control): 
+        obs_hessian = np.zeros((self.system.obs_dim, self.system.obs_dim))
+        for boundedObs in self.obsConfiguration:
+            variable, config = boundedObs
+            index = self.system.observations.index(variable)
+            lower, upper, scale = config
+            lower_barrier_hess, upper_barrier_hess = self.barrier_hess(obs[index], lower, upper)
+            if lower > -np.inf:
+                if lower >= obs[index]:
+                    if self.is_hard:
+                        obs_hessian[index][index] += np.inf
+                    else:
+                        obs_hessian[index][index] += scale * lower_barrier_hess
+                else:
+                    if self.is_hard:
+                        obs_hessian[index][index] += scale * lower_barrier_hess
+            if upper < np.inf:
+                if obs[index] >= upper:
+                    if self.is_hard:
+                        obs_hessian[index][index] += np.inf
+                    else:
+                        obs_hessian[index][index] += scale * upper_barrier_hess
+                else:
+                    if self.is_hard:
+                        obs_hessian[index][index] += scale * upper_barrier_hess
+            
+
+        obs_ctrl_hessian = np.zeros((self.system.obs_dim, self.system.ctrl_dim))
+
+        ctrl_hessian = np.zeros((self.system.obs_dim, self.system.obs_dim))
+        for boundedCtrl in self.ctrlsConfiguration:
+            variable, config = boundedCtrl
+            index = self.system.controls.index(variable)
+            lower, upper, scale = config
+            lower_barrier_hess, upper_barrier_hess = self.barrier_hess(control[index], lower, upper)
+            if lower > -np.inf:
+                if lower >= obs[index]:
+                    if self.is_hard:
+                        ctrl_hessian[index][index] += np.inf
+                    else:
+                        ctrl_hessian[index][index] += scale * lower_barrier_hess
+                else:
+                    if self.is_hard:
+                        ctrl_hessian[index][index] += scale * lower_barrier_hess
+            if upper < np.inf:
+                if obs[index] >= upper:
+                    if self.is_hard:
+                        ctrl_hessian[index][index] += np.inf
+                    else:
+                        ctrl_hessian[index][index] += scale * upper_barrier_hess
+                else:
+                    if self.is_hard:
+                        ctrl_hessian[index][index] += scale * upper_barrier_hess
+        return self.incremental(obs, control), *self.incremental_diff(obs, control), obs_hessian, obs_ctrl_hessian, ctrl_hessian
 
     def terminal(self, obs):
         return 0
@@ -74,7 +230,7 @@ class LogBarrierCost(Cost):
     
     def terminal_hess(self, obs):
         return 0, np.zeros(self.system.obs_dim), np.zeros((self.system.obs_dim, self.system.obs_dim))
-
+    
     def __add__(self, rhs):
         if isinstance(rhs, LogBarrierCost):
             if (self.goal is None and rhs.goal is None) or np.all(self.goal == rhs.goal):
@@ -88,104 +244,148 @@ class LogBarrierCost(Cost):
         return new_cost
 
 
-    #Cost Function:
-    # b = scale
-    # - b * ln ( a - x ) upper limit x < a
-    # - b * ln ( -a + x ) lower limit x > a := -x < -a
-    def eval_obs_cost(self, obs):
-        sum = 0
-        for boundedObs in self.obsConfiguration:
-            variable, config = boundedObs
-            index = self.system.observations.index(variable)
-            lower, upper, scale = config
-            if lower > -np.inf:
-                if lower >= obs[index]:
-                    sum += np.inf
-                else:
-                    sum = sum + -scale * np.log(-lower + obs[index])
-            if upper < np.inf:
-                if obs[index] >= upper:
-                    sum += np.inf
-                else:
-                    sum = sum + -scale * np.log(upper - obs[index])           
-        return sum
+class LogBarrierCost(BarrierCost):
+    @property
+    def is_quad(self) -> bool:
+        return False
 
-    #Jacobian:
-    # b / (a - x) upper limit
-    # -b / (-a + x) lower limit
-    def eval_obs_cost_diff(self, obs):
-        jacobian = np.zeros(self.system.obs_dim)
-        for boundedObs in self.obsConfiguration:
-            variable, config = boundedObs
-            index = self.system.observations.index(variable)
-            lower, upper, scale = config
-            if lower > -np.inf:
-                if lower >= obs[index]:
-                    jacobian[index] += -np.inf
-                else:
-                    jacobian[index] += -scale / (-lower + obs[index])
-            if upper < np.inf:
-                if obs[index] >= upper:
-                    jacobian[index] += np.inf
-                else:
-                    jacobian[index] += scale / (upper - obs[index])   
-            
-        return jacobian
+    @property
+    def is_convex(self) -> bool:
+        return True
 
-    #Hessian:
-    # b / (a - x)^2 upper limit
-    # b / (-a + x)^2 lower limit
-    def eval_obs_cost_hess(self, obs):
-        hessian = np.zeros((self.system.obs_dim, self.system.obs_dim))
-        for boundedObs in self.obsConfiguration:
-            variable, config = boundedObs
-            index = self.system.observations.index(variable)
-            lower, upper, scale = config
-            if lower > -np.inf:
-                if lower >= obs[index]:
-                    hessian[index][index] += np.inf
-                else:
-                    hessian[index][index] += scale / ((lower - obs[index])**2)
-            if upper < np.inf:
-                if obs[index] >= upper:
-                    hessian[index][index] += np.inf
-                else:
-                    hessian[index][index] += scale / ((upper - obs[index])**2)
-            
-        return hessian
+    @property
+    def is_diff(self) -> bool:
+        return True
 
-    def eval_ctrl_cost(self, ctrl):
-        sum = 0
-        for boundedCtrl in self.ctrlsConfiguration:
-            variable, config = boundedCtrl
-            index = self.system.controls.index(variable)
-            lower, upper, scale = config
-            if lower > -np.inf:
-                sum = sum + -scale * np.log(-lower + ctrl[index])
-            if upper < np.inf:
-                sum = sum + -scale * np.log(upper - ctrl[index])
-        return sum
+    @property
+    def is_twice_diff(self) -> bool:
+        return True
+
+    @ property
+    def has_goal(self) -> bool:
+        return False
+
+    @property
+    def is_hard(self) -> bool:
+        return True
     
-    def eval_ctrl_cost_diff(self, ctrl):
-        jacobian = np.zeros(self.system.ctrl_dim)
-        for boundedCtrl in self.ctrlsConfiguration:
-            variable, config = boundedCtrl
-            index = self.system.controls.index(variable)
-            lower, upper, scale = config
-            if lower > -np.inf:
-                jacobian[index] += -scale / (-lower + ctrl[index])
-            if upper < np.inf:
-                jacobian[index] += scale / (upper - ctrl[index])   
-        return jacobian
+    def barrier(self, value, lower, upper):
+        """
+        Cost Function:
+        b = scale
+        b * -ln ( -a + x ) upper limit x < a
+        b * -ln (  a - x ) lower limit x > a := -x < -a"""
+        return -np.log(-lower + value),  -np.log(upper - value)
 
-    def eval_ctrl_cost_hess(self, ctrl):
-        hessian = np.zeros((self.system.ctrl_dim, self.system.ctrl_dim))
-        for boundedCtrl in self.ctrlsConfiguration:
-            variable, config = boundedCtrl
-            index = self.system.controls.index(variable)
-            lower, upper, scale = config
-            if lower > -np.inf:
-                hessian[index][index] += scale / ((lower - ctrl[index])**2)
-            if upper < np.inf:
-                hessian[index][index] += scale / ((upper - ctrl[index])**2)
-        return hessian
+    def barrier_diff(self, value, lower, upper):
+        """
+        Jacobian:
+        b / (a - x) upper limit
+        b / (a - x) lower limit
+        """
+        return 1 / (lower - value), 1 / (upper - value)
+
+    def barrier_hess(self, value, lower, upper):
+        """
+        Hessian:
+        b / (a - x)^2 upper limit
+        b / (a - x)^2 lower limit
+        """
+        return 1 / ((lower - value)**2), 1 / ((upper - value)**2)
+
+class InverseBarrierCost(BarrierCost):
+    @property
+    def is_quad(self) -> bool:
+        return False
+
+    @property
+    def is_convex(self) -> bool:
+        return True
+
+    @property
+    def is_diff(self) -> bool:
+        return True
+
+    @property
+    def is_twice_diff(self) -> bool:
+        return True
+
+    @ property
+    def has_goal(self) -> bool:
+        return False
+
+    @property
+    def is_hard(self) -> bool:
+        return True
+    
+    def barrier(self, value, lower, upper):
+        """
+        Cost Function:
+        b = scale
+        b * 1 / ( -a + x ) upper limit x < a
+        b * 1 / (  a - x ) lower limit x > a := -x < -a"""
+        return 1/(-lower + value),  1/(upper - value)
+
+    def barrier_diff(self, value, lower, upper):
+        """
+        Jacobian:
+        b * -1 / (a - x)^2 upper limit
+        b * 1/ (a - x)^2 lower limit
+        """
+        return -1 / ((lower - value)**2), 1 / ((upper - value)**2)
+
+    def barrier_hess(self, value, lower, upper):
+        """
+        Hessian:
+        b * -2 / (a - x)^3 upper limit
+        b * 2 / (a - x)^3 lower limit
+        """
+        return -2 / ((lower - value)**3), 2 / ((upper - value)**3)
+
+class HalfQuadraticBarrierCost(BarrierCost):
+    @property
+    def is_quad(self) -> bool:
+        return False
+
+    @property
+    def is_convex(self) -> bool:
+        return True
+
+    @property
+    def is_diff(self) -> bool:
+        return True
+
+    @property
+    def is_twice_diff(self) -> bool:
+        return True
+    @ property
+    def has_goal(self) -> bool:
+        return False
+
+    @property
+    def is_hard(self) -> bool:
+        return False
+
+    def barrier(self, value, lower, upper):
+        """
+        Cost Function:
+        b = scale
+        b * ( -a + x )**2 upper limit x < a
+        b * (  a - x )**2 lower limit x > a := -x < -a"""
+        return (-lower + value)**2,  (upper - value)**2
+
+    def barrier_diff(self, value, lower, upper):
+        """
+        Jacobian:
+        b * 2 * (-a + x) upper limit
+        b * 2 * ( a - x) lower limit
+        """
+        return 2* (-lower + value),  2*(-upper + value)
+
+    def barrier_hess(self, value, lower, upper):
+        """
+        Hessian:
+        b * 2  upper limit
+        b * 2   lower limit
+        """
+        return 2, 2
