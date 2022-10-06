@@ -4,7 +4,6 @@ autompc-output*
 meta_fig
 meta.json
 meta_2.json
-meta_data
 
 .vscode/
 .venv/
