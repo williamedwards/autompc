@@ -1,6 +1,7 @@
 # Standard library includes
 import unittest
 import tempfile
+import os
 
 # External library includes
 import numpy as np
@@ -25,8 +26,11 @@ class ControlTuningIntegrationTest(unittest.TestCase):
         # Generate data
         self.trajs = self.benchmark.gen_trajs(seed=0, n_trajs=10, traj_len=10)
 
-        # Set-Up Temporary Directories
-        self.autompc_dir = tempfile.mkdtemp()
+        # Set-Up AutoMPC output directory
+        if os.getenv("AUTOMPC_OUTPUT_DIR"):
+            self.autompc_dir = os.getenv("AUTOMPC_OUTPUT_DIR")
+        else:
+            self.autompc_dir = tempfile.mkdtemp()
         print(f"{self.autompc_dir=}")
 
         # Surrogate
@@ -53,3 +57,6 @@ class ControlTuningIntegrationTest(unittest.TestCase):
 
         self.assertIsInstance(tuned_controller, Controller)
         self.assertIsInstance(tune_result, ControlTunerResult)
+
+if __name__ == "__main__":
+    unittest.main()
