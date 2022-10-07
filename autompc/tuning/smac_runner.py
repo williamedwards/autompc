@@ -151,36 +151,34 @@ class CfgRunner:
 
     def __call__(self, cfg):
         self.eval_number += 1
-        if self.timeout is None:
-            result = self.run_mp(cfg)
-        else:
-            ctx = multiprocessing.get_context("spawn")
-            q = ctx.Queue()
-            p = ctx.Process(target=self.run_mp, args=(cfg, q))
-            start_time = time.time()
 
-            p.start()
-            timeout = False
-            while p.is_alive():
-                if time.time() - start_time > self.timeout:
-                    timeout = True
-                    break
-                try:
-                    result = q.get(timeout=10, block=True)
-                    break
-                except queue.Empty:
-                    pass
+        ctx = multiprocessing.get_context("spawn")
+        q = ctx.Queue()
+        p = ctx.Process(target=self.run_mp, args=(cfg, q))
+        start_time = time.time()
 
-            p.join(timeout=1)
+        p.start()
+        timeout = False
+        while p.is_alive():
+            if self.timeout and time.time() - start_time > self.timeout:
+                timeout = True
+                break
+            try:
+                result = q.get(timeout=10, block=True)
+                break
+            except queue.Empty:
+                pass
 
-            if timeout:
-                print("CfgRunner: Evaluation timed out")
-                p.terminate()
-                return np.inf, dict()
-            if p.exitcode != 0:
-                print("CfgRunner: Exception during evaluation")
-                print("Exit code: ", p.exitcode)
-                return np.inf, dict()
+        p.join(timeout=1)
+
+        if timeout:
+            print("CfgRunner: Evaluation timed out")
+            p.terminate()
+            return np.inf, dict()
+        if p.exitcode != 0:
+            print("CfgRunner: Exception during evaluation")
+            print("Exit code: ", p.exitcode)
+            return np.inf, dict()
 
         return result
 

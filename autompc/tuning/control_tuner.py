@@ -18,7 +18,7 @@ from ..sysid.autoselect import AutoSelectModel
 from ..controller import Controller
 from ..trajectory import Trajectory
 from ..dynamics import Dynamics
-from .model_tuner import ModelTuner, ModelTuneResult
+from .model_tuner import ModelTuner, ModelTunerResult
 from .model_evaluator import ModelEvaluator
 from .control_evaluator import ControlEvaluator, StandardEvaluator, ControlEvaluationTrial, trial_to_json
 from .control_performance_metric import ControlPerformanceMetric,ConfidenceBoundPerformanceMetric
@@ -455,7 +455,7 @@ class ControlCfgEvaluator:
     sysid_trajs: List[Trajectory]
     control_evaluator: ControlEvaluator
     truedyn_evaluator: ControlEvaluator
-    surr_tune_result: Optional[ModelTuneResult] = None
+    surr_tune_result: Optional[ModelTunerResult] = None
 
     def __call__(self, cfg):
         print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
