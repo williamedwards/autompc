@@ -169,7 +169,7 @@ class CfgRunner:
             except queue.Empty:
                 pass
 
-        p.join(timeout=1)
+        p.join(timeout=10)
 
         if timeout:
             print("CfgRunner: Evaluation timed out")
