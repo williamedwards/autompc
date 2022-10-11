@@ -42,6 +42,7 @@ class ThresholdCost(Cost):
             self._obs_idxs = [system.observations.index(obs) for obs in observations]
         if self._obs_idxs is None:
             self._obs_idxs = list(range(0, system.obs_dim))
+
         if len(goal) < self.system.obs_dim:
             full_goal = np.zeros(self.system.obs_dim)
             full_goal[self._obs_idxs] = goal
@@ -49,8 +50,8 @@ class ThresholdCost(Cost):
         self.goal = goal
 
     def incremental(self, obs, ctrl):
-        if (la.norm(obs[self._obs_idxs] - self.goal[self._obs_idxs], np.inf) 
-                > self._threshold):
+        max_dist_to_goal = la.norm(obs[self._obs_idxs] - self.goal[self._obs_idxs], np.inf)
+        if (max_dist_to_goal > self._threshold or np.isnan(max_dist_to_goal)):
             return 1.0
         else:
             return 0.0
