@@ -45,6 +45,16 @@ def create_subspace_configuration(cfg, prefix, sub_cs, delimiter=":", **kwargs):
             values[_get_subkey(key, delimiter)] = val
     return Configuration(sub_cs, values=values, **kwargs)
 
+def create_subspace_configuration_and_return_consumed(cfg, prefix, sub_cs, delimiter=":", **kwargs):
+    prefix = prefix + delimiter
+    values = dict()
+    consumed_keys = set()
+    for key, val in cfg.get_dictionary().items():
+        if key.startswith(prefix):
+            values[_get_subkey(key, delimiter)] = val
+            consumed_keys.add(key)
+    return Configuration(sub_cs, values=values, **kwargs), consumed_keys
+
 def transfer_subspace_configuration(source_cfg, source_prefix, dest_cfg, dest_prefix,
         delimiter=":"):
     source_prefix = source_prefix + delimiter
@@ -69,7 +79,6 @@ def add_configuration_space(self,
     Combine two configuration space by adding one the other configuration
     space. The contents of the configuration space, which should be added,
     are renamed to ``prefix`` + ``delimiter`` + old_name.
-
     Parameters
     ----------
     prefix : str
@@ -82,7 +91,6 @@ def add_configuration_space(self,
     parent_hyperparameter : :ref:`Hyperparameters`, optional
         Adds for each new hyperparameter the condition, that
         ``parent_hyperparameter`` is active
-
     Returns
     -------
     :class:`~ConfigSpace.configuration_space.ConfigurationSpace`
@@ -162,20 +170,23 @@ def add_configuration_space(self,
             conditions_to_add.append(condition)
     self.add_conditions(conditions_to_add)
 
-def set_hyper_bounds(cs, hp_name, lower, upper):
+def set_hyper_bounds(cs, hp_name, lower, upper, default_value=None, log=None):
     hp = cs.get_hyperparameter(hp_name)
     if not isinstance(hp, NumericalHyperparameter):
         raise ValueError("Can only call set_hyper_bounds for NumericalHyperparameter")
     name = hp.name
-    default_value = hp.default_value
+    if default_value is None:
+        default_value = hp.default_value
+    if log is None:
+        log = hp.log
     if not (lower < default_value < upper):
         default_value = lower
     if isinstance(hp, UniformFloatHyperparameter):
         new_hp = CS.UniformFloatHyperparameter(name=name, lower=lower,
-                upper=upper, default_value=default_value)
+                upper=upper, default_value=default_value, log=log)
     if isinstance(hp, UniformIntegerHyperparameter):
         new_hp = CS.UniformIntegerHyperparameter(name=name, lower=lower,
-                upper=upper, default_value=default_value)
+                upper=upper, default_value=default_value, log=log)
     cs._hyperparameters[name] = new_hp
 
 def set_hyper_choices(cs, hp_name, choices):

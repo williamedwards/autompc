@@ -10,13 +10,10 @@ class Tunable(ABC):
     """An abstract base class for a tunable component.  Implementers
     of subclasses will define the default configuration space, and
     optionally bias the hyperparameter distributions.
-
     Pre-tuning, users can modify the configuration space by changing 
     bounds, fixing values, etc.
-
     Post-tuning, users can also modify the configuration using
     `set_hyper_values`.
-
     To mark that you are done tuning a Tunable instance, you can call
     `freeze_hyperparameters()`. You may also check `is_tunable()` to see
     if an item has no hyperparameters or has been frozen.
@@ -50,7 +47,6 @@ class Tunable(ABC):
         Set the current configuration. Overridable. Default
         just sets the current config which can be retrieved
         via `get_config()`.
-
         Parameters
         ----------
             config : Configuration
@@ -77,17 +73,14 @@ class Tunable(ABC):
         AND in the current configuration. Hyperparameters are given
         as keyword arguments. 
         """
+        config = self.get_config()
         for key,value in kwargs.items():
             hyperparam = self._configuration_space.get_hyperparameters_dict()[key]
             if isinstance(hyperparam,CSH.CategoricalHyperparameter):
                 hyperparam.choices = (value,)
             else:
-                hyperparam.lower=value
-                hyperparam.upper=value
+                self._configuration_space._hyperparameters[key] = CSH.Constant(key, value)
             hyperparam.default_value = value
-
-        config = self.get_config()
-        for (key,value)  in kwargs.items():
             config[key] = value
         self.set_config(config)    
     
@@ -116,14 +109,13 @@ class Tunable(ABC):
         for key,defaults in kwargs.items():
             hyperparams[key].default_value = defaults
 
-    def set_hyperparameter_logs(self, **kwargs) -> None:
-        """Sets whether to use log scale for float hyperparameters."""
+    def set_hyperparameter_logs(self,**kwargs) -> None:
+        """Sets the configuration space log values for a set of
+        hyperparameters, as keyword arguments.
+        """
         hyperparams = self._configuration_space.get_hyperparameters_dict()
         for key,log in kwargs.items():
-            hyper = hyperparams[key]
-            if not hasattr(hyper, "log"):
-                raise ValueError("Can only set log for supported hyperparamater types")
-            hyper.log = log
+            hyperparams[key].log = log
 
     def freeze_hyperparameters(self):
         """Denotes that this instance should no longer be tunable."""
@@ -163,7 +155,6 @@ def _get_choice_by_name(choices, name) -> Optional[Tunable]:
 class TunablePipeline:
     """A pipeline including one or more tunable components.  The hyperparameter space
     is the Cartesian product of all components' hyperparameter spaces.
-
     To use::
         pipeline.add_component('A',[A_option1,A_option2])
         pipeline.add_component('B',[B_option1,B_option2])
@@ -255,14 +246,22 @@ class TunablePipeline:
         return cs
     
     def set_config(self, config):
-        from .utils.cs_utils import create_subspace_configuration
+        from .utils.cs_utils import create_subspace_configuration_and_return_consumed
         self._config = config
+        consumed_keys = set()
         for name in self._component_order:
+            consumed_keys.add(name)
             opt = _get_choice_by_name(self._components[name], config[name])
             if opt is None:
                 continue
-            opt_config = create_subspace_configuration(config,opt.name,opt.get_config_space())
+            opt_config, opt_consumed_keys = create_subspace_configuration_and_return_consumed(config,opt.name,opt.get_config_space())
             opt.set_config(opt_config)
+            consumed_keys.update(opt_consumed_keys)
+
+        # Check all keys have been consumed
+        for key in config.keys():
+            if key not in consumed_keys:
+                raise ValueError(f"Unused hyperparameter {key}")
         
     def get_config(self):
         return self._config
@@ -285,7 +284,6 @@ class TunablePipeline:
         """
         Set component.option hyperparameters by keyword argument. Also, fixes the component
         to use the given option.
-
         Parameters
         ---------- 
             component : str
