@@ -143,6 +143,7 @@ class Controller(TunablePipeline,Policy):
                 OCPTransformer to set.
         """
         self.ocp_transformers = [ocp_transformer]
+        self._init_transformer_components()
 
     def set_ocp_transformers(self, ocp_transformers : List[OCPTransformer]) -> None:
         """
@@ -154,6 +155,7 @@ class Controller(TunablePipeline,Policy):
                 Set of OCP transformers which can be selected.
         """
         self.ocp_transformers = ocp_transformers
+        self._init_transformer_components()
 
     def add_ocp_transformer(self, ocp_transformer):
         """
@@ -165,6 +167,7 @@ class Controller(TunablePipeline,Policy):
                 OCP transformer to be added.
         """
         self.ocp_transformers.append(ocp_transformer)
+        self._init_transformer_components()
 
     def set_ocp(self, ocp):
         """
@@ -191,7 +194,12 @@ class Controller(TunablePipeline,Policy):
             raise ControllerStateError("Must add optimizer before config space can be generated")
         if not self.ocp_transformers:
             raise ControllerStateError("Must add OCP transformer before config space can be generated")
+        self._init_transformer_components()
 
+        cs = super().get_config_space()
+        return cs
+
+    def _init_transformer_components(self):
         #transformer pipeline is a little more complex
         dummy = NonTunable()
         dummy.name = '_'
@@ -214,9 +222,6 @@ class Controller(TunablePipeline,Policy):
             self.set_component("regularizer", regularizers)
 
         self._forbid_incompatible_configurations()
-
-        cs = super().get_config_space()
-        return cs
     
     def _forbid_incompatible_configurations(self):
         for opt in self.optimizers:
