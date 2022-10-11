@@ -98,7 +98,6 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
         else:
             traj[0].obs[:] = np.concatenate([qpos, qvel])
                   
-
         for j in range(1, traj_len):
             action = env.action_space.sample()
             traj[j-1].ctrl[:] = action
