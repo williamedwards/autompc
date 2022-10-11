@@ -24,6 +24,7 @@ from .control_evaluator import ControlEvaluator, StandardEvaluator, ControlEvalu
 from .control_performance_metric import ControlPerformanceMetric,ConfidenceBoundPerformanceMetric
 from .bootstrap_evaluator import BootstrapSurrogateEvaluator
 from .smac_runner import SMACRunner
+from .parallel_evaluator import ParallelEvaluator
 
 # External library includes
 import numpy as np
@@ -224,6 +225,8 @@ class ControlTuner:
         if performance_metric is None:
             # performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
             performance_metric = ControlPerformanceMetric()
+            performance_metric = ControlPerformanceMetric()
+            #performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost) # TODO: Fix this
         self.performance_metric = performance_metric
 
     def _get_cfg_evaluator(self, controller : Controller, task : List[Task], trajs : List[Trajectory],
@@ -440,6 +443,43 @@ class ControlTuner:
 
         inc_cfg, run_history  = smac_runner.run(cs, cfg_evaluator, n_iters, rng, eval_timeout)
 
+        if debug_return_evaluator:
+            return eval_cfg
+        smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
+        scenario = Scenario({"run_obj" : "quality",
+                             "runcount-limit" : n_iters,
+                             "cs" : controller.get_config_space(),
+                             "deterministic" : "true",
+                             "limit_resources" : False,
+                             "abort_on_first_run_crash" : False,
+                             "save_results_instantly" : True,
+                             "output_dir" : smac_dir
+                             })
+
+        if not use_default_initial_design:
+            initial_design = RandomConfigurations
+        else:
+            initial_design = None
+
+        if not restore_dir:
+            smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
+                    initial_design=initial_design,
+                    tae_runner=eval_cfg,
+                    run_id = 1
+                    )
+        else:
+            runhistory, stats, incumbent = self._load_smac_restore_data(restore_run_dir, scenario)
+            smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
+                    initial_design=initial_design,
+                    tae_runner=eval_cfg,
+                    run_id = 1,
+                    runhistory=runhistory,
+                    stats=stats,
+                    restore_incumbent=incumbent
+                    )  
+
+        inc_cfg = smac.optimize()
+
         # Generate final model and controller
         tuned_controller = controller.clone()
         tuned_controller.set_ocp(tasks[0].get_ocp())
@@ -460,11 +500,72 @@ class ControlCfgEvaluator:
     surr_tune_result: Optional[ModelTunerResult] = None
 
     def __call__(self, cfg):
+        self.eval_number += 1
+        if self.timeout is None: 
+            result = self.run(cfg)
+        else:
+            #p = multiprocessing.Process(target=self.run_mp, args=(cfg,))
+            ctx = multiprocessing.get_context("spawn")
+            q = ctx.Queue()
+            p = ctx.Process(target=self.run_mp, args=(cfg, q))
+            start_time = time.time()
+            p.start()
+            timeout = False
+            while p.is_alive():
+                if time.time() - start_time > self.timeout:
+                    timeout = True
+                    break
+                try:
+                    result = q.get(block=True, timeout=10.0)
+                    break
+                except queue.Empty:
+                    continue
+            p.join(timeout=1)
+            if timeout:
+                print("CfgRunner: Evaluation timed out")
+                p.terminate()
+                return np.inf, dict()
+            if p.exitcode != 0:
+                print("CfgRunner: Exception during evaluation")
+                print("Exit code: ", p.exitcode)
+                return np.inf, dict()
+        
+        result['surr_info'] = [trial_to_json(info) for info in result['surr_info']]
+        if 'truedyn_info' in result:
+            result['truedyn_info'] = [trial_to_json(info) for info in result['truedyn_info']]
+        return result['surr_cost'],dict(result)
+
+    def run_mp(self, cfg, q):
+        if not self.log_file_name is None:
+            with open(self.log_file_name, "a") as f:
+                with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+                    try:
+                        result = self.run(cfg)
+                    except Exception as e:
+                        print("Exception raised: \n", str(e))
+                        raise e
+                    print("Putting Result... ", end="")
+                    q.put(result)
+                    print("Done.")
+        else:
+            result = self.run(cfg)
+            q.put(result)
+
+    # def dispatch_eval_jobs(self, controller, evaluator):
+    #     ctx = multiprocessing.get_context("spawn")
+    #     active_qs = []
+    #     active_ps = []
+    #     job_idx = 0
+    #     for _ in range(self.max_eval_jobs):
+    #     with open 
+
+    def run(self, cfg):
         print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
         controller = self.controller.clone()
 
         controller.get_config_space() # Temporarily adding it to configure OCPTransformers properly
         info = dict()
+        controller.get_config_space() # Temporarily adding it to configure OCPTransformers properly
         controller.set_config(cfg)
         controller.build(self.sysid_trajs)
         trials = self.control_evaluator(controller)
@@ -474,6 +575,10 @@ class ControlCfgEvaluator:
         if not self.truedyn_evaluator is None:
             trajs = self.truedyn_evaluator(controller)
             performance = self.performance_metric(trajs)
+        info["surr_info"] = trajs
+        if truedyn_evaluator is not None:
+            trajs = truedyn_evaluator(controller)
+            performance = performance_metric(trajs)
             info["truedyn_cost"] = performance
             info["truedyn_info"] = list(map(trial_to_json, trials))
         
@@ -481,5 +586,13 @@ class ControlCfgEvaluator:
         #     controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
         #     with open(controller_save_fn, "wb") as f:
         #         pickle.dump(controller, f)
+        if self.controller_save_dir:
+            controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}_metric_{}.pkl".format(self.eval_number, performance))
+            with open(controller_save_fn, "wb") as f:
+                pickle.dump(controller, f)
 
         return info["surr_cost"], info
+        # if not self.log_file_name is None:
+        #     sys.stdout.close()
+        #     sys.stderr.close()
+        return info
