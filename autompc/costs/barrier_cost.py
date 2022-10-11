@@ -230,19 +230,6 @@ class BarrierCost(Cost):
     
     def terminal_hess(self, obs):
         return 0, np.zeros(self.system.obs_dim), np.zeros((self.system.obs_dim, self.system.obs_dim))
-    
-    def __add__(self, rhs):
-        if isinstance(rhs, LogBarrierCost):
-            if (self.goal is None and rhs.goal is None) or np.all(self.goal == rhs.goal):
-                return LogBarrierCost(self.system, self.obs_bounds, self.ctrl_bounds, self.scales+rhs.scales)
-        return Cost.__add__(self, rhs)
-
-    def __mul__(self, rhs):
-        if not isinstance(rhs, (float, int)):
-            raise ValueError("* only supports product with numbers")
-        new_cost = LogBarrierCost(self.system, self.obs_bounds, self.ctrl_bounds, self.scales)
-        return new_cost
-
 
 class LogBarrierCost(BarrierCost):
     @property

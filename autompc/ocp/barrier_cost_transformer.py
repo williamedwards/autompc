@@ -58,7 +58,7 @@ class BarrierCostTransformer(OCPTransformer):
 
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
-        cs.add_hyperparameter(CS.CategoricalHyperparameter("BarrierType", ['Log', 'Inverse', 'HalfQuadratic'], default='Log'))
+        cs.add_hyperparameter(CS.CategoricalHyperparameter("BarrierType", ['Log', 'Inverse', 'HalfQuadratic'], default_value='Log'))
         for name in self.system.observations + self.system.controls:
             hyper = CS.Constant(name+"_BarrierScale", 0.0)
             cs.add_hyperparameter(hyper)
