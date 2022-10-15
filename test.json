@@ -1,0 +1,25 @@
+{
+  "env": "Humanoid-v2",
+  "time": 333.97750902175903,
+  "final_score": 6.556378499808974,
+  "final_config": {
+    "batchnorm": false,
+    "hidden_size_1": 128,
+    "lr": 0.001,
+    "n_hidden_layers": "2",
+    "nonlintype": "relu",
+    "hidden_size_2": 128
+  }
+}{
+  "env": "Humanoid-v2",
+  "time": 112628.46929597855,
+  "final_score": 6.011285839655165,
+  "final_config": {
+    "batchnorm": true,
+    "hidden_size_1": 211,
+    "lr": 0.0032852686513163494,
+    "n_hidden_layers": "2",
+    "nonlintype": "tanh",
+    "hidden_size_2": 111
+  }
+}

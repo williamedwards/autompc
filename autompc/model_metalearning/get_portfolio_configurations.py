@@ -5,10 +5,11 @@ import json
 import time
 import matplotlib.pyplot as plt
 
-from autompc.tuning import ModelTuner
+from ..tuning import ModelTuner
 from meta_utils import gym_names, metaworld_names
 from meta_utils import load_data
 from task_pool import MPITaskPool
+from ..sysid import MLP
 
 def run_model_tuning(system, trajs, n_iters=100):
     # model tuner
@@ -32,7 +33,7 @@ def get_configurations(names):
         
         # Model tuning 
         start = time.time()
-        tuned_model, tune_result = run_model_tuning(system, trajs)
+        tuned_model, tune_result = run_model_tuning(system, trajs, MLP(system), verbose=True)
         end = time.time()
         print("Model tuning time", end-start)
         
@@ -41,7 +42,7 @@ def get_configurations(names):
         plt.title(name)
         plt.ylabel('score')
         plt.xlabel('iteration')
-        plt.savefig(name + '_inc_costs')
+        plt.savefig(name + '_inc_costs' + '_100MLP')
         plt.close()
 
         # Save information
@@ -57,7 +58,9 @@ def get_configurations(names):
 
 if __name__ == "__main__":
     # names = ["HalfCheetah-v2", "Ant-v2", 'assembly-v2']
-    names = [['assembly-v2']]
-    mpi_task_pool = MPITaskPool()
-    mpi_task_pool.run(tasks=names, func=get_configurations)
+    # names = [['assembly-v2']]
+    # mpi_task_pool = MPITaskPool()
+    # mpi_task_pool.run(tasks=names, func=get_configurations)
+    names = ["Humanoid-v2"]
+    get_configurations(names=names)
     

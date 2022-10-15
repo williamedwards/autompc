@@ -9,7 +9,7 @@ meta_2.json
 .venv/
 cache/*
 *.npz
-run_*
+# run_*
 
 *.png
 *.pdf
