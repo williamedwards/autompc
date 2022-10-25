@@ -8,7 +8,7 @@ import numpy as np
 import mujoco_py
 
 # Project includes
-from .benchmark import Benchmark
+from .control_benchmark import ControlBenchmark
 from ..utils.data_generation import *
 from .. import System
 from ..task import Task
@@ -45,7 +45,7 @@ def halfcheetah_dynamics(env, x, u, n_frames=5):
 
     return np.concatenate([new_qpos, new_qvel])
 
-class HalfcheetahCost(Cost):
+class HalfcheetahCost(ControlCost):
     def __init__(self, env):
         Cost.__init__(self,None)
         self.env = env

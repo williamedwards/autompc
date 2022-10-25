@@ -9,7 +9,7 @@ import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 
 # Project includes
-from .benchmark import Benchmark
+from .control_benchmark import ControlBenchmark
 from ..utils.data_generation import *
 from .. import System
 from ..task import Task
@@ -33,7 +33,7 @@ def dt_doubleint_dynamics(y,u,dt):
     y = y + dt * doubleint_dynamics(y,u[0])
     return y
 
-class DoubleIntegratorBenchmark(Benchmark):
+class DoubleIntegratorBenchmark(ControlBenchmark):
     def __init__(self, data_gen_method="uniform_random"):
         name = "double_integrator"
         system = ampc.System(["x", "dx"], ["u"])

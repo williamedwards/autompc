@@ -9,7 +9,7 @@ import matplotlib.animation as animation
 from scipy.integrate import solve_ivp
 
 # Project includes
-from .benchmark import Benchmark
+from .control_benchmark import ControlBenchmark
 from ..utils.data_generation import *
 from .. import System
 from ..task import Task
@@ -30,7 +30,7 @@ def dt_pendulum_dynamics(y,u,dt,g=9.8,m=1,L=1,b=0.1):
     return sol.y.reshape((2,))
 
 
-class PendulumSwingupBenchmark(Benchmark):
+class PendulumSwingupBenchmark(ControlBenchmark):
     def __init__(self, data_gen_method="uniform_random"):
         name = "pendulum_swingup"
         system = ampc.System(["ang", "angvel"], ["torque"])
