@@ -10,7 +10,7 @@ from autompc.model_metalearning.meta_utils import gym_names, metaworld_names
 from autompc.model_metalearning.meta_utils import load_data
 from autompc.sysid import MLP
 
-def run_model_tuning(system, trajs, n_iters=1000):
+def run_model_tuning(system, trajs, n_iters=100):
     # model tuner
     # default evaluatiuon strategy: 3-fold-cv and one-step RMSE
     # tuner = ModelTuner(system, trajs, MLP(system), verbose=1, multi_fidelity=False)
@@ -39,10 +39,10 @@ def get_configurations(names):
         
         # Plot train curve
         plt.plot(tune_result.inc_costs)
-        plt.title(name + '_1000')
+        plt.title(name + '_100')
         plt.ylabel('score')
         plt.xlabel('iteration')
-        plt.savefig(name + '_inc_costs' + '_1000')
+        plt.savefig(name + '_inc_costs' + '_100')
         plt.close()
 
         # Save information
@@ -57,6 +57,6 @@ def get_configurations(names):
     
 
 if __name__ == "__main__":
-    names = [gym_names[-3]]
+    names = ["Pusher-v2"]
     get_configurations(names=names)
     

@@ -56,6 +56,6 @@ def get_configurations(names):
     
 
 if __name__ == "__main__":
-    names = [gym_names[-2]]
+    names = ["Swimmer-v2", "InvertedPendulum-v2"]
     get_configurations(names=names)
     

@@ -21,10 +21,10 @@ HalfCheetah-v2, Hoppe-v2, InvertedPendulum-v2, Swimmer-v2, Walker2D-v2
 """
 
 gym_names = ["HalfCheetah-v2", "Hopper-v2", "Walker2d-v2", "Swimmer-v2", "InvertedPendulum-v2", 
-              "Reacher-v2", "InvertedDoublePendulum-v2", 
+              "Reacher-v2", "Pusher-v2", "InvertedDoublePendulum-v2", 
               "Ant-v2", "Humanoid-v2", "HumanoidStandup-v2"]
 
-def viz_halfcheetah_traj(env, traj, repeat):
+def viz_gym_traj(env, traj, repeat):
     for _ in range(repeat):
         env.reset()
         qpos = traj[0].obs[:9]
@@ -169,7 +169,7 @@ class GymBenchmark(Benchmark):
         repeat : int
             Number of times to repeat trajectory in visualization
         """
-        viz_halfcheetah_traj(self.env, traj, repeat)
+        viz_gym_traj(self.env, traj, repeat)
 
     @staticmethod
     def data_gen_methods():
