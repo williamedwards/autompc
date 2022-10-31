@@ -114,4 +114,57 @@
     "MLP:hidden_size_3": 153,
     "MLP:hidden_size_4": 163
   }
+}{
+  "env": "InvertedPendulum-v2",
+  "time": 133014.97645497322,
+  "final_score": 0.15398843794409967,
+  "final_config": {
+    "batchnorm": false,
+    "hidden_size_1": 231,
+    "lr": 0.0012139981934018644,
+    "n_hidden_layers": "3",
+    "nonlintype": "relu",
+    "hidden_size_2": 29,
+    "hidden_size_3": 54
+  }
+}{
+  "env": "Reacher-v2",
+  "time": 132140.1029112339,
+  "final_score": 0.3255788693711091,
+  "final_config": {
+    "batchnorm": false,
+    "hidden_size_1": 240,
+    "lr": 0.0013633882681470413,
+    "n_hidden_layers": "4",
+    "nonlintype": "relu",
+    "hidden_size_2": 70,
+    "hidden_size_3": 245,
+    "hidden_size_4": 160
+  }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 854.3173279762268,
+  "final_score": 2.6049768303569194,
+  "final_config": {
+    "model": "MLP",
+    "MLP:batchnorm": false,
+    "MLP:hidden_size_1": 128,
+    "MLP:lr": 0.001,
+    "MLP:n_hidden_layers": "2",
+    "MLP:nonlintype": "relu",
+    "MLP:hidden_size_2": 128
+  }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 1229.2220239639282,
+  "final_score": 2.6049768303569194,
+  "final_config": {
+    "model": "MLP",
+    "MLP:batchnorm": false,
+    "MLP:hidden_size_1": 128,
+    "MLP:lr": 0.001,
+    "MLP:n_hidden_layers": "2",
+    "MLP:nonlintype": "relu",
+    "MLP:hidden_size_2": 128
+  }
 }

@@ -10,10 +10,13 @@ from autompc.model_metalearning.meta_utils import gym_names, metaworld_names
 from autompc.model_metalearning.meta_utils import load_data
 from autompc.sysid import MLP
 
-def run_model_tuning(system, trajs, n_iters=500):
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
+def run_model_tuning(system, trajs, n_iters=5):
     # model tuner
     # default evaluatiuon strategy: 3-fold-cv and one-step RMSE
-    tuner = ModelTuner(system, trajs, MLP(system), verbose=1, multi_fidelity=False)
+    # tuner = ModelTuner(system, trajs, MLP(system), verbose=1, multi_fidelity=False)
+    tuner = ModelTuner(system, trajs, verbose=1, multi_fidelity=False)
     # print("Selecting from models", ",".join(model.name for model in tuner.model.models))
     tuned_model, tune_result = tuner.run(n_iters=n_iters)
     # print("Selected model:", tuned_model.name)
@@ -37,12 +40,12 @@ def get_configurations(names):
         print("Model tuning time", end-start)
         
         # Plot train curve
-        plt.plot(tune_result.inc_costs)
-        plt.title(name + '_500MLP')
-        plt.ylabel('score')
-        plt.xlabel('iteration')
-        plt.savefig(name + '_inc_costs' + '_500MLP')
-        plt.close()
+        # plt.plot(tune_result.inc_costs)
+        # plt.title(name + '_500MLP')
+        # plt.ylabel('score')
+        # plt.xlabel('iteration')
+        # plt.savefig(name + '_inc_costs' + '_500MLP')
+        # plt.close()
 
         # Save information
         info = {
@@ -56,6 +59,6 @@ def get_configurations(names):
     
 
 if __name__ == "__main__":
-    names = ["Swimmer-v2", "InvertedPendulum-v2"]
+    names = ["HalfCheetah-v2"]
     get_configurations(names=names)
     
