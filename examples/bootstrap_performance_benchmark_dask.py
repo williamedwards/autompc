@@ -6,10 +6,12 @@ from datetime import datetime
 
 # External library includes
 import numpy as np
+from dask.distributed import Client
 
 # Internal library includes
 import autompc as ampc
 from autompc.tuning import ControlTuner, ControlTunerResult
+from autompc.tuning.parallel_utils import DaskBackend
 from autompc.benchmarks import CartpoleSwingupBenchmark
 from autompc.sysid import MLP
 from autompc import Controller, AutoSelectController
@@ -42,7 +44,10 @@ def main():
 
     start_time = datetime.now()
 
-    tuner = ControlTuner(surrogate=surrogate, surrogate_split=0.5, control_tune_bootstraps=5)
+    # Dask Client
+    parallel_backend = DaskBackend("tcp://130.126.136.141:8786")
+
+    tuner = ControlTuner(surrogate=surrogate, surrogate_split=0.5, control_tune_bootstraps=5, parallel_backend=parallel_backend)
     tuned_controller, tune_result = tuner.run(
         controller, 
         benchmark.task,
@@ -50,7 +55,7 @@ def main():
         n_iters=2,
         rng = np.random.default_rng(0),
         truedyn=benchmark.dynamics,
-        output_dir=autompc_dir
+        output_dir=autompc_dir,
     )
 
     elapsed_time = datetime.now() - start_time
