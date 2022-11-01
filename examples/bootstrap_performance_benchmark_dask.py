@@ -45,7 +45,7 @@ def main():
     start_time = datetime.now()
 
     # Dask Client
-    parallel_backend = DaskBackend("tcp://130.126.136.141:8786")
+    parallel_backend = DaskBackend(scheduler_file="/home/william/dask-scheduler.json")
 
     tuner = ControlTuner(surrogate=surrogate, surrogate_split=0.5, control_tune_bootstraps=5, parallel_backend=parallel_backend)
     tuned_controller, tune_result = tuner.run(

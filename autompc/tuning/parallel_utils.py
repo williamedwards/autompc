@@ -32,13 +32,14 @@ class JoblibBackend(ParallelBackend):
         return Parallel(n_jobs=self.n_jobs)(delayed(function)(value) for value in values)
 
 class DaskBackend(ParallelBackend):
-    def __init__(self, scheduler_address):
-        self.scheduler_address = scheduler_address
+    def __init__(self, *client_args, **client_kwargs):
+        self.client_args = client_args
+        self.client_kwargs = client_kwargs
 
     def map(self, function: Callable[[Any], Any], values: Iterable) -> List[Any]:
         """ Implemented, see superclass. """
         print("Entering DaskBackend")
-        client = Client(self.scheduler_address)
+        client = Client(*self.client_args, **self.client_kwargs)
         client.restart()
         futures = client.map(function, values)
         return [future.result() for future in futures]
