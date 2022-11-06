@@ -57,6 +57,7 @@ def get_configurations(names):
     
 
 if __name__ == "__main__":
-    names = ["Pusher-v2"]
-    get_configurations(names=names)
+    # gravity_names = ["Walker2dGravityHalf-v2", "Walker2dGravityThreeQuarters-v2", "Walker2dGravityOneAndQuarter-v2", "Walker2dGravityOneAndHalf-v0"]
+    gravity_names = ["Walker2dGravityThreeQuarters-v2"]
+    get_configurations(names=gravity_names)
     

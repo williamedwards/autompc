@@ -3,6 +3,7 @@
 from collections import namedtuple
 from typing import Tuple,List,Union,Optional
 import numpy as np
+import time
 
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
@@ -113,6 +114,7 @@ class ModelTuner:
 
     def _evaluate(self, cfg, seed=None, budget=None):
         if self.verbose:
+            start = time.time()
             print("Evaluating Cfg:")
             print(cfg)
             print("Seed",seed,"budget",budget)
@@ -121,6 +123,8 @@ class ModelTuner:
         value = self.evaluator(self.model)
         if self.verbose:
             print("Model Score ", value)
+            end = time.time()
+            print("Model tuning time", end-start)
         return value
 
     def run(self, rng=None, n_iters=10, min_train_time=None, max_train_time=None,

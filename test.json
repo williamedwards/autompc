@@ -167,4 +167,101 @@
     "MLP:nonlintype": "relu",
     "MLP:hidden_size_2": 128
   }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 141.59831070899963,
+  "final_score": 2.6049768303569194,
+  "final_config": {
+    "model": "MLP",
+    "MLP:batchnorm": false,
+    "MLP:hidden_size_1": 128,
+    "MLP:lr": 0.001,
+    "MLP:n_hidden_layers": "2",
+    "MLP:nonlintype": "relu",
+    "MLP:hidden_size_2": 128
+  }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 207.34360003471375,
+  "final_score": 2.6049768303569194,
+  "final_config": {
+    "model": "MLP",
+    "MLP:batchnorm": false,
+    "MLP:hidden_size_1": 128,
+    "MLP:lr": 0.001,
+    "MLP:n_hidden_layers": "2",
+    "MLP:nonlintype": "relu",
+    "MLP:hidden_size_2": 128
+  }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 3.4931209087371826,
+  "final_score": 4.4410344384799645,
+  "final_config": {
+    "history": 4
+  }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 49.56778383255005,
+  "final_score": 4.521687245223105,
+  "final_config": {
+    "method": "lstsq",
+    "poly_basis": "false",
+    "trig_basis": "false"
+  }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 0.877819299697876,
+  "final_score": 4.52336374057453,
+  "final_config": {
+    "poly_basis": "false",
+    "poly_cross_terms": "false",
+    "threshold": 0.01,
+    "time_mode": "discrete",
+    "trig_basis": "false"
+  }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 81.33243751525879,
+  "final_score": 4.380243799301659,
+  "final_config": {
+    "induce_count": 100,
+    "learning_rate": 0.1
+  }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 501.840185880661,
+  "final_score": 4.351046052708964,
+  "final_config": {
+    "induce_count": 100,
+    "learning_rate": 0.1
+  }
+}{
+  "env": "HalfCheetah-v2",
+  "time": 1181.9692327976227,
+  "final_score": 2.6049768303569194,
+  "final_config": {
+    "model": "MLP",
+    "MLP:batchnorm": false,
+    "MLP:hidden_size_1": 128,
+    "MLP:lr": 0.001,
+    "MLP:n_hidden_layers": "2",
+    "MLP:nonlintype": "relu",
+    "MLP:hidden_size_2": 128
+  }
+}{
+  "env": "Walker2dGravityOneAndQuarter-v2",
+  "time": 40185.38138771057,
+  "final_score": 7.684980688946848,
+  "final_config": {
+    "model": "MLP",
+    "MLP:batchnorm": true,
+    "MLP:hidden_size_1": 92,
+    "MLP:lr": 0.010070249941389551,
+    "MLP:n_hidden_layers": "4",
+    "MLP:nonlintype": "relu",
+    "MLP:hidden_size_2": 138,
+    "MLP:hidden_size_3": 118,
+    "MLP:hidden_size_4": 32
+  }
 }

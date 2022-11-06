@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 from autompc.tuning import ModelTuner
 from autompc.model_metalearning.meta_utils import gym_names, metaworld_names
 from autompc.model_metalearning.meta_utils import load_data
-from autompc.sysid import MLP
+from autompc.sysid import MLP, ARX, Koopman, SINDy, ApproximateGPModel
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-def run_model_tuning(system, trajs, n_iters=5):
+def run_model_tuning(system, trajs, n_iters=100):
     # model tuner
     # default evaluatiuon strategy: 3-fold-cv and one-step RMSE
     # tuner = ModelTuner(system, trajs, MLP(system), verbose=1, multi_fidelity=False)
@@ -40,12 +40,12 @@ def get_configurations(names):
         print("Model tuning time", end-start)
         
         # Plot train curve
-        # plt.plot(tune_result.inc_costs)
-        # plt.title(name + '_500MLP')
-        # plt.ylabel('score')
-        # plt.xlabel('iteration')
-        # plt.savefig(name + '_inc_costs' + '_500MLP')
-        # plt.close()
+        plt.plot(tune_result.inc_costs)
+        plt.title(name + '_100')
+        plt.ylabel('score')
+        plt.xlabel('iteration')
+        plt.savefig(name + '_inc_costs' + '_100')
+        plt.close()
 
         # Save information
         info = {
@@ -59,6 +59,7 @@ def get_configurations(names):
     
 
 if __name__ == "__main__":
-    names = ["HalfCheetah-v2"]
-    get_configurations(names=names)
+    # gravity_names = ["Walker2dGravityHalf-v2", "Walker2dGravityThreeQuarters-v2", "Walker2dGravityOneAndQuarter-v2", "Walker2dGravityOneAndHalf-v0"]
+    gravity_names = ["Walker2dGravityHalf-v2"]
+    get_configurations(names=gravity_names)
     
