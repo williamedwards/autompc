@@ -264,4 +264,17 @@
     "MLP:hidden_size_3": 118,
     "MLP:hidden_size_4": 32
   }
+}{
+  "env": "Walker2dGravityHalf-v2",
+  "time": 34825.466723680496,
+  "final_score": 6.703644359887512,
+  "final_config": {
+    "model": "MLP",
+    "MLP:batchnorm": false,
+    "MLP:hidden_size_1": 128,
+    "MLP:lr": 0.001,
+    "MLP:n_hidden_layers": "2",
+    "MLP:nonlintype": "relu",
+    "MLP:hidden_size_2": 128
+  }
 }

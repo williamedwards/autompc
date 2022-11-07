@@ -11,6 +11,8 @@ cache/*
 *.npz
 run_*
 test.json
+data.json
+script.py
 
 *.png
 *.pdf

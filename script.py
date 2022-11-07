@@ -2,9 +2,15 @@ from distutils.log import info
 import os, glob
 import pickle
 from collections import namedtuple
+import numpy as np
 
 import gym
 import mujoco_py
+from gym.envs.mujoco import MuJocoPyEnv
+from gym.envs.mujoco.half_cheetah import HalfCheetahEnv
+from gym import utils
+from gym.spaces import Box
+
 
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
@@ -19,64 +25,43 @@ from autompc import AutoSelectController
 from autompc.tuning import ControlTuner
 from autompc.sysid import MLP
 
-# run_dir = '/home/randomgraph/baoyul2/meta/autompc/autompc-output_2022-08-14T18:04:00/run_1660536240245'
-# with open(os.path.join(run_dir, "tuning_data.pkl"), "rb") as f:
-#     tuning_data = pickle.load(f)
+import xml.etree.ElementTree as ET
+import tempfile
 
-# # print(tuning_data["controller"])
+save_path = '/home/baoyu/baoyul2/autompc/autompc/model_metalearning/gym_size_ext_xml/'
+model_path=os.path.dirname(gym.envs.__file__) + "/mujoco/assets/half_cheetah.xml"
+tree = ET.parse(model_path)
+print(tree)
+body_part = ['torso']
+size_scale = 1.5
 
-# restore_dir = '/home/randomgraph/baoyul2/meta/autompc/autompc-output_2022-08-14T18:04:00/run_1660536240245'
-# path = os.path.join(restore_dir)
-# # print(path)
+geom = tree.find(".//geom[@name='%s']" % body_part[0])
+print(geom)
 
-# def _get_restore_run_dir(restore_dir):
-#     run_dirs = glob.glob(os.path.join(restore_dir))
-#     # print(run_dirs)
-#     for run_dir in reversed(sorted(run_dirs)):
-#         if os.path.exists(os.path.join(run_dir, "smac", "run_1", "runhistory.json")):
-#             return run_dir
-#     raise FileNotFoundError("No valid restore files found")
+sizes  = [float(x) for x in geom.attrib["size"].split(" ")]
+print(geom.attrib["size"])
 
-# restore_run_dir = _get_restore_run_dir(run_dir)
-# print(restore_run_dir)
+geom.attrib["size"] = " ".join([str(x * size_scale) for x in sizes ])
+print(geom.attrib["size"])
 
-# # result['surr_info'] = [trial_to_json(info) for info in result['surr_info']]
-# control_evaluator = tuning_data["control_evaluator"]
+file_name = 'half_cheetah_' + 'torso_' + str(size_scale) + ".xml"
+output_file = save_path + file_name
+tree.write(output_file)
 
-# ## data
-# benchmark = CartpoleSwingupV2Benchmark()
-# system = benchmark.system
-# task   = benchmark.task
-# # Generate benchmark dataset
-# trajs = benchmark.gen_trajs(seed=100, n_trajs=100, traj_len=200)
+class NewEnv(HalfCheetahEnv, utils.EzPickle):
+    
+    def __init__(self, **kwargs):
+        observation_space = Box(low=-np.inf, high=np.inf, shape=(17,), dtype=np.float64)
+        MuJocoPyEnv.__init__(
+            self, output_file, 5, observation_space=observation_space, **kwargs
+        )
+        utils.EzPickle.__init__(self, **kwargs)
 
-# controller = AutoSelectController(system)
-# controller.set_ocp(benchmark.task.get_ocp())
+gym.envs.register(
+    id = 'HalfCheetahBigTorso-v2',
+    entry_point="script:NewEnv",
+    max_episode_steps=1000,
+    reward_threshold=4800.0,
+)
 
-# trajs = control_evaluator(controller)
-# print(trajs)
-
-# ControlEvaluationTrial = namedtuple("ControlEvaluationTrial", ["policy","task","dynamics","weight",
-#     "cost","traj","term_cond","eval_time"])
-
-# info = ControlEvaluationTrial()
-# info.policy
-# info.task
-# info.dynamics
-# info.weight
-# info.cost
-# info.traj
-# info.term_cond
-# info.eval_time
-
-import gym, mujoco_py
-name = "Reacher-v2"
-print(name)
-
-env = gym.make(name)
-"""
-MjSimState(time=0.0, qpos=array([-0.05334441, -0.07832176, -0.08205703, -0.12420648]), 
-qvel=array([ 0.00288581, -0.00276853,  0.        ,  0.        ]), act=None, udd_state={})
-"""
-print("theta", env.sim.data.qpos.flat[:2])
-print(env.get_body_com("fingertip"))
+env = gym.make('HalfCheetahBigTorso-v2')

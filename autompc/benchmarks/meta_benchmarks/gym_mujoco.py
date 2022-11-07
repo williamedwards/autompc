@@ -15,11 +15,6 @@ from ...task import Task
 from ...trajectory import Trajectory
 from ...costs import Cost, QuadCost
 
-"""
-This benchmark file includes the following 5 env from OpenAI gym mujoco:
-HalfCheetah-v2, Hoppe-v2, InvertedPendulum-v2, Swimmer-v2, Walker2D-v2    
-"""
-
 gym_names = ["HalfCheetah-v2", "Hopper-v2", "Walker2d-v2", "Swimmer-v2", "InvertedPendulum-v2", 
               "Reacher-v2", "Pusher-v2", "InvertedDoublePendulum-v2", 
               "Ant-v2", "Humanoid-v2", "HumanoidStandup-v2"]
@@ -175,3 +170,68 @@ class GymBenchmark(Benchmark):
     def data_gen_methods():
         return ["uniform_random"]
 
+class GymExtensionBenchmark(Benchmark):
+    """
+    This benchmark is based on the OpenAI Gym Mojoco and gym-extensions. 
+    """
+    def __init__(self, name = "HalfCheetah-v2", data_gen_method="uniform_random"):
+        import gym, mujoco_py
+        import autompc.model_metalearning.gym_extensions.mujoco
+        print(name)
+        
+        env = gym.make(name)
+        self.env = env
+        
+        state = env.sim.get_state()
+        qpos = state[1]
+        qvel = state[2]
+
+        x_num = len(qpos) + len(qvel)
+        u_num = env.action_space.shape[0]
+        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt)
+
+        system.dt = env.dt
+        task = Task(system)
+
+        # cost = HalfcheetahCost(env)
+        # task = Task(system,cost)
+        # task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
+        # init_obs = np.concatenate([env.init_qpos, env.init_qvel])
+        # task.set_init_obs(init_obs)
+        # task.set_num_steps(200)
+
+        # factory = QuadCost(system, goal = np.zeros(system.obs_dim))
+        # for obs in system.observations:
+        #     if not obs in ["x1", "x6", "x7", "x8", "x9"]:
+        #         factory.fix_Q_value(obs, 0.0)
+        #     if not obs in ["x1", "x9"]:
+        #         factory.fix_F_value(obs, 0.0)
+        # factory.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
+        # self.cost_factory = factory
+
+
+        super().__init__(name, system, task, data_gen_method)
+
+    def dynamics(self, x, u):
+        return gym_dynamics(self.env,x,u)
+
+    def gen_trajs(self, seed, n_trajs, traj_len=200):
+        return gen_trajs(self.env, self.system, n_trajs, traj_len, seed)
+
+    def visualize(self, traj, repeat):
+        """
+        Visualize the half-cheetah trajectory using Gym functions.
+
+        Parameters
+        ----------
+        traj : Trajectory
+            Trajectory to visualize
+
+        repeat : int
+            Number of times to repeat trajectory in visualization
+        """
+        viz_gym_traj(self.env, traj, repeat)
+
+    @staticmethod
+    def data_gen_methods():
+        return ["uniform_random"]
