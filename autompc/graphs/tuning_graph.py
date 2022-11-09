@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from ..tuning.control_tuner import ControlTunerResult
-from ..tuning.model_tuner import ModelTuneResult
+from ..tuning.model_tuner import ModelTunerResult
 
 def plot_tuning_curve(tune_result, ax=None):
     """

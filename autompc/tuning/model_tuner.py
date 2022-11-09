@@ -21,7 +21,11 @@ from ..sysid.autoselect import AutoSelectModel
 
 from pdb import set_trace
 
-ModelTunerResult = namedtuple("ModelTuneResult", ["inc_cfg", "cfgs", 
+ModelTunerResult = namedtuple("ModelTunerResult", ["inc_cfg", "cfgs", 
+    "inc_cfgs", "costs", "inc_costs"])
+
+# Alias for backwards compatibility
+ModelTuneResult = namedtuple("ModelTuneResult", ["inc_cfg", "cfgs", 
     "inc_cfgs", "costs", "inc_costs"])
 """
 The ModelTuneResult contains information about a tuning process.
