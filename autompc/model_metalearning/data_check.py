@@ -8,7 +8,8 @@ import json
 
 from autompc.benchmarks.meta_benchmarks.gym_mujoco import GymExtensionBenchmark
 
-name = "HumanoidBigTorso-v2"
+name = "HumanoidStandupAndRunWithSensor-v2"
+# name = "HalfCheetahGravityHalf-v2"
 benchmark = GymExtensionBenchmark(name=name)
 system = benchmark.system
 trajs = benchmark.gen_trajs(seed=100, n_trajs=100, traj_len=200)
