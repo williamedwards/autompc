@@ -113,8 +113,11 @@ class MLP(FullyObservableModel):
         self.train_time_budget = None
         self.use_cuda = use_cuda
         self.net = None
+        print(f"{use_cuda=}")
+        print(f"{torch.cuda.is_available()=}")
         self._device = (torch.device('cuda') if (use_cuda and torch.cuda.is_available()) 
                 else torch.device('cpu'))
+        print(f"{self._device=}")
 
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
@@ -168,6 +171,7 @@ class MLP(FullyObservableModel):
         self.net = ForwardNet(self.system.obs_dim + self.system.ctrl_dim, self.system.obs_dim, 
             self.hidden_sizes, self.nonlintype, self.batchnorm)
         self.net = self.net.double().to(self._device)
+        print(f"{self.net.parameters().__next__().device=}")
 
     def _set_pairs(self, XU, dY):
         self.XU = XU

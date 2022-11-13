@@ -1,18 +1,16 @@
 # Created by William Edwards (wre2@illinois.edu)
 
 from collections import namedtuple
+import datetime
 from typing import Tuple,List,Union,Optional
 import numpy as np
 import time
+from dataclasses import dataclass
 
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
 from smac.facade.smac_ac_facade import SMAC4AC
-try:
-    from smac.facade.smac_mf_facade import SMAC4MF
-    SMAC4_MF_AVAILABLE = True
-except ImportError:
-    SMAC4_MF_AVAILABLE = False
+from .smac_runner import SMACRunner
 
 import ConfigSpace as CS
 
@@ -24,7 +22,7 @@ from ..sysid.autoselect import AutoSelectModel
 
 from pdb import set_trace
 
-ModelTuneResult = namedtuple("ModelTuneResult", ["inc_cfg", "cfgs", 
+ModelTunerResult = namedtuple("ModelTuneResult", ["inc_cfg", "cfgs", 
     "inc_cfgs", "costs", "inc_costs"])
 """
 The ModelTuneResult contains information about a tuning process.
@@ -61,7 +59,7 @@ class ModelTuner:
     def __init__(self, system : System, trajs : List[Trajectory], model : Optional[Model] = None,
                 eval_holdout=0.25, eval_folds=3, eval_metric="rmse", eval_horizon=1, eval_quantile=None,
                 evaluator : Optional[ModelEvaluator] = None,
-                multi_fidelity=True, verbose=0):
+                multi_fidelity=False, verbose=0):
         """
         Parameters
         ----------
@@ -101,6 +99,7 @@ class ModelTuner:
                 evaluator = HoldoutModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, holdout_prop=eval_holdout,
                     rng=np.random.default_rng(100))
             else:
+                print("Foo")
                 evaluator = CrossValidationModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, num_folds=eval_folds,
                     rng=np.random.default_rng(100))
         else:
@@ -119,7 +118,8 @@ class ModelTuner:
             print(cfg)
             print("Seed",seed,"budget",budget)
         self.model.set_config(cfg)
-        # self.model.set_train_budget(budget)
+        if budget > 0:
+            self.model.set_train_budget(budget)
         value = self.evaluator(self.model)
         if self.verbose:
             print("Model Score ", value)
@@ -127,10 +127,37 @@ class ModelTuner:
             print("Model tuning time", end-start)
         return value
 
-    def run(self, rng=None, n_iters=10, min_train_time=None, max_train_time=None,
-        retrain_full=True) -> Tuple[Model,ModelTuneResult]: 
+    def _get_tune_result(self, run_history):
+        inc_cost = float("inf")
+        inc_costs = []
+        evaluated_costs = []
+        evaluated_cfgs = []
+        inc_cfgs = []
+        inc_cfg = None
+        for key, val in run_history.data.items():
+            cfg = run_history.ids_config[key.config_id]
+            if val.cost < inc_cost:
+                inc_cost = val.cost
+                inc_cfg = cfg
+            inc_costs.append(inc_cost)
+            evaluated_costs.append(val.cost)
+            evaluated_cfgs.append(cfg)
+            inc_cfgs.append(inc_cfg)
+
+        tune_result = ModelTunerResult(inc_cfg=inc_cfg,
+                cfgs = evaluated_cfgs,
+                costs = evaluated_costs,
+                inc_costs = inc_costs,
+                inc_cfgs = inc_cfgs)
+
+        return tune_result
+
+    def run(self, rng=None, n_iters=10, output_dir=None, restore_dir=None,
+        retrain_full=True, eval_timeout=None, use_default_initial_design=True) -> Tuple[Model,ModelTunerResult]: 
         """
         Run tuning process
+
+        TODO Update docstring
 
         Parameters
         ----------
@@ -161,61 +188,24 @@ class ModelTuner:
             tune_result.inc_cfg to reconsruct the model.
         """
         if rng is None:
-            rng = np.random.default_rng(100)
+            rng = np.random.default_rng()
+
+        self.evaluator.rng = rng # TODO Fix this
+        cfg_evaluator = ModelCfgEvaluator(self.model, self.evaluator)
+
         cs = self.model.get_config_space()
-        self.evaluator.rng = rng
-        smac_rng = np.random.RandomState(rng.integers(1 << 31))
-        scenario = Scenario({"run_obj": "quality",  
-                             "runcount-limit": n_iters,  
-                             "cs": cs,
-                             "deterministic": "true",
-                             'cutoff' : 600,
-                             "limit_resources" : False,
-                             "abort_on_first_run_crash": False
-                             })
 
-        if self.multi_fidelity and SMAC4_MF_AVAILABLE:
-            #intensifier configuration
-            min_train_time = min_train_time if min_train_time is not None else 10.0
-            max_train_time = max_train_time if max_train_time is not None else 180.0
-            intensifier_kwargs = {"initial_budget": min_train_time, "max_budget": max_train_time, "eta": 3}
-            smac = SMAC4MF(scenario=scenario, rng=smac_rng,
-                tae_runner=self._evaluate,
-                intensifier_kwargs=intensifier_kwargs)
-        else:
-            if max_train_time is not None:
-                self.model.set_train_budget(max_train_time)
-            # smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
-            #        tae_runner=self._evaluate)
-            smac = SMAC4AC(scenario=scenario, rng=smac_rng,
-                    tae_runner=self._evaluate)
-        
-        # smac.solver.tae_runner.use_pynisher = False
-        incumbent = smac.optimize()
+        smac_runner = SMACRunner(
+            output_dir=output_dir,
+            restore_dir=restore_dir,
+            use_default_initial_design=use_default_initial_design
+        )
 
-        inc_cost = float("inf")
-        inc_costs = []
-        evaluated_costs = []
-        evaluated_cfgs = []
-        inc_cfgs = []
-        inc_cfg = None
-        for key, val in smac.runhistory.data.items():
-            cfg = smac.runhistory.ids_config[key.config_id]
-            if val.cost < inc_cost:
-                inc_cost = val.cost
-                inc_cfg = cfg
-            inc_costs.append(inc_cost)
-            evaluated_costs.append(val.cost)
-            evaluated_cfgs.append(cfg)
-            inc_cfgs.append(inc_cfg)
+        inc_cfg, run_history = smac_runner.run(cs, cfg_evaluator, n_iters=n_iters, rng=rng, eval_timeout=eval_timeout)
 
-        tune_result = ModelTuneResult(inc_cfg=inc_cfg,
-                cfgs = evaluated_cfgs,
-                costs = evaluated_costs,
-                inc_costs = inc_costs,
-                inc_cfgs = inc_cfgs)
+        tune_result = self._get_tune_result(run_history)
 
-        self.model.set_config(incumbent)
+        self.model.set_config(inc_cfg)
         if isinstance(self.model, AutoSelectModel):
             final_model = self.model.selected()
         else:
@@ -225,3 +215,18 @@ class ModelTuner:
             final_model.train(self.evaluator.trajs)
 
         return final_model, tune_result
+
+@dataclass
+class ModelCfgEvaluator:
+    model: Model
+    evaluator: ModelEvaluator
+
+    def __call__(self, cfg):
+        print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
+        model = self.model.clone()
+        self.model.set_config(cfg)
+        value = self.evaluator(self.model)
+        print("Model Score ", value)
+
+        return value
+

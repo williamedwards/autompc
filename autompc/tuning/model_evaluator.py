@@ -2,6 +2,7 @@
 # Refactoring by Kris Hauser (kkhauser@illinois.edu)
 
 from abc import ABC, abstractmethod
+from functools import partial
 import numpy as np
 from typing import Callable,List,Union
 from ConfigSpace import Configuration
@@ -35,11 +36,9 @@ class ModelEvaluator(ABC):
             if quantile is not None:
                 raise NotImplementedError("TODO: quantile-based metrics")
             if metric == "rmse":
-                self.metric = lambda model, trajs: get_model_rmse(model, 
-                        trajs, horizon=horizon)
+                self.metric = partial(get_model_rmse, horizon=horizon)
             elif metric == "rmsmens":
-                self.metric = lambda model, trajs: get_model_rmsmens(model, 
-                        trajs, horizon=horizon)
+                self.metric = partial(get_model_rmsmens, horizon=horizon)
         else:
             self.metric = metric
 

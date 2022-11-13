@@ -196,18 +196,18 @@ class OCP:
     
     def is_obs_feasible(self, obs : np.ndarray) -> bool:
         """Returns True if the observation is feasible"""
-        return not np.any(obs < self._obs_bounds[:,0] | obs > self._obs_bounds[:,1])
+        return not (np.any(obs < self._obs_bounds[:,0]) or np.any(obs > self._obs_bounds[:,1]))
     
     def is_ctrl_feasible(self, ctrl : np.ndarray) -> bool:
         """Returns True if the control is feasible"""
-        return not np.any(ctrl < self._ctrl_bounds[:,0] | ctrl > self._ctrl_bounds[:,1])
+        return not (np.any(ctrl < self._ctrl_bounds[:,0]) or np.any(ctrl > self._ctrl_bounds[:,1]))
 
     def is_feasible(self, traj : Trajectory) -> bool:
         """Returns True if the trajectory is feasible"""
         for i in range(len(traj.obs)):
-            if np.any(traj.obs[i] < self._obs_bounds[:,0] | traj.obs[i] > self._obs_bounds[:,1]): return False
+            if np.any(traj.obs[i] < self._obs_bounds[:,0]) or (traj.obs[i] > self._obs_bounds[:,1]): return False
         for i in range(len(traj.ctrls)):
-            if np.any(traj.ctrls[i] < self._ctrl_bounds[:,0] | traj.ctrls[i] > self._ctrl_bounds[:,1]): return False
+            if np.any(traj.ctrls[i] < self._ctrl_bounds[:,0]) or (traj.ctrls[i] > self._ctrl_bounds[:,1]): return False
         return True
 
     def project_obs(self, obs : np.ndarray) -> np.ndarray:

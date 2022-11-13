@@ -81,7 +81,8 @@ class QuadCost(Cost):
             obst = obs
         QQt = (self._Q + self._Q.T)
         RRt = (self._R + self._R)
-        return obst.T @ self._Q @ obst + control.T @ self._R @control, QQt @ obst, RRt @ control, QQt, np.zeros((self.system.obs_dim, self.system.ctrl_dim)), RRt
+        hess_obs_ctrl = np.zeros((self.system.obs_dim, self.system.ctrl_dim))
+        return obst.T @ self._Q @ obst + control.T @ self._R @control, QQt @ obst, RRt @ control, QQt, hess_obs_ctrl, RRt
         
     def terminal(self, obs):
         try:

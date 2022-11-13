@@ -58,7 +58,7 @@ class KeepBoundsTransformer(OCPTransformer):
 
     def __call__(self, ocp : OCP) -> OCP:
         res = copy.deepcopy(ocp)
-        res.set_cost(ZeroCost())
+        res.set_cost(ZeroCost(self.system))
         return res
 
     def get_prototype(self, config, ocp):

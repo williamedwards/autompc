@@ -30,7 +30,7 @@ def doubleint_dynamics(y, u):
     return np.array([dx, u])
 
 def dt_doubleint_dynamics(y,u,dt):
-    y += dt * doubleint_dynamics(y,u[0])
+    y = y + dt * doubleint_dynamics(y,u[0])
     return y
 
 class DoubleIntegratorBenchmark(Benchmark):

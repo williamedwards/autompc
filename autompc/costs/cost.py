@@ -184,13 +184,17 @@ class Cost(ABC):
         if 'goal' not in self.properties:
             return None
         return np.copy(self.properties['goal'])
-    
-    @goal.setter
+
     def set_goal(self,goal):
         """Sets the cost's goal state. (Note: not all costs actually act to
         drive the system toward a goal).
         """
         self.properties['goal'] = np.copy(goal)
+
+    @goal.setter
+    def goal(self,goal):
+        """Alias for backwards compatibility."""
+        self.set_goal(goal)
 
     def __add__(self, other):
         if isinstance(other, SumCost):
@@ -201,12 +205,12 @@ class Cost(ABC):
     def __mul__(self, rhs):
         if not isinstance(rhs,(int,float)):
             raise ValueError("Can only multiply by a float")
-        return MulCost(self.system, [self, rhs])
+        return MulCost(self.system, self, rhs)
         
     def __rmul__(self, lhs):
         if not isinstance(lhs,(int,float)):
             raise ValueError("Can only multiply by a float")
-        return MulCost(self.system, [self, lhs])
+        return MulCost(self.system, self, lhs)
 
 
 class SumCost(Cost):
@@ -274,11 +278,6 @@ class SumCost(Cost):
     def terminal_hess(self, obs):
         return self._sum_results((obs,), "terminal_hess")
 
-    @property
-    def goal(self):
-        return super().goal
-
-    @goal.setter
     def set_goal(self,goal):
         super().set_goal(goal)
         for cost in self.costs:
