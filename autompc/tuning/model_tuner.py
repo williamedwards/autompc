@@ -188,7 +188,7 @@ class ModelTuner:
             tune_result.inc_cfg to reconsruct the model.
         """
         if rng is None:
-            rng = np.random.default_rng()
+            rng = np.random.default_rng(100)
 
         self.evaluator.rng = rng # TODO Fix this
         cfg_evaluator = ModelCfgEvaluator(self.model, self.evaluator)

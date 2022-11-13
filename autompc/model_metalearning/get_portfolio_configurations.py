@@ -11,12 +11,12 @@ from meta_utils import load_data
 from task_pool import MPITaskPool
 from ..sysid import MLP
 
-def run_model_tuning(system, trajs, n_iters=100):
+def run_model_tuning(system, trajs, n_iters=1000):
     # model tuner
     # default evaluatiuon strategy: 3-fold-cv and one-step RMSE
     tuner = ModelTuner(system, trajs, verbose=1, multi_fidelity=False)
     print("Selecting from models", ",".join(model.name for model in tuner.model.models))
-    tuned_model, tune_result = tuner.run(n_iters=n_iters)
+    tuned_model, tune_result = tuner.run(n_iters=n_iters, eval_timeout=1000)
     print("Selected model:", tuned_model.name)
     print("Selected configuration", tune_result.inc_cfg)
     print("Final cross-validated RMSE score", tune_result.inc_costs[-1])
