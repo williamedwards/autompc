@@ -10,12 +10,13 @@ import numpy as np
 import mujoco_py
 
 # Project includes
-from .benchmark import Benchmark
+from .control_benchmark import ControlBenchmark
 from ..utils.data_generation import *
 from .. import System
 from ..task import Task
 from ..trajectory import Trajectory
 from ..costs import Cost, QuadCost
+from ..ocp import QuadCostTransformer
 
 def viz_halfcheetah_traj(env, traj, repeat):
     for _ in range(repeat):
@@ -97,14 +98,17 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     return trajs
 
 
-class HalfcheetahBenchmark(Benchmark):
+class HalfcheetahBenchmark(ControlBenchmark):
     """
     This benchmark uses the OpenAI gym halfcheetah benchmark and is consistent with the
     experiments in the ICRA 2021 paper. The benchmark reuqires OpenAI gym and mujoco_py
     to be installed.  The performance metric is
     :math:`200-R` where :math:`R` is the gym reward.
     """
-    def __init__(self, name = "HalfCheetah-v2", data_gen_method="uniform_random"):
+
+    def __init__(self, data_gen_method="uniform_random"):
+        name = "halfcheetah"
+
         import gym, mujoco_py
         print(name)
 
@@ -118,25 +122,25 @@ class HalfcheetahBenchmark(Benchmark):
         u_num = env.action_space.shape[0]
         system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt)
 
+        system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
+
         system.dt = env.dt
-        task = Task(system)
 
-        # cost = HalfcheetahCost(env)
-        # task = Task(system,cost)
-        # task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
-        # init_obs = np.concatenate([env.init_qpos, env.init_qvel])
-        # task.set_init_obs(init_obs)
-        # task.set_num_steps(200)
+        cost = HalfcheetahCost(env)
+        task = Task(system,cost)
+        task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
+        init_obs = np.concatenate([env.init_qpos, env.init_qvel])
+        task.set_init_obs(init_obs)
+        task.set_num_steps(200)
 
-        # factory = QuadCost(system, goal = np.zeros(system.obs_dim))
-        # for obs in system.observations:
-        #     if not obs in ["x1", "x6", "x7", "x8", "x9"]:
-        #         factory.fix_Q_value(obs, 0.0)
-        #     if not obs in ["x1", "x9"]:
-        #         factory.fix_F_value(obs, 0.0)
-        # factory.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
-        # self.cost_factory = factory
-
+        transformer = QuadCostTransformer(system)
+        for obs in system.observations:
+            if not obs in ["x1", "x6", "x7", "x8", "x9"]:
+                transformer.fix_Q_value(obs, 0.0)
+            if not obs in ["x1", "x9"]:
+                transformer.fix_F_value(obs, 0.0)
+        transformer.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
+        self.ocp_transformer = transformer
 
         super().__init__(name, system, task, data_gen_method)
 

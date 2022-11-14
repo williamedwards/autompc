@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.animation as animation
 
 # Project includes
-from .benchmark import Benchmark
+from .control_benchmark import ControlBenchmark
 from ..utils.data_generation import *
 from .. import System
 from ..task import Task
@@ -45,7 +45,7 @@ def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1, m_pole=0.0):
 def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1):
     return y + dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
 
-class CartpoleSwingupBenchmark(Benchmark):
+class CartpoleSwingupBenchmark(ControlBenchmark):
     """
     This benchmark uses the cartpole system and is consistent with the
     experiments in the ICRA 2021 paper. The task is to move the pole

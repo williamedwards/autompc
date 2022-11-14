@@ -155,7 +155,7 @@ class ControlTuner:
             surrogate_evaluator : Optional[ModelEvaluator]=None,
             control_tune_bootstraps=1, max_trials_per_evaluation=None, control_evaluator : Optional[ControlEvaluator]=None,
             performance_quantile=0.5, performance_eval_time_weight=0.0, performance_infeasible_cost=100.0,
-            performance_metric : Optional[ControlPerformanceMetric]=None): 
+            performance_metric : Optional[ControlPerformanceMetric]=None, parallel_backend=None): 
         """
         Parameters
         ----------
@@ -208,6 +208,7 @@ class ControlTuner:
         performance_metric : ControlPerformanceMetric
             Overrides the default ConfidenceBoundPerformanceMetric and ignores the
             prior settings.
+        parallel_backend : TODO
         """
         self.tuning_mode = tuning_mode
         self.surrogate = surrogate
@@ -225,6 +226,7 @@ class ControlTuner:
             # performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
             performance_metric = ControlPerformanceMetric()
         self.performance_metric = performance_metric
+        self.parallel_backend = parallel_backend
 
     def _get_cfg_evaluator(self, controller : Controller, task : List[Task], trajs : List[Trajectory],
                             truedyn : Optional[Dynamics], rng, surrogate_tune_iters : int):
@@ -278,7 +280,9 @@ class ControlTuner:
         
             if control_evaluator is None:
                 if self.control_tune_bootstraps > 1:
-                    control_evaluator = BootstrapSurrogateEvaluator(controller.system, task, surrogate, surr_trajs, self.control_tune_bootstraps, rng=rng)
+                    control_evaluator = BootstrapSurrogateEvaluator(
+                        controller.system, task, surrogate, surr_trajs, self.control_tune_bootstraps, rng=rng, backend=self.parallel_backend
+                    )
                 else:
                     surrogate.train(surr_trajs)
                     control_evaluator = StandardEvaluator(controller.system, task, surrogate, prefix='surr_')
@@ -464,6 +468,7 @@ class ControlCfgEvaluator:
         info = dict()
         controller.set_config(cfg)
         controller.build(self.sysid_trajs)
+        print("Run Controller Evaluation...")
         trials = self.control_evaluator(controller)
         performance = self.performance_metric(trials)
         info["surr_cost"] = performance

@@ -4,6 +4,7 @@ from joblib import Parallel, delayed
 
 from .control_evaluator import StandardEvaluator
 from .parallel_evaluator import ParallelEvaluator
+from .parallel_utils import ParallelBackend
 from ..system import System
 from ..trajectory import Trajectory
 from ..sysid.model import Model
@@ -17,7 +18,8 @@ class BootstrapSurrogateEvaluator(ParallelEvaluator):
     """A surrogate evaluator that samples n_bootstraps data draws to train an
     ensemble of surrogate models.
     """
-    def __init__(self, system : System, tasks, surrogate : Model, trajs : List[Trajectory], n_bootstraps=10, surrogate_tune_iters=100, rng=None):
+    def __init__(self, system : System, tasks, surrogate : Model, trajs : List[Trajectory], 
+                 n_bootstraps=10, surrogate_tune_iters=100, rng=None, backend=None):
         if rng is None:
             rng = np.random.default_rng()
         
@@ -31,4 +33,4 @@ class BootstrapSurrogateEvaluator(ParallelEvaluator):
         surrogate_dynamics = Parallel(n_jobs=n_bootstraps)(delayed(_train_bootstrap)(surrogate, bootstrap_sample)
             for bootstrap_sample in bootstrap_samples)
 
-        ParallelEvaluator.__init__(self, StandardEvaluator(system,tasks,None,'surr_'), surrogate_dynamics, len(surrogate_dynamics))
+        ParallelEvaluator.__init__(self, StandardEvaluator(system,tasks,None,'surr_'), surrogate_dynamics, backend=backend)

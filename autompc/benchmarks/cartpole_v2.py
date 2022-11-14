@@ -10,7 +10,7 @@ import matplotlib.animation as animation
 
 
 # Project includes
-from .benchmark import Benchmark
+from .control_benchmark import ControlBenchmark
 from ..utils.data_generation import *
 from .. import System
 from ..task import Task
@@ -36,7 +36,7 @@ def cartpole_simp_dynamics(y, u, g = 9.8, m = 1, L = 1, b = 0.1):
 def dt_cartpole_dynamics(y,u,dt,g=9.8,m=1,L=1,b=1.0):
     return y + dt * cartpole_simp_dynamics(y,u[0],g,m,L,b)
 
-class CartpoleSwingupV2Benchmark(Benchmark):
+class CartpoleSwingupV2Benchmark(ControlBenchmark):
     """
     This benchmark uses the cartpole system and differs from CartpoleSwingupBenchmark
     in that the performance metric requires the cartpole to stay within the [-10, 10]

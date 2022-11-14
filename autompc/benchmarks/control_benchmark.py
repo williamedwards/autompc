@@ -6,16 +6,23 @@ from abc import ABC, abstractmethod
 # External library includes
 import numpy as np
 
-class Benchmark(ABC):
+# Internal library includes
+from .modeling_benchmark import ModelingBenchmark
+
+class ControlBenchmark(ModelingBenchmark):
     """
     Represents a Benchmark for testing AutoMPC, including the sytem,
     task, and a method of generating data.
     """
-    def __init__(self, name, system, task, data_gen_method):
+    def __init__(self, name, system, task, data_gen_method, default_num_trajs=500, default_traj_len=200):
         self.name = name
         self.system = system
         self.task = task
         self._data_gen_method = data_gen_method
+        self._default_num_trajs = default_num_trajs
+        self._default_traj_len = default_traj_len
+
+        super().__init__(name, system)
 
     @abstractmethod
     def dynamics(self, x, u):
@@ -72,3 +79,13 @@ class Benchmark(ABC):
          : List of strings
         """
         raise NotImplementedError
+
+    def get_trajs(self, num_trajs=None):
+        """ Inherited see superclass. """
+        if num_trajs is None:
+            num_trajs = self._default_num_trajs
+        return self.gen_trajs(num_trajs=num_trajs, traj_len=self._default_num_trajs, seed=0)
+
+    @property
+    def max_num_trajs(self):
+        return None
