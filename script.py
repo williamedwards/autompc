@@ -1,8 +1,11 @@
 from distutils.log import info
 import os, glob
 import pickle
+import json
 from collections import namedtuple
 import numpy as np
+
+import ConfigSpace as CS
 
 import gym
 import mujoco_py
@@ -25,43 +28,29 @@ from autompc import AutoSelectController
 from autompc.tuning import ControlTuner
 from autompc.sysid import MLP
 
+from autompc.model_metalearning.meta_utils import load_data
+
 import xml.etree.ElementTree as ET
 import tempfile
 
-save_path = '/home/baoyu/baoyul2/autompc/autompc/model_metalearning/gym_size_ext_xml/'
-model_path=os.path.dirname(gym.envs.__file__) + "/mujoco/assets/half_cheetah.xml"
-tree = ET.parse(model_path)
-print(tree)
-body_part = ['torso']
-size_scale = 1.5
+path = '/home/baoyu/baoyul2/autompc/autompc/model_metalearning/temp.json'
 
-geom = tree.find(".//geom[@name='%s']" % body_part[0])
-print(geom)
+T = []
+with open(path, 'r') as f:
+    data = json.load(f)
+    # print(data['foo'])
 
-sizes  = [float(x) for x in geom.attrib["size"].split(" ")]
-print(geom.attrib["size"])
+names = []
+configs = []
+for d in data['foo']:
+    name = d['env']
+    config = d['final_config']
+    names.append(name)
+    configs.append(config)
 
-geom.attrib["size"] = " ".join([str(x * size_scale) for x in sizes ])
-print(geom.attrib["size"])
+data_path = '/home/baoyu/baoyul2/autompc/autompc/model_metalearning/meta_data'
+system, trajs = load_data(data_path, names[0])
+# config = CS(configs[1])
+print(type(config))
+# print(config)
 
-file_name = 'half_cheetah_' + 'torso_' + str(size_scale) + ".xml"
-output_file = save_path + file_name
-tree.write(output_file)
-
-class NewEnv(HalfCheetahEnv, utils.EzPickle):
-    
-    def __init__(self, **kwargs):
-        observation_space = Box(low=-np.inf, high=np.inf, shape=(17,), dtype=np.float64)
-        MuJocoPyEnv.__init__(
-            self, output_file, 5, observation_space=observation_space, **kwargs
-        )
-        utils.EzPickle.__init__(self, **kwargs)
-
-gym.envs.register(
-    id = 'HalfCheetahBigTorso-v2',
-    entry_point="script:NewEnv",
-    max_episode_steps=1000,
-    reward_threshold=4800.0,
-)
-
-env = gym.make('HalfCheetahBigTorso-v2')
