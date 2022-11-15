@@ -117,7 +117,7 @@ class CrossValidationModelEvaluator(ModelEvaluator):
     """
     Evaluate model prediction accuracy according to k-fold cross validation.
     """
-    def __init__(self, *args, rng = None, num_folds = 3, verbose=False, **kwargs):
+    def __init__(self, *args, rng = None, num_folds = 3, verbose=False, parallel_backend=None, **kwargs):
         """
         Parameters
         ----------
@@ -135,6 +135,8 @@ class CrossValidationModelEvaluator(ModelEvaluator):
             Number of folds to evaluate.
         verbose : bool
             Whether to print information during evaluation
+        parallel_backend : ParallelBackend
+            Backend to use to compute folds in parallel.
         """
         if num_folds <= 1:
             raise ValueError("Invalid number of folds")
@@ -151,7 +153,7 @@ class CrossValidationModelEvaluator(ModelEvaluator):
             train = np.hstack((self.shuffled_trajs[:splits[f]],self.shuffled_trajs[splits[f+1]:]))
             test = self.shuffled_trajs[splits[f]:splits[f+1]]
             self.folds.append(([self.trajs[i] for i in train],[self.trajs[i] for i in test]))
-        
+
     def __call__(self, model):
         values = []
         for (train,test) in self.folds:

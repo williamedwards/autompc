@@ -62,8 +62,10 @@ class ModelTuner:
     def __init__(self, system : System, trajs : List[Trajectory], model : Optional[Model] = None,
                 eval_holdout=0.25, eval_folds=3, eval_metric="rmse", eval_horizon=1, eval_quantile=None,
                 evaluator : Optional[ModelEvaluator] = None,
-                multi_fidelity=False, verbose=0):
+                multi_fidelity=False, parallel_backend=None, verbose=0):
         """
+        TODO Update docstring
+
         Parameters
         ----------
         system : System
@@ -104,7 +106,7 @@ class ModelTuner:
             else:
                 print("Foo")
                 evaluator = CrossValidationModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, num_folds=eval_folds,
-                    rng=np.random.default_rng(100))
+                    rng=np.random.default_rng(100), parallel_backend=parallel_backend)
         else:
             evaluator.trajs = trajs
         

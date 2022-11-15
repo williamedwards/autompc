@@ -95,6 +95,7 @@ class ControlEvaluator(ABC):
         except np.linalg.LinAlgError:
             truedyn_cost = np.inf
             t1 = time.time()
+            truedyn_traj = None
             return ControlEvaluationTrial(policy=policy,task=task,dynamics=dynamics,weight=1.0,
                 cost = truedyn_cost, traj=truedyn_traj, term_cond='LinAlgError', eval_time = t1-t0)
 

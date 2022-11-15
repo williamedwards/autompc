@@ -14,13 +14,13 @@ class ModelingBenchmark(ABC):
         self.system = system
 
     @abstractmethod
-    def get_trajs(self, num_trajs: Optional[int] = None) -> List[Trajectory]:
+    def get_trajs(self, n_trajs: Optional[int] = None) -> List[Trajectory]:
         """
         Returns set of available trajectories for benchmark.
 
         Parameters
         ----------
-        num_trajs : Number of trajectories to access. If None,
+        n_trajs : Number of trajectories to access. If None,
                     returns default or maximum number of 
                     trajectories.  Raises excepiton if
                     num_trajs exceeds to self.max_num_trajs.

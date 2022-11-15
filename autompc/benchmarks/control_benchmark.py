@@ -80,11 +80,11 @@ class ControlBenchmark(ModelingBenchmark):
         """
         raise NotImplementedError
 
-    def get_trajs(self, num_trajs=None):
+    def get_trajs(self, n_trajs=None):
         """ Inherited see superclass. """
-        if num_trajs is None:
-            num_trajs = self._default_num_trajs
-        return self.gen_trajs(num_trajs=num_trajs, traj_len=self._default_num_trajs, seed=0)
+        if n_trajs is None:
+            n_trajs = self._default_num_trajs
+        return self.gen_trajs(n_trajs=n_trajs, traj_len=self._default_num_trajs, seed=0)
 
     @property
     def max_num_trajs(self):
