@@ -474,10 +474,10 @@ class ControlCfgEvaluator:
         info["surr_cost"] = performance
         info["surr_info"] = list(map(trial_to_json, trials))
         if not self.truedyn_evaluator is None:
-            trajs = self.truedyn_evaluator(controller)
-            performance = self.performance_metric(trajs)
+            truedyn_trials = self.truedyn_evaluator(controller)
+            performance = self.performance_metric(truedyn_trials)
             info["truedyn_cost"] = performance
-            info["truedyn_info"] = list(map(trial_to_json, trials))
+            info["truedyn_info"] = list(map(trial_to_json, truedyn_trials))
         
         # if self.controller_save_dir:
         #     controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))
