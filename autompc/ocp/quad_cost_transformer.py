@@ -56,6 +56,7 @@ class QuadCostTransformer(OCPTransformer):
                 lower=lower_bound, upper=upper_bound, default_value=default, log=log)
         cs = self.get_config_space()
         cs.add_hyperparameter(hyper)
+        self.set_configuration_space(cs)
 
     def fix_Q_value(self, obsname, value):
         """

@@ -19,7 +19,10 @@ class Tunable(ABC):
     if an item has no hyperparameters or has been frozen.
     """
     def __init__(self):
-        self._configuration_space = self.get_default_config_space()
+        self.set_configuration_space(self.get_default_config_space())
+
+    def set_configuration_space(self, configuration_space: ConfigurationSpace):
+        self._configuration_space = configuration_space
         self._config = self.get_default_config()
         self.set_config(self._config)
 
