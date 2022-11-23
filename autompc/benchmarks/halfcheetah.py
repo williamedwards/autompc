@@ -47,9 +47,10 @@ def halfcheetah_dynamics(env, x, u, n_frames=5):
     return np.concatenate([new_qpos, new_qvel])
 
 class HalfcheetahCost(Cost):
-    def __init__(self, env):
-        Cost.__init__(self,None)
+    def __init__(self, system, env):
+        Cost.__init__(self, system)
         self.env = env
+        self.goal = np.zeros(system.obs_dim)
 
     def __call__(self, traj):
         cum_reward = 0.0
@@ -102,7 +103,7 @@ class HalfcheetahBenchmark(ControlBenchmark):
         system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
 
         system.dt = env.dt
-        cost = HalfcheetahCost(env)
+        cost = HalfcheetahCost(system, env)
         task = Task(system,cost)
         task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
         init_obs = np.concatenate([env.init_qpos, env.init_qvel])
