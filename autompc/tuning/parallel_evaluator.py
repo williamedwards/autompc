@@ -40,6 +40,9 @@ class ParallelEvaluator(ControlEvaluator):
         surrogate = self.dynamics_models[model_idx]
         print("Simulating Surrogate Trajectory for Model {}, Task {}: ".format(model_idx, task_idx))
         self.evaluator.dynamics = surrogate
+        if hasattr(controller,'set_ocp'):  #it's a Controller
+            controller.set_ocp(self.tasks[task_idx])
+        controller.reset()
         result = self.evaluator.evaluate_for_task(controller, self.tasks[task_idx])
         return result
 
