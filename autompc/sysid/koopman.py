@@ -13,7 +13,10 @@ import ConfigSpace.conditions as CSC
 # Internal library includes
 from ..system import System
 from .model import Model
-from .stable_koopman import stabilize_discrete
+try:
+    from .stable_koopman import stabilize_discrete
+except ImportError:
+    pass
 from .basis_funcs import *
 from ..utils.cs_utils import *
 
