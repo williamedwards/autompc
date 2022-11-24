@@ -112,7 +112,7 @@ class StandardEvaluator(ControlEvaluator):
         tasks: the task or set of tasks to evaluate on.
         dynamics (Dynamics): the assumed dynamics for simulation.
     """
-    def __init__(self, system, tasks, dynamics, data_store=None, prefix=''):
+    def __init__(self, system, tasks, dynamics, prefix='', data_store=None):
         super().__init__(system, tasks)
         self.prefix = prefix
         if data_store:
