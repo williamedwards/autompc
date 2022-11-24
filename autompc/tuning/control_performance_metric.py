@@ -8,7 +8,12 @@ class ControlPerformanceMetric:
     for tuning.  Default implementation just averages the cost.
     """
     def __call__(self,trials : List[ControlEvaluationTrial]) -> float:
-        return np.mean([t.cost for t in trials])
+        trial_costs = []
+        for t in trials:
+            if hasattr(t, "unwrap"):
+                t = t.unwrap()
+            trial_costs.append([t.cost])
+        return np.mean(trial_costs)
 
 
 class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
@@ -37,6 +42,8 @@ class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
     def __call__(self,trials : List[ControlEvaluationTrial]) -> float:
         costs = []
         for t in trials:
+            if hasattr(t, "unwrap"):
+                t = t.unwrap()
             c = t.cost + self.eval_time_weight*t.eval_time/len(t.traj)
             if t.term_cond.endswith('infeasible'):
                 c += self.infeasible_cost

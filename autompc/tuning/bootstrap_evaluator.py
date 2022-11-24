@@ -36,4 +36,4 @@ class BootstrapSurrogateEvaluator(ParallelEvaluator):
         surrogate_dynamics = Parallel(n_jobs=n_bootstraps)(delayed(_train_bootstrap)(surrogate, bootstrap_sample, data_store)
             for bootstrap_sample in bootstrap_samples)
 
-        ParallelEvaluator.__init__(self, StandardEvaluator(system,tasks,None,'surr_'), surrogate_dynamics, backend=backend, data_store=data_store)
+        ParallelEvaluator.__init__(self, StandardEvaluator(system,tasks,None,'surr_',data_store), surrogate_dynamics, backend=backend, data_store=data_store)

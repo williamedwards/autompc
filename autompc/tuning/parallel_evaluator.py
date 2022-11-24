@@ -54,6 +54,7 @@ class ParallelEvaluator(ControlEvaluator):
 
     def __call__(self, controller : Policy):
         print("Entering Parallel Evaluation")
+        # TODO Make sure this part works with data store
         if hasattr(controller,'model') and hasattr(controller.model,'set_device'):
             controller.model.set_device("cpu")
         for dyn in self.dynamics_models:

@@ -15,6 +15,8 @@ ControlEvaluationTrial = namedtuple("ControlEvaluationTrial", ["policy","task","
     "cost","traj","term_cond","eval_time"])
 
 def trial_to_json(trial : ControlEvaluationTrial):
+    if hasattr(trial, "unwrap"):
+        trial = trial.unwrap()
     res = trial._asdict()
     res['policy'] = str(trial.policy)
     res['task'] = str(trial.task)
@@ -115,6 +117,7 @@ class StandardEvaluator(ControlEvaluator):
     def __init__(self, system, tasks, dynamics, prefix='', data_store=None):
         super().__init__(system, tasks)
         self.prefix = prefix
+        self.data_store = data_store
         if data_store:
             self.dynamics = data_store.wrap(dynamics)
         else:
@@ -129,4 +132,6 @@ class StandardEvaluator(ControlEvaluator):
             controller = controller.unwrap()
         res = self.evaluate_for_task_dynamics(controller,task,dynamics)
         print("Resulting cost",res.cost)
+        if self.data_store:
+            res = self.data_store.wrap(res)
         return res
