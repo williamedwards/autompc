@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List
+from typing import List, Optional
 from joblib import Parallel, delayed
 
 from .control_evaluator import StandardEvaluator
@@ -8,10 +8,13 @@ from .parallel_utils import ParallelBackend
 from ..system import System
 from ..trajectory import Trajectory
 from ..sysid.model import Model
+from .data_store import DataStore
 
-def _train_bootstrap(base_surrogate: Model, bootstrap_sample: List[Trajectory]):
+def _train_bootstrap(base_surrogate: Model, bootstrap_sample: List[Trajectory], data_store: Optional[DataStore] = None):
     bootstrap_surrogate = base_surrogate.clone()
     bootstrap_surrogate.train(bootstrap_sample)
+    if data_store:
+        bootstrap_surrogate = data_store.wrap(bootstrap_surrogate)
     return bootstrap_surrogate
 
 class BootstrapSurrogateEvaluator(ParallelEvaluator):
@@ -19,7 +22,7 @@ class BootstrapSurrogateEvaluator(ParallelEvaluator):
     ensemble of surrogate models.
     """
     def __init__(self, system : System, tasks, surrogate : Model, trajs : List[Trajectory], 
-                 n_bootstraps=10, surrogate_tune_iters=100, rng=None, backend=None):
+                 n_bootstraps=10, surrogate_tune_iters=100, rng=None, backend=None, data_store=None):
         if rng is None:
             rng = np.random.default_rng()
         

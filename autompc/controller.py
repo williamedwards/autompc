@@ -429,6 +429,8 @@ class Controller(TunablePipeline,Policy):
         Builds the controller given its current configuration.  This includes
         training the model, constructing the OPC, and initializing the optimizer.
         """
+        if hasattr(trajs, "unwrap"):
+            trajs = trajs.unwrap()
         if not self.ocp:
             raise ControllerStateError("Must call set_ocp() before build()")
         if not self.model:

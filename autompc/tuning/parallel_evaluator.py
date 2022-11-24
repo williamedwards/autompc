@@ -8,6 +8,7 @@ from collections import defaultdict
 
 from .control_evaluator import ControlEvaluator,StandardEvaluator,ControlEvaluationTrial
 from ..task import Task
+from .data_store import DataStore
 from .parallel_utils import ParallelBackend, JoblibBackend
 from ..policy import Policy
 from ..dynamics import Dynamics
@@ -18,13 +19,16 @@ class ParallelEvaluator(ControlEvaluator):
     """
     def __init__(self, evaluator : StandardEvaluator,
                 dynamics : Union[Dynamics,List[Dynamics]],
-                backend : ParallelBackend = None):
+                backend : ParallelBackend = None,
+                data_store: DataStore = None):
         if isinstance(evaluator,ParallelEvaluator):
             raise ValueError("Can't pass ParallelEvaluator to ParallelEvaluator constructor")
         super().__init__(evaluator.system, evaluator.tasks)
         self.evaluator = evaluator
         if not hasattr(dynamics,'__iter__'):
             dynamics = [dynamics]
+        if data_store:
+            dynamics = [data_store.wrap(dyn) for dyn in dynamics]
         self.dynamics_models = dynamics
         if backend is None:
             self.backend = JoblibBackend(n_jobs=os.cpu_count())
@@ -40,6 +44,8 @@ class ParallelEvaluator(ControlEvaluator):
         surrogate = self.dynamics_models[model_idx]
         print("Simulating Surrogate Trajectory for Model {}, Task {}: ".format(model_idx, task_idx))
         self.evaluator.dynamics = surrogate
+        if hasattr(controller, "unwrap"):
+            controller = controller.unwrap()
         if hasattr(controller,'set_ocp'):  #it's a Controller
             controller.set_ocp(self.tasks[task_idx])
         controller.reset()

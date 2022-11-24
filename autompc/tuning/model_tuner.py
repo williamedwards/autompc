@@ -189,19 +189,22 @@ class ModelTuner:
             Additional information from tuning process.  Can access
             tune_result.inc_cfg to reconsruct the model.
         """
-        if rng is None:
-            rng = np.random.default_rng()
-
-        self.evaluator.rng = rng # TODO Fix this
-        cfg_evaluator = ModelCfgEvaluator(self.model, self.evaluator)
-
-        cs = self.model.get_config_space()
-
         smac_runner = SMACRunner(
             output_dir=output_dir,
             restore_dir=restore_dir,
             use_default_initial_design=use_default_initial_design
         )
+        data_store = smac_runner.get_data_store()
+
+        if rng is None:
+            rng = np.random.default_rng()
+
+        self.evaluator.rng = rng # TODO Fix this
+        self.evaluator.set_data_store(data_store)
+        cfg_evaluator = ModelCfgEvaluator(self.model, self.evaluator)
+
+        cs = self.model.get_config_space()
+
 
         inc_cfg, run_history = smac_runner.run(cs, cfg_evaluator, n_iters=n_iters, rng=rng, eval_timeout=eval_timeout)
 

@@ -8,6 +8,7 @@ from smac.runhistory.runhistory import RunHistory
 from smac.stats.stats import Stats
 from smac.utils.io.traj_logging import TrajLogger
 from pathlib import Path
+from .data_store import DataStore
 import multiprocessing
 import contextlib
 import datetime
@@ -26,6 +27,8 @@ class SMACRunner:
         self.restore_dir = restore_dir
         self.use_default_initial_design = use_default_initial_design
 
+        self._init_output_directories()
+
     @property
     def restore(self):
         return self.restore_dir is not None
@@ -36,7 +39,7 @@ class SMACRunner:
             cfg_evaluator = pickle.load(f)
         return cfg_evlauator
 
-    def _init_output_directories(self, cfg_evaluator):
+    def _init_output_directories(self): #, cfg_evaluator):
         # Construct output paths
         if self.output_dir is None:
             output_dir = Path("autompc-output_" + datetime.datetime.now().isoformat(timespec="seconds"))
@@ -45,6 +48,7 @@ class SMACRunner:
         run_dir = output_dir / "run_{}".format(int(1000.0*datetime.datetime.utcnow().timestamp()))
         smac_dir = run_dir / "smac"
         eval_result_dir = run_dir / "eval_results"
+        data_dir = run_dir / "datastore"
 
         # Create output directories if needed
         if run_dir.exists():
@@ -54,12 +58,14 @@ class SMACRunner:
         eval_result_dir.mkdir()
         smac_dir.mkdir(exist_ok=True)
         (smac_dir / "run_1").mkdir(exist_ok=True)
+        data_dir.mkdir(exist_ok=True)
 
-        # Save config evaluator
-        with open(run_dir / "cfg_evaluator.pkl", "wb") as f:
-            pickle.dump(cfg_evaluator, f)
+        # Create data store
+        self._data_store = DataStore(data_dir)
 
-        return run_dir, smac_dir, eval_result_dir
+        self.run_dir = run_dir
+        self.smac_dir = smac_dir
+        self.eval_result_dir = eval_result_dir
     
     def _get_restore_run_dir(self):
         run_dirs = glob.glob(os.path.join(self.restore_dir, "run_*"))
@@ -94,9 +100,10 @@ class SMACRunner:
         new_traj = os.path.join(new_run_dir, "smac", "run_1", "traj_aclib2.json")
         shutil.copy(old_traj, new_traj)
 
-    def run(self, cs: ConfigurationSpace, cfg_evaluator: CfgEvaluator, n_iters: int, rng: np.random.Generator, eval_timeout: float):
-        run_dir, smac_dir, eval_result_dir = self._init_output_directories(cfg_evaluator)
+    def get_data_store(self):
+        return self._data_store
 
+    def run(self, cs: ConfigurationSpace, cfg_evaluator: CfgEvaluator, n_iters: int, rng: np.random.Generator, eval_timeout: float):
         smac_rng = np.random.RandomState(seed=rng.integers(1 << 31))
         scenario = Scenario({"run_obj" : "quality",
                              "runcount-limit" : n_iters,
@@ -105,7 +112,7 @@ class SMACRunner:
                              "limit_resources" : False,
                              "abort_on_first_run_crash" : False,
                              "save_results_instantly" : True,
-                             "output_dir" : smac_dir
+                             "output_dir" : self.smac_dir
                              })
 
         if not self.use_default_initial_design:
@@ -113,7 +120,11 @@ class SMACRunner:
         else:
             initial_design = None
 
-        cfg_runner = CfgRunner(run_dir=run_dir, eval_result_dir=eval_result_dir, timeout=eval_timeout, log_file_name=run_dir/"log.txt")
+        cfg_runner = CfgRunner(
+            cfg_evaluator=cfg_evaluator,
+            timeout=eval_timeout, 
+            log_file_name=self.run_dir/"log.txt"
+        )
 
         if not self.restore:
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
@@ -138,16 +149,11 @@ class SMACRunner:
         return inc_cfg, smac.runhistory
 
 class CfgRunner:
-    def __init__(self, run_dir, eval_result_dir, timeout=None, log_file_name=None):
-        self.run_dir = run_dir
+    def __init__(self, cfg_evaluator, timeout=None, log_file_name=None):
+        self.cfg_evaluator = cfg_evaluator
         self.timeout = timeout
         self.log_file_name = log_file_name
-        self.eval_result_dir = eval_result_dir
         self.eval_number = 0
-
-    def get_cfg_evaluator(self):
-        with open(self.run_dir / "cfg_evaluator.pkl", "rb") as f:
-            return pickle.load(f)
 
     def __call__(self, cfg):
         self.eval_number += 1
@@ -184,12 +190,11 @@ class CfgRunner:
 
 
     def run_mp(self, cfg, q):
-        cfg_evaluator = self.get_cfg_evaluator()
         if not self.log_file_name is None:
             with open(self.log_file_name, "a") as f:
                 with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
                     try:
-                        result = cfg_evaluator(cfg)
+                        result = self.cfg_evaluator(cfg)
                     except Exception as e:
                         print("Exception raised: \n", str(e))
                         raise e
@@ -197,5 +202,5 @@ class CfgRunner:
                     q.put(result)
                     print("Done.")
         else:
-            result = cfg_evaluator(cfg)
+            result = self.cfg_evaluator(cfg)
             q.put(result)
