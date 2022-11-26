@@ -25,6 +25,7 @@ from .control_performance_metric import ControlPerformanceMetric,ConfidenceBound
 from .bootstrap_evaluator import BootstrapSurrogateEvaluator
 from .smac_runner import SMACRunner
 from .data_store import DataStore
+from .parallel_evaluator import ParallelEvaluator
 
 # External library includes
 import numpy as np
@@ -224,8 +225,8 @@ class ControlTuner:
         self.max_trials_per_evaluation = max_trials_per_evaluation
         self.control_evaluator = control_evaluator
         if performance_metric is None:
-            # performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
-            performance_metric = ControlPerformanceMetric()
+            performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
+            # performance_metric = ControlPerformanceMetric()
         self.performance_metric = performance_metric
         self.parallel_backend = parallel_backend
 
@@ -295,7 +296,12 @@ class ControlTuner:
                     raise NotImplementedError("Not sure what to do when control_evaluator != None and surrogate is tuned?")
 
         if truedyn is not None:
-            truedyn_evaluator = StandardEvaluator(controller.system, task, dynamics = truedyn, prefix='truedyn_')
+            truedyn_standard_evaluator = StandardEvaluator(controller.system, task, dynamics = truedyn, prefix='truedyn_')
+            truedyn_evaluator = ParallelEvaluator(evaluator=truedyn_standard_evaluator,
+                dynamics = truedyn,
+                backend=self.parallel_backend,
+                data_store=data_store
+            )
         else:
             truedyn_evaluator = None
         

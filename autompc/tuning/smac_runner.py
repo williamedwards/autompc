@@ -154,6 +154,8 @@ class CfgRunner:
         self.timeout = timeout
         self.log_file_name = log_file_name
         self.eval_number = 0
+        self.inc_cost = np.inf
+        self.inc_truedyn_cost = None
 
     def __call__(self, cfg):
         self.eval_number += 1
@@ -185,6 +187,15 @@ class CfgRunner:
             print("CfgRunner: Exception during evaluation")
             print("Exit code: ", p.exitcode)
             return np.inf, dict()
+
+        surr_cost, info = result
+        truedyn_cost = info["truedyn_info"][0]["cost"]
+        if surr_cost < self.inc_cost:
+            self.inc_cost = surr_cost
+            self.inc_truedyn_cost = truedyn_cost
+
+        print(f"!!!!!!!!!!!!!!!!! Incumbent Surrogate Cost = {self.inc_cost} !!!!!!!!!!!!!!!!!!!!!!")
+        print(f"!!!!!!!!!!!!!!!!! Incumbent True Dynamics Cost = {self.inc_truedyn_cost} !!!!!!!!!!!!!!!!!!!!!!")
 
         return result
 

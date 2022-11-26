@@ -33,7 +33,8 @@ class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
     """
     def __init__(self,quantile=0.5,eval_time_weight=0.0,infeasible_cost=100.0,aggregator=None):
         if aggregator is None:
-            aggregator = NormalDistribution
+            #aggregator = NormalDistribution
+            aggregator = EmpiricalDistribution
         self.aggregator = aggregator
         self.quantile = quantile
         self.eval_time_weight = eval_time_weight
@@ -85,3 +86,15 @@ class HistogramDistribution:
     def __str__(self):
         return "<Histogram Distribution, mean={}, std={}>".format(
                 self.dist.mean(), self.dist.std())
+
+class EmpiricalDistribution:
+    def __init__(self, values):
+        self.values = values 
+
+    def __call__(self, quantile):
+        return np.quantile(self.values, quantile)
+
+    def __str__(self):
+        return "<Empirical Distribution, mean={}, std={}>".format(
+                np.mean(self.values), np.std(self.values))
+
