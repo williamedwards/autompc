@@ -1,16 +1,19 @@
 import numpy as np
+import os
 from typing import List, Optional
+from functools import partial
+
 from joblib import Parallel, delayed
 
 from .control_evaluator import StandardEvaluator
 from .parallel_evaluator import ParallelEvaluator
-from .parallel_utils import ParallelBackend
+from .parallel_utils import ParallelBackend, JoblibBackend
 from ..system import System
 from ..trajectory import Trajectory
 from ..sysid.model import Model
 from .data_store import DataStore
 
-def _train_bootstrap(base_surrogate: Model, bootstrap_sample: List[Trajectory], data_store: Optional[DataStore] = None):
+def _train_bootstrap(bootstrap_sample: List[Trajectory], base_surrogate: Model, data_store: Optional[DataStore] = None):
     bootstrap_surrogate = base_surrogate.clone()
     bootstrap_surrogate.train(bootstrap_sample)
     if data_store:
@@ -33,7 +36,10 @@ class BootstrapSurrogateEvaluator(ParallelEvaluator):
         bootstrap_samples = []
         for i in range(n_bootstraps):
             bootstrap_samples.append(rng.choice(population, len(trajs), replace=True, axis=0))
-        surrogate_dynamics = Parallel(n_jobs=n_bootstraps)(delayed(_train_bootstrap)(surrogate, bootstrap_sample, data_store)
-            for bootstrap_sample in bootstrap_samples)
+        # surrogate_dynamics = Parallel(n_jobs=n_bootstraps)(delayed(_train_bootstrap)(surrogate, bootstrap_sample, data_store)
+        #     for bootstrap_sample in bootstrap_samples)
+        if backend is None:
+            backend = JoblibBackend(n_jobs=os.cpu_count())
+        surrogate_dynamics = backend.map(partial(_train_bootstrap, base_surrogate=surrogate, data_store=data_store), bootstrap_samples)
 
         ParallelEvaluator.__init__(self, StandardEvaluator(system,tasks,None,'surr_',data_store), surrogate_dynamics, backend=backend, data_store=data_store)
