@@ -64,3 +64,10 @@ def load_data(path, name):
         system = data['system']
         trajs = data['trajs']
     return system, trajs
+
+def load_cfg(path, name):
+    data_name = name + '.pkl'
+    input_file_name = os.path.join(path, data_name)
+    with open(input_file_name, 'rb') as fh:
+        cfg = pickle.load(fh)
+    return cfg

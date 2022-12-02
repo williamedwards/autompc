@@ -39,6 +39,14 @@ def get_configurations(names):
         end = time.time()
         print("Model tuning time", end-start)
         
+        # Save the configuration
+        cfg_path = '/home/baoyu/baoyul2/autompc/autompc/model_metalearning/meta_cfg'
+        data_name = name + '.pkl'
+        output_file_name = os.path.join(cfg_path, data_name)
+        print("Dumping to ", output_file_name)
+        with open(output_file_name, 'wb') as fh:
+            pickle.dump(tune_result.inc_cfg, fh)
+        
         # Plot train curve
         plt.plot(tune_result.inc_costs)
         plt.title(name + '_100')
@@ -56,6 +64,8 @@ def get_configurations(names):
         }
         with open('test.json', 'a') as outfile:
             outfile.write(json.dumps(info, indent=2))
+        
+        
     
 
 if __name__ == "__main__":

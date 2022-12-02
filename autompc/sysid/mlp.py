@@ -178,7 +178,6 @@ class MLP(FullyObservableModel):
         self.dY = dY
 
     def _prepare_data(self):
-        # print("XU", self.XU) #DEBUG
         self.xu_means = np.mean(self.XU, axis=0)
         self.xu_std = np.std(self.XU, axis=0)
         XUt = transform_input(self.xu_means, self.xu_std, self.XU)
