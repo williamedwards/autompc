@@ -71,3 +71,9 @@ def load_cfg(path, name):
     with open(input_file_name, 'rb') as fh:
         cfg = pickle.load(fh)
     return cfg
+
+def load_matrix(path):
+    input_file_name = os.path.join(path, 'matrix.pkl')
+    with open(input_file_name, 'rb') as fh:
+        matrix = pickle.load(fh)
+    return matrix

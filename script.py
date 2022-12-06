@@ -31,7 +31,7 @@ from autompc.sysid.metrics import get_model_rmse,get_model_rmsmens
 from autompc.sysid.autoselect import AutoSelectModel
 from autompc.tuning.model_evaluator import CrossValidationModelEvaluator, HoldoutModelEvaluator, ModelEvaluator
 
-from autompc.model_metalearning.meta_utils import load_data, load_cfg
+from autompc.model_metalearning.meta_utils import load_data, load_cfg, load_matrix
 
 import xml.etree.ElementTree as ET
 import tempfile
@@ -55,26 +55,40 @@ eval_folds=3
 # score = evaluator(model)
 # print(score)
 
-names = ["HalfCheetah-v2", "HalfCheetahSmall-v2"]
-output_results_dictionary = {}
+# names = ["HalfCheetah-v2", "HalfCheetahSmall-v2"]
+# output_results_dictionary = {}
 
-# data
-for data_name in names:
-    print(data_name)
-    system, trajs = load_data(data_path, data_name)
-    scores = []
-    # config
-    for cfg_name in names:
-        cfg = load_cfg(cfg_path, cfg_name)
-        print(cfg)
-        model = AutoSelectModel(system)
-        model.set_config(cfg)
-        evaluator = CrossValidationModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, num_folds=eval_folds,
-                    rng=np.random.default_rng(100))
-        score = evaluator(model)
-        scores.append(score)
-    output_results_dictionary[data_name] = scores
+# # data
+# for data_name in names:
+#     print(data_name)
+#     system, trajs = load_data(data_path, data_name)
+#     scores = []
+#     # config
+#     for cfg_name in names:
+#         cfg = load_cfg(cfg_path, cfg_name)
+#         print(cfg)
+#         model = AutoSelectModel(system)
+#         model.set_config(cfg)
+#         evaluator = CrossValidationModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, num_folds=eval_folds,
+#                     rng=np.random.default_rng(100))
+#         score = evaluator(model)
+#         scores.append(score)
+#     output_results_dictionary[data_name] = scores
         
-print(output_results_dictionary)
+# print(output_results_dictionary)
         
+names = ["HalfCheetah-v2", "HalfCheetahSmall-v2", "ReacherSmall-v2", "SwimmerSmall-v2"]
+matrix_path = '/home/baoyu/baoyul2/autompc/autompc/model_metalearning/meta_matrix'
+matrix = load_matrix(matrix_path)
+mean_scores = list(matrix.mean(axis=0))
+# print(mean_scores)
+print(matrix.mean(axis=0))
+size = 2
+port = []
 
+while len(port) < size:
+    min_index = mean_scores.index(min(mean_scores))
+    print(min_index)
+    mean_scores.pop(min_index)
+    port.append(names[min_index])
+print(port)

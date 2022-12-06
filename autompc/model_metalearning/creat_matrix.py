@@ -44,6 +44,6 @@ def create_matrix(names, data_path=data_path, cfg_path=cfg_path, matrix_path=mat
     return matrix
 
 if __name__ == "__main__":
-    names = ["HalfCheetah-v2", "HalfCheetahSmall-v2"]
+    names = ["HalfCheetah-v2", "HalfCheetahSmall-v2", "ReacherSmall-v2", "SwimmerSmall-v2"]
     matrix = create_matrix(names)
     print(matrix)

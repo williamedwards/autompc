@@ -2,6 +2,8 @@ autompc-output_*
 smac3-output*
 autompc-output*
 meta_fig
+meta_cfg
+meta_data
 
 .vscode/
 .venv/
