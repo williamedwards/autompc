@@ -1,11 +1,13 @@
 # Standard library includes
 from os import stat
 import sys, time
+from pathlib import Path
 
 # External library includes
 import numpy as np
 # import mujoco_py
 import mujoco_py
+from PIL import Image
 
 # Project includes
 from .control_benchmark import ControlBenchmark
@@ -19,18 +21,35 @@ gym_names = ["HalfCheetah-v2", "Hopper-v2", "Walker2d-v2", "Swimmer-v2", "Invert
               "Reacher-v2", "Pusher-v2", "InvertedDoublePendulum-v2", 
               "Ant-v2", "Humanoid-v2", "HumanoidStandup-v2"]
 
-def viz_gym_traj(env, traj, repeat):
+def viz_gym_traj(env, traj, repeat, file_path=None):
+    old_state = env.sim.get_state()
+    old_qpos = old_state[1]
+    old_qvel = old_state[2]
+
+    # if file_path:
+    #     from gym import wrappers
+    #     env = wrappers.Monitor(env, file_path, force=True)
+    if file_path:
+        file_path = Path(file_path)
+        file_path.mkdir(exist_ok=True, parents=True)
+
     for _ in range(repeat):
         env.reset()
-        qpos = traj[0].obs[:9]
-        qvel = traj[0].obs[9:]
-        env.set_state(qpos, qvel)
         for i in range(len(traj)):
-            u = traj[i].ctrl
-            env.step(u)
-            env.render()
-            time.sleep(0.05)
+            qpos = traj[i].obs[:len(old_qpos)]
+            qvel = traj[i].obs[len(old_qpos):len(old_qpos)+len(old_qvel)]
+            # new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel, old_state.act, old_state.udd_state)
+            # env.sim.set_state(new_state)
+            # env.step(traj[i].ctrl)
+            env.set_state(qpos, qvel)
+            img_array = env.render(mode="rgb_array")
+            img = Image.fromarray(img_array)
+            img.save(file_path / f"{i}.png")
+            print(f"Rendered frame {i}")
+            if not file_path:
+                time.sleep(0.05)
         time.sleep(1)
+        env.close()
 
 def gym_dynamics(env, x, u, n_frames=5):
     old_state = env.sim.get_state()
@@ -121,7 +140,7 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
         for j in range(1, traj_len):
             action = env.action_space.sample()
             traj[j-1].ctrl[:] = action
-            obs = gym_dynamics(env, traj[j-1].obs[:], action)
+            obs = gym_dynamics(env, traj[j-1].obs[:], action, n_frames=env.frame_skip)
             traj[j].obs[:] = obs
         trajs.append(traj)
     return trajs
@@ -140,6 +159,7 @@ class GymMujocoBenchmark(ControlBenchmark):
         env = gym.make(name)
         env.seed(0)
         self.env = env
+        self.env_name = name
         state = env.sim.get_state()
         qpos = state[1]
         qvel = state[2]
@@ -156,12 +176,12 @@ class GymMujocoBenchmark(ControlBenchmark):
         super().__init__(name, system, task, data_gen_method)
 
     def dynamics(self, x, u):
-        return gym_dynamics(self.env,x,u)
+        return gym_dynamics(self.env,x,u,n_frames=self.env.frameskip)
 
     def gen_trajs(self, seed, n_trajs, traj_len=200):
         return gen_trajs(self.env, self.system, n_trajs, traj_len, seed)
 
-    def visualize(self, traj, repeat):
+    def visualize(self, traj, repeat, file_path=None):
         """
         Visualize the half-cheetah trajectory using Gym functions.
 
@@ -172,8 +192,11 @@ class GymMujocoBenchmark(ControlBenchmark):
 
         repeat : int
             Number of times to repeat trajectory in visualization
+
+        file_path : str or Path
+            Path to store video
         """
-        viz_gym_traj(self.env, traj, repeat)
+        viz_gym_traj(self.env, traj, repeat, file_path)
 
     @staticmethod
     def data_gen_methods():
