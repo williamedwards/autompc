@@ -172,11 +172,12 @@ class GymMujocoBenchmark(ControlBenchmark):
         task = Task(system)
         task.set_cost(GymRewardCost(env))
         task.set_init_obs(_get_init_obs(env))
+        task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
 
         super().__init__(name, system, task, data_gen_method)
 
     def dynamics(self, x, u):
-        return gym_dynamics(self.env,x,u,n_frames=self.env.frameskip)
+        return gym_dynamics(self.env,x,u,n_frames=self.env.frame_skip)
 
     def gen_trajs(self, seed, n_trajs, traj_len=200):
         return gen_trajs(self.env, self.system, n_trajs, traj_len, seed)

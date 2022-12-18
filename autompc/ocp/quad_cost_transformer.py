@@ -35,8 +35,9 @@ class QuadCostTransformer(OCPTransformer):
      - * **x**_F* (float, Lower: 10^-3, Upper: 10^4): Digaonal F matrix value
         corresponding to ovservation dimension with label **x**
     """
-    def __init__(self, system):
+    def __init__(self, system, goal=None):
         self._goal_tunable = dict() # Key: obsname, Value: (lower, upper, default, log_scale)
+        self._goal = goal
         super().__init__(system, "QuadCostTransformer")
 
     def set_tunable_goal(self, obsname, lower_bound, upper_bound, default, log=False):
@@ -199,7 +200,11 @@ class QuadCostTransformer(OCPTransformer):
     def _get_goal(self, ocp):
         config = self.get_config()
 
-        goal = np.copy(ocp.cost.goal)
+        if self._goal is not None:
+            goal = np.copy(self._goal)
+        else:
+            goal = np.copy(ocp.cost.goal)
+
         for index, obs_name in enumerate(self.system.observations):
             if f"{obs_name}_Goal" in config:
                 goal[index] = config[f"{obs_name}_Goal"]

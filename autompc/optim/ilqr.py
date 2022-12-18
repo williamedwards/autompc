@@ -226,7 +226,8 @@ class IterativeLQR(Optimizer):
         converged, states, ctrls, Ks, ks = self.compute_ilqr(obs, self._guess,
                 silent=silent)
         self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
-        self._traj = Trajectory(self.system, states, 
+        obs = states[:, :self.system.obs_dim]
+        self._traj = Trajectory(self.system, obs, 
             np.vstack([ctrls, np.zeros(self.system.ctrl_dim)]))
         return ctrls[0]
 
