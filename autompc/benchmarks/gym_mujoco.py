@@ -95,16 +95,20 @@ def gym_reward(env, x, u, n_frames=5):
     return total_reward
 
 class GymRewardCost(Cost):
-    def __init__(self, env, cost_offset=200):
+    def __init__(self, env, cost_offset=200, plausible_threshold=-1000):
         Cost.__init__(self,None)
         self.env = env
         self._cost_offset = cost_offset
+        self.plausible_threshold = plausible_threshold
 
     def __call__(self, traj, cost_offset=200):
         cum_reward = 0.0
         for i in range(len(traj)-1):
             cum_reward += gym_reward(self.env, traj[i].obs, traj[i].ctrl)
-        return self._cost_offset - cum_reward
+        cost = self._cost_offset - cum_reward
+        if cost < self.plausible_threshold:
+            cost = np.inf
+        return cost
 
     def incremental(self,obs,ctrl):
         raise NotImplementedError

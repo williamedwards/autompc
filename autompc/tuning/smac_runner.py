@@ -197,6 +197,10 @@ class CfgRunner:
         print(f"!!!!!!!!!!!!!!!!! Incumbent Surrogate Cost = {self.inc_cost} !!!!!!!!!!!!!!!!!!!!!!")
         print(f"!!!!!!!!!!!!!!!!! Incumbent True Dynamics Cost = {self.inc_truedyn_cost} !!!!!!!!!!!!!!!!!!!!!!")
 
+        with open(self.log_file_name, "a") as f:
+            f.write(f"!!!!!!!!!!!!!!!!! Incumbent Surrogate Cost = {self.inc_cost} !!!!!!!!!!!!!!!!!!!!!!\n")
+            f.write(f"!!!!!!!!!!!!!!!!! Incumbent True Dynamics Cost = {self.inc_truedyn_cost} !!!!!!!!!!!!!!!!!!!!!!\n")
+
         return result
 
 
