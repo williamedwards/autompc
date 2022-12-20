@@ -6,7 +6,12 @@ import numpy as np
 import numpy.linalg as la
 import tqdm
 from ConfigSpace import ConfigurationSpace
-from ConfigSpace.hyperparameters import UniformIntegerHyperparameter, UniformFloatHyperparameter
+import ConfigSpace.conditions as CSC
+from ConfigSpace.hyperparameters import UniformIntegerHyperparameter, UniformFloatHyperparameter, CategoricalHyperparameter
+
+# Internal library includes
+from ..utils.cs_utils import (get_hyper_bool, get_hyper_str,
+        get_hyper_float, get_hyper_int)
 
 try:
     import torch
@@ -35,7 +40,7 @@ def transform_output(xu_means, xu_std, XU):
     return np.vstack(XUt).T
 
 class ApproximateGPytorchModel(gpytorch.models.ApproximateGP):
-    def __init__(self, inducing_points, num_task):
+    def __init__(self, inducing_points, num_task, kernel_function, matern_nu, pp_q):
         # We have to mark the CholeskyVariationalDistribution as batch
         # so that we learn a variational distribution for each task
         size = torch.Size([num_task])
@@ -53,14 +58,29 @@ class ApproximateGPytorchModel(gpytorch.models.ApproximateGP):
 
         super().__init__(variational_strategy)
 
-        # The mean and covariance modules should be marked as batch
+        # The mean and covariance modules should be marked as batch 
         # so we learn a different set of hyperparameters
-        self.mean_module = gpytorch.means.ConstantMean(batch_shape=size)
-        self.covar_module = gpytorch.kernels.ScaleKernel(
-            gpytorch.kernels.RBFKernel(batch_shape=size),
-            batch_shape=size
-        )
-
+        self.mean_module = gpytorch.means.ConstantMean(batch_shape=size)            
+        if kernel_function == "periodic":
+            self.covar_module = gpytorch.kernels.ScaleKernel(
+                gpytorch.kernels.PeriodicKernel(batch_shape=size), batch_shape=size)
+        elif kernel_function == "piecewise_polynomial":
+            self.covar_module = gpytorch.kernels.ScaleKernel(
+                gpytorch.kernels.PiecewisePolynomialKernel(q=pp_q, batch_shape=size), batch_shape=size)
+        elif kernel_function == "rq":
+            self.covar_module =  gpytorch.kernels.ScaleKernel(
+                gpytorch.kernels.RQKernel(batch_shape=size), batch_shape=size)
+        elif kernel_function == "matern":
+            self.covar_module = gpytorch.kernels.ScaleKernel(
+                gpytorch.kernels.MaternKernel(nu=matern_nu, batch_shape=size), batch_shape=size)
+        elif kernel_function == "linear":
+            self.covar_module = gpytorch.kernels.ScaleKernel(
+                gpytorch.kernels.LinearKernel(batch_shape=size), batch_shape=size)
+        else:
+            self.covar_module = gpytorch.kernels.ScaleKernel(
+                gpytorch.kernels.RBFKernel(batch_shape=size), batch_shape=size
+            )
+    
     def forward(self, x):
         # The forward function should be written as if we were dealing with each output
         # dimension in batch
@@ -88,6 +108,14 @@ class ApproximateGPModel(FullyObservableModel):
     - **induce_count** *(Type: int, Lower: 50, Upper: 200, Default: 100)*: Number of inducing points
       to include in the gaussian process. 
     - **learning_rate** *(Type: float, Lower: 1e-5, Upper: 10, Default: 0.1)*: Learning rate for training.
+    - **kernel_function** *(Type: string, Choices: ["rbf", "periodic", "piecewise_polynomial", "rq", 
+        "matern", "linear"], Default: "rbf")*: Kernel function defining the gaussian process.
+    - **matern_nu** *(Type: float, Choices: [1/2, 3/2, 5/2], Default: 3/2)*: Smoothing parameter nu 
+    for Matern kernel function. 
+    (Conditioned on kernel_function="matern")
+    - **pp_q** *(Type: int, Choices: [0, 1, 2, 3], Default: 2)*: Smoothing parameter q
+    for piecewise polynomial kernel function. 
+    (Conditioned on kernel_function="piecewise_polynomial")
     """
     def __init__(self, system, n_train_iters=20, batch_size=1024, use_cuda=True):
         super().__init__(system, "ApproximateGPModel")
@@ -106,13 +134,34 @@ class ApproximateGPModel(FullyObservableModel):
                 upper=200, default_value=100)
         lr = UniformFloatHyperparameter("learning_rate", lower=1e-5, upper=10, 
                 default_value=1e-1)
-        cs.add_hyperparameters([induce_count,lr])
+    
+        kf = CategoricalHyperparameter("kernel_function", choices=["rbf",
+                "periodic", "piecewise_polynomial", "rq", "matern", "linear"], 
+                default_value="rbf") 
+
+        # Matern smoothing parameter (smaller values are less smooth)
+        matern_nu = CategoricalHyperparameter('matern_nu', choices=[1/2, 3/2, 5/2], 
+                default_value=3/2)
+        use_matern_nu = CSC.InCondition(child=matern_nu, parent=kf,
+                values=["matern"])
+
+        # Piecewise Polynomial smoothing parameter 
+        pp_q = CategoricalHyperparameter('pp_q', choices=[0, 1, 2, 3], 
+                default_value=2)
+        use_pp_q = CSC.InCondition(child=pp_q, parent=kf,
+                values=["piecewise_polynomial"])
+
+        cs.add_hyperparameters([induce_count,lr, kf, matern_nu, pp_q])
+        cs.add_conditions([use_matern_nu, use_pp_q])
         return cs
 
     def set_config(self, config):
         self.induce_count = config["induce_count"]
         self.lr = config["learning_rate"]
-
+        self.kf = config["kernel_function"]
+        self.pp_q = get_hyper_int(config, "pp_q")
+        self.matern_nu = get_hyper_float(config, "matern_nu")
+        
     def clear(self):
         self.gpmodel = None
         self.is_trained = False
@@ -143,7 +192,7 @@ class ApproximateGPModel(FullyObservableModel):
 
     def _init_train(self, seed):
         torch.manual_seed(seed)
-        self.gpmodel = ApproximateGPytorchModel(self.induce, self.num_task).double()
+        self.gpmodel = ApproximateGPytorchModel(self.induce, self.num_task, self.kf, self.matern_nu, self.pp_q).double()
         self.gpmodel = self.gpmodel.to(self.device)
 
         # construct the approximate GP instance
@@ -219,7 +268,7 @@ class ApproximateGPModel(FullyObservableModel):
         self.dy_std = params["dy_std"]
         self.induce = params["induce"]
         self.num_task = params["num_task"]
-        self.gpmodel = ApproximateGPytorchModel(self.induce, self.num_task).double()
+        self.gpmodel = ApproximateGPytorchModel(self.induce, self.num_task, self.kf, self.matern_nu, self.pp_q).double()
         self.gpmodel = self.gpmodel.to(self.device)
         likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(
                 num_tasks=self.num_task)
@@ -344,4 +393,3 @@ class ApproximateGPModel(FullyObservableModel):
         state_jacs = jac[:, :, :n] + np.tile(np.eye(n), (m,1,1))
         ctrl_jacs = jac[:, :, n:]
         return state + dy, state_jacs, ctrl_jacs
-
