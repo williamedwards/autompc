@@ -123,7 +123,8 @@ class SMACRunner:
         cfg_runner = CfgRunner(
             cfg_evaluator=cfg_evaluator,
             timeout=eval_timeout, 
-            log_file_name=self.run_dir/"log.txt"
+            log_file_name=self.run_dir/"log.txt",
+            summary_log_file_name=self.run_dir/"summary_log.txt"
         )
 
         if not self.restore:
@@ -149,17 +150,15 @@ class SMACRunner:
         return inc_cfg, smac.runhistory
 
 class CfgRunner:
-    def __init__(self, cfg_evaluator, timeout=None, log_file_name=None):
+    def __init__(self, cfg_evaluator, timeout=None, log_file_name=None, summary_log_file_name=None):
         self.cfg_evaluator = cfg_evaluator
         self.timeout = timeout
         self.log_file_name = log_file_name
-        self.eval_number = 0
-        self.inc_cost = np.inf
-        self.inc_truedyn_cost = None
+        self.summary_log_file_name = summary_log_file_name
+
+        self.summary_info = dict()
 
     def __call__(self, cfg):
-        self.eval_number += 1
-
         ctx = multiprocessing.get_context("spawn")
         q = ctx.Queue()
         p = ctx.Process(target=self.run_mp, args=(cfg, q))
@@ -182,26 +181,72 @@ class CfgRunner:
         if timeout:
             print("CfgRunner: Evaluation timed out")
             p.terminate()
+            self.summary(None, None, timeout=True, exception=False)
             return np.inf, dict()
         if p.exitcode != 0:
             print("CfgRunner: Exception during evaluation")
             print("Exit code: ", p.exitcode)
+            self.summary(None, None, timeout=False, exception=True)
             return np.inf, dict()
 
-        surr_cost, info = result
-        truedyn_cost = info["truedyn_info"][0]["cost"]
-        if surr_cost < self.inc_cost:
-            self.inc_cost = surr_cost
-            self.inc_truedyn_cost = truedyn_cost
+        cost, info = result
 
-        print(f"!!!!!!!!!!!!!!!!! Incumbent Surrogate Cost = {self.inc_cost} !!!!!!!!!!!!!!!!!!!!!!")
-        print(f"!!!!!!!!!!!!!!!!! Incumbent True Dynamics Cost = {self.inc_truedyn_cost} !!!!!!!!!!!!!!!!!!!!!!")
+        if "truedyn_info" in info:
+            truedyn_cost = info["truedyn_info"][0]["cost"]
+        else:
+            truedyn_cost = None 
 
-        with open(self.log_file_name, "a") as f:
-            f.write(f"!!!!!!!!!!!!!!!!! Incumbent Surrogate Cost = {self.inc_cost} !!!!!!!!!!!!!!!!!!!!!!\n")
-            f.write(f"!!!!!!!!!!!!!!!!! Incumbent True Dynamics Cost = {self.inc_truedyn_cost} !!!!!!!!!!!!!!!!!!!!!!\n")
+        self.summary(cost, truedyn_cost, timeout=False, exception=False)
 
         return result
+
+    def summary(self, cost, truedyn_cost, timeout, exception):
+        # Compute number of evaluations, total, and those with
+        # timeouts and exceptions
+        def init_and_increment_counter(key, increment):
+            if key not in self.summary_info:
+                self.summary_info[key] = 0
+            if increment:
+                self.summary_info[key] += 1
+        
+        init_and_increment_counter("total_evaluations", True)
+        init_and_increment_counter("timeouts", timeout)
+        init_and_increment_counter("exceptions", exception)
+
+        # Compute number of successful evalauations
+        successful_evaluations = (
+            self.summary_info["total_evaluations"] 
+            - self.summary_info["timeouts"]
+            - self.summary_info["exceptions"]
+        )
+
+        # Set incumbent costs
+        if "inc_cost" not in self.summary_info:
+            self.summary_info["inc_cost"] = np.inf
+
+        if cost is not None and cost < self.summary_info["inc_cost"]:
+            self.summary_info["inc_cost"] = cost
+
+            if truedyn_cost is not None:           
+                self.summary_info["inc_truedyn_cost"] = truedyn_cost
+
+        # Generate summary string
+        summary = f">>> {datetime.datetime.now()} > Summary:\n"
+        summary += f"  Total Evaluations: {self.summary_info['total_evaluations']}\n"
+        summary += f"  Successful Evaluations: {successful_evaluations}\n"
+        summary += f"  Evaluations with Timeout: {self.summary_info['timeouts']}\n"
+        summary += f"  Evaluations with Exception: {self.summary_info['exceptions']}\n"
+        summary += f"  Incumbent Cost: {self.summary_info['inc_cost']}\n"
+        if "inc_truedyn_cost" in self.summary_info:
+            summary += f"  Incumbent True Dynamics Cost: {self.summary_info['inc_truedyn_cost']}\n"
+
+        # Print summary
+        with open(self.log_file_name, "a") as f:
+            print(summary, file=f)
+
+        if self.summary_log_file_name:
+            with open(self.summary_log_file_name, "a") as f:
+                print(summary, file=f)
 
 
     def run_mp(self, cfg, q):
