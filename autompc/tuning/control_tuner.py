@@ -99,6 +99,49 @@ PipelineTuneResult contains information about a tuning process.
 #autoselect_factories = [MLPFactory, SINDyFactory, ApproximateGPModelFactory,
 #        ARXFactory, KoopmanFactory]
 
+def get_tune_result(cfg_evaluator, runhistory):
+    cfgs, inc_cfgs, costs, inc_costs, truedyn_costs, inc_truedyn_costs, \
+        surr_infos, truedyn_infos =  [], [], [], [], [], [], [], []
+    inc_cost = float("inf")
+    inc_cfg = None
+
+    for key, val in runhistory.data.items():
+        #parse additional data from additional_info dict
+        cfg = runhistory.ids_config[key.config_id]
+        if not val.additional_info:
+            continue
+        if val.cost < inc_cost:
+            inc_cost = val.cost
+            if "truedyn_cost" in val.additional_info:
+                inc_truedyn_cost = val.additional_info["truedyn_cost"]
+            inc_cfg = cfg
+        inc_costs.append(inc_cost)
+        inc_cfgs.append(inc_cfg)
+        cfgs.append(cfg)
+        costs.append(val.cost)
+        surr_infos.append(val.additional_info["surr_info"])
+        if "truedyn_cost" in val.additional_info:
+            inc_truedyn_costs.append(inc_truedyn_cost)
+            truedyn_costs.append(val.additional_info["truedyn_cost"])
+            truedyn_infos.append(val.additional_info["truedyn_info"])
+
+    if cfg_evaluator:
+        surr_tune_result = cfg_evaluator.surr_tune_result
+    else:
+        surr_tune_result = None
+
+    tune_result = ControlTunerResult(inc_cfg = inc_cfg,
+            cfgs = cfgs,
+            inc_cfgs = inc_cfgs,
+            costs = costs,
+            inc_costs = inc_costs,
+            truedyn_costs = truedyn_costs,
+            inc_truedyn_costs = inc_truedyn_costs,
+            surr_infos = surr_infos,
+            truedyn_infos = truedyn_infos,
+            surr_tune_result = surr_tune_result)
+
+    return tune_result
 
 class ControlTuner:
     """
@@ -338,46 +381,6 @@ class ControlTuner:
 
         return cfg_evaluator
 
-    def _get_tune_result(self, cfg_evaluator, runhistory):
-        cfgs, inc_cfgs, costs, inc_costs, truedyn_costs, inc_truedyn_costs, \
-            surr_infos, truedyn_infos =  [], [], [], [], [], [], [], []
-        inc_cost = float("inf")
-        inc_cfg = None
-
-        for key, val in runhistory.data.items():
-            #parse additional data from additional_info dict
-            cfg = runhistory.ids_config[key.config_id]
-            if not val.additional_info:
-                continue
-            if val.cost < inc_cost:
-                inc_cost = val.cost
-                if "truedyn_cost" in val.additional_info:
-                    inc_truedyn_cost = val.additional_info["truedyn_cost"]
-                inc_cfg = cfg
-            inc_costs.append(inc_cost)
-            inc_cfgs.append(inc_cfg)
-            cfgs.append(cfg)
-            costs.append(val.cost)
-            surr_infos.append(val.additional_info["surr_info"])
-            if "truedyn_cost" in val.additional_info:
-                inc_truedyn_costs.append(inc_truedyn_cost)
-                truedyn_costs.append(val.additional_info["truedyn_cost"])
-                truedyn_infos.append(val.additional_info["truedyn_info"])
-
-        surr_tune_result = cfg_evaluator.surr_tune_result
-
-        tune_result = ControlTunerResult(inc_cfg = inc_cfg,
-                cfgs = cfgs,
-                inc_cfgs = inc_cfgs,
-                costs = costs,
-                inc_costs = inc_costs,
-                truedyn_costs = truedyn_costs,
-                inc_truedyn_costs = inc_truedyn_costs,
-                surr_infos = surr_infos,
-                truedyn_infos = truedyn_infos,
-                surr_tune_result = surr_tune_result)
-
-        return tune_result
 
     def run(self, controller, tasks, trajs, n_iters, rng, truedyn=None, 
             surrogate_tune_iters=100, eval_timeout=600, output_dir=None, restore_dir=None,
@@ -458,7 +461,7 @@ class ControlTuner:
         tuned_controller.set_config(inc_cfg)
         tuned_controller.build(cfg_evaluator.sysid_trajs)
 
-        tune_result = self._get_tune_result(cfg_evaluator, run_history)
+        tune_result = get_tune_result(cfg_evaluator, run_history)
 
         return tuned_controller, tune_result
 
