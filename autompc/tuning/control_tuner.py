@@ -280,7 +280,7 @@ class ControlTuner:
             surrogate = AutoSelectModel(controller.system)
         control_evaluator = self.control_evaluator
         surrogate_split = self.surrogate_split
-        if surrogate.is_trained:
+        if (isinstance(surrogate, Dynamics) and not isinstance(surrogate, Model)) or surrogate.is_trained:
             # No need for surrogate training or tuning
             surrogate_split = 0.0
         
@@ -295,7 +295,7 @@ class ControlTuner:
         tuning_data["performance_metric"] = self.performance_metric
         tuning_data["sysid_trajs"] = sysid_trajs
 
-        if surrogate.is_trained:
+        if (isinstance(surrogate, Dynamics) and not isinstance(surrogate, Model)) or surrogate.is_trained:
             print("------------------------------------------------------------------")
             print("Skipping surrogate tuning, surrogate is a trained model")
             print("------------------------------------------------------------------")
