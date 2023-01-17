@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from ..tuning.control_tuner import ControlTunerResult
-from ..tuning.model_tuner import ModelTuneResult
+from ..tuning.model_tuner import ModelTunerResult
 
 def plot_tuning_curve(tune_result, ax=None):
     """
@@ -25,7 +25,7 @@ def plot_tuning_curve(tune_result, ax=None):
         ax.set_xlabel("Tuning Iteration")
         ax.set_ylabel("Cost")
         ax.legend()
-    elif isinstance(tune_result, ModelTuneResult):
+    elif isinstance(tune_result, ModelTunerResult):
         ax.plot(tune_result.inc_costs, label="Surr. Cost")
         ax.set_xlabel("Tuning Iteration")
         ax.set_ylabel("Model Error")
