@@ -15,6 +15,7 @@ import ConfigSpace.conditions as CSC
 # Internal library includes
 from .model import Model,FullyObservableModel
 from ..system import System
+from ..trajectory import Trajectory
 
 def transform_input(xu_means, xu_std, XU):
     XUt = []
@@ -323,9 +324,42 @@ class MLP(FullyObservableModel):
         self.net.load_state_dict(params["net_state"])
 
 class ARMLP(MLP):
-    def __init__(self, system, history=2, n_train_iters=200, n_batch=64, use_cuda=True):
+    def __init__(self, system, history=4, n_train_iters=200, n_batch=64, use_cuda=True):
         super().__init__(system, n_train_iters, n_batch, use_cuda)
         self.k = history
+
+        # NOTE THIS CLASS INHERITS FROM FULLY OBSERVABLE MODEL AND HENCE ASSUMES SO
+        # # shift out old states
+        # state[...,self.system.state_dim:self.system.state_dim*self.k] = state[:,:self.system.state_dim*(self.k-1)]
+        # # shift out old control
+        # state[...,self.system.state_dim*self.k+self.system.ctrl_dim:] = state[:,self.system.state_dim*self.k:self.system.state_dim*self.k+self.system.ctrl_dim]
+        # # shift in new control
+        # state[...,self.system.state_dim*self.k:self.system.state_dim*self.k+self.system.ctrl_dim] = new_ctrl
+
+        # First we construct the system matrices
+        A = np.zeros((self.state_dim, self.state_dim))
+        B = np.zeros((self.state_dim, self.system.ctrl_dim))
+
+        # Shift history
+        n = self.system.obs_dim
+        l = self.system.ctrl_dim
+        m = self.system.obs_dim + self.system.ctrl_dim
+        k = self.k
+
+        A[0 : n, 0 : n] = np.eye(n) # NN outputs dY
+        if k > 1:    
+            A[n : 2*n, 0 : n] = np.eye(n)
+        for i in range(k-2):
+            A[(i+1)*m+n : (i+2)*m+n, i*m+n : (i+1)*m+n] = np.eye(m)
+
+        # Predict new observation
+        # A[0 : n, :] = coeffs[:, :-l]
+
+        # Add new control
+        # B[0 : n, :] = coeffs[:, -l:]
+        B[2*n : 2*n + l, :] = np.eye(l)
+
+        self.A, self.B = A, B
 
     @property
     def state_dim(self):
@@ -360,7 +394,11 @@ class ARMLP(MLP):
 
         feature_elements = [traj[max(t-1,0)].obs]
         for i in range(t-2, t-k-1, -1):
-            feature_elements += [traj[max(i,0)].obs, traj[max(i,0)].ctrl]
+            if i < 0:
+                feature_elements += [traj[0].obs, np.zeros(self.system.ctrl_dim)]
+            else:
+                feature_elements += [traj[i].obs, traj[i].ctrl]
+            #feature_elements += [traj[max(i,0)].obs, traj[max(i,0)].ctrl]
         feature_elements += [traj[max(t-1,0)].ctrl]
         return np.concatenate(feature_elements)
     
@@ -372,10 +410,10 @@ class ARMLP(MLP):
         for i in range(1, k, 1):
             feature_vectors[:,j:j+self.system.obs_dim] = np.concatenate([traj.obs[:1,:]]*i + [traj.obs[:-i, :]])
             j += self.system.obs_dim
-            feature_vectors[:,j:j+self.system.ctrl_dim] = np.concatenate([traj.ctrls[:1,:]]*i + [traj.ctrls[:-i, :]])
+            feature_vectors[:,j:j+self.system.ctrl_dim] = np.concatenate([np.zeros_like(traj.ctrls[:1,:])]*i + [traj.ctrls[:-i, :]])
+            #feature_vectors[:,j:j+self.system.ctrl_dim] = np.concatenate([traj.ctrls[:1,:]]*i + [traj.ctrls[:-i, :]])
             j += self.system.ctrl_dim
         feature_vectors[:,-self.system.ctrl_dim:] = traj.ctrls
-
         return feature_vectors
 
     def _get_fvec_size(self):
@@ -407,42 +445,6 @@ class ARMLP(MLP):
 
         self._finish_train()
     
-    def shift_state(self, state, new_ctrl):
-        # NOTE THIS CLASS INHERITS FROM FULLY OBSERVABLE MODEL AND HENCE ASSUMES SO
-        # # shift out old states
-        # state[...,self.system.state_dim:self.system.state_dim*self.k] = state[:,:self.system.state_dim*(self.k-1)]
-        # # shift out old control
-        # state[...,self.system.state_dim*self.k+self.system.ctrl_dim:] = state[:,self.system.state_dim*self.k:self.system.state_dim*self.k+self.system.ctrl_dim]
-        # # shift in new control
-        # state[...,self.system.state_dim*self.k:self.system.state_dim*self.k+self.system.ctrl_dim] = new_ctrl
-
-        # First we construct the system matrices
-        A = np.zeros((self.state_dim, self.state_dim))
-        B = np.zeros((self.state_dim, self.system.ctrl_dim))
-
-        # Shift history
-        n = self.system.obs_dim
-        l = self.system.ctrl_dim
-        m = self.system.obs_dim + self.system.ctrl_dim
-        k = self.k
-
-        A[0 : n, 0 : n] = np.eye(n) # NN outputs dY
-        if k > 1:    
-            A[n : 2*n, 0 : n] = np.eye(n)
-        for i in range(k-2):
-            A[(i+1)*m+n : (i+2)*m+n, i*m+n : (i+1)*m+n] = np.eye(m)
-
-        # Predict new observation
-        # A[0 : n, :] = coeffs[:, :-l]
-
-        # Add new control
-        # B[0 : n, :] = coeffs[:, -l:]
-        B[2*n : 2*n + l, :] = np.eye(l)
-
-        self.A, self.B = A, B
-        # print(self.A.shape, state.shape, self.B.shape, new_ctrl.shape)
-        return (self.A @ state.T + self.B @ new_ctrl.T).T
-
     def update_state(self, state, new_ctrl, new_obs):
         # Shift the targets
         newstate = self.A @ state + self.B @ new_ctrl
@@ -451,7 +453,13 @@ class ARMLP(MLP):
         return newstate
     
     def traj_to_state(self, traj):
+        print('SHOULD BE CALLED', traj)
         return self._get_feature_vector(traj)[:-self.system.ctrl_dim]
+
+    def init_state(self, obs : np.ndarray) -> np.ndarray:
+        traj = Trajectory.zeros(self.system, 1)
+        traj[0].obs[:] = obs
+        return self.traj_to_state(traj)
 
     def get_obs(self, state):
         return state[0:self.system.obs_dim]
@@ -467,10 +475,12 @@ class ARMLP(MLP):
         with torch.no_grad():
             xin = torch.from_numpy(Xt).to(self._device)
             yout = self.net(xin).cpu().numpy()
-        dy = np.zeros(state.shape)
-        dy[:self.system.obs_dim] = transform_output(self.dy_means, self.dy_std, yout).flatten()
-        
-        return self.shift_state(state, ctrl) + dy
+        # dy = np.zeros(state.shape)
+        # dy[:self.system.obs_dim] = transform_output(self.dy_means, self.dy_std, yout).flatten()
+        # return self.shift_state(state, ctrl) + dy
+        dy = transform_output(self.dy_means, self.dy_std, yout).flatten()
+        obs = state[:self.system.obs_dim]
+        return self.update_state(state, ctrl, obs+dy)
 
     def pred_batch(self, state, ctrl):
         # Predict next state        
@@ -479,10 +489,13 @@ class ARMLP(MLP):
         with torch.no_grad():
             xin = torch.from_numpy(Xt).to(self._device)
             yout = self.net(xin).cpu().numpy()
-        dy = np.zeros(state.shape)
-        dy[:,:self.system.obs_dim] = transform_output(self.dy_means, self.dy_std, yout)
-        return self.shift_state(state, ctrl) + dy
-'''        
+        # dy = np.zeros(state.shape)
+        # dy[:,:self.system.obs_dim] = transform_output(self.dy_means, self.dy_std, yout)
+        # return self.shift_state(state, ctrl) + dy
+        dy = transform_output(self.dy_means, self.dy_std, yout)
+        obs = state[:,:self.system.obs_dim]
+        return self.update_state(state.T, ctrl.T, (obs+dy).T).T
+
     def pred_diff(self, state, ctrl):
         X = np.concatenate([state, ctrl])
         X = X[np.newaxis,:]
@@ -500,17 +513,24 @@ class ARMLP(MLP):
         # properly scale back...
         jac = jac / self.xu_std[None] * self.dy_std[:, np.newaxis]
         n = self.system.obs_dim
-        state_jac = jac[:, :n] + np.eye(n)
-        ctrl_jac = jac[:, n:]
+        l = self.system.ctrl_dim
+        state_jac = np.zeros_like(self.A)
+        ctrl_jac = np.zeros_like(self.B)
+        # print('DEBUG: jac', jac)
+        # print('DEBUG: state_jac and jac shape', state_jac.shape, jac.shape)
+        state_jac[:n,:self.state_system.obs_dim] = jac[:, :-l] 
+        ctrl_jac[:n,:l] = jac[:, -l:] 
         out = yout.detach().cpu().numpy()[:1, :]
-        dy = np.zeros(state.shape)
-        dy[:,:self.system.state_dim] = transform_output(self.dy_means, self.dy_std, out)
-        return self.shift_state(state, ctrl)+dy, state_jac, ctrl_jac
+        dy = transform_output(self.dy_means, self.dy_std, out).flatten()
+        obs = state[:n]
+        state_jac += self.A
+        ctrl_jac += self.B
+        return self.update_state(state, ctrl, obs+dy), state_jac, ctrl_jac
 
     def pred_diff_batch(self, state, ctrl):
         X = np.concatenate([state, ctrl], axis=1)
         Xt = transform_input(self.xu_means, self.xu_std, X)
-        obs_dim = state.shape[1]
+        obs_dim = self.system.obs_dim
         m = state.shape[0]
         # get the Tensor
         TsrXt = torch.from_numpy(Xt).to(self._device)
@@ -528,22 +548,15 @@ class ARMLP(MLP):
         jac = jac / np.tile(self.xu_std, (m,obs_dim,1)) * np.tile(self.dy_std, (m,1))[:,:,np.newaxis]
         # since repeat, y value is the first one...
         out = predy[:,0,:].cpu().data.numpy()
-        dy = np.zeros(state.shape)
-        dy[:,:self.system.state_dim] = transform_output(self.dy_means, self.dy_std, out)
-        # Tile in shift jacobian 
-        state_jacs = np.zeros((self.state_dim*self.k, self._get_fvec_size()))
-        next_state_jacs = jac[:, :, :self.system.state_dim] + np.tile(np.eye(self.system.state_dim), (m,1,1))
-        for i in range(self.k):
-            if i==0:
-                state_jacs[i*self.state_dim:(i+1)*self.state_dim:i*self.state_dim:(i+1)*self.state_dim] = next_state_jacs
-            else:
-                state_jacs[i*self.state_dim:(i+1)*self.state_dim] = np.eye(self.state_dim)
-        for i in range(self.k):
-            if i==0 or i+1==self.k:
-                continue
-            else:
-                state_jacs[i*self.ctrl_dim:(i+1)*self.ctrl_dim] = np.eye(self.state_dim)
-        ctrl_jacs = jac[:, :, -self.system.ctrl_dim:]
-        return self.shift_state(state, ctrl) + dy, state_jacs, ctrl_jacs
+        dy = transform_output(self.dy_means, self.dy_std, out)
+        n = self.system.obs_dim
+        l = self.system.ctrl_dim
+        state_jac = np.tile(np.zeros_like(self.A), (m,1,1))
+        ctrl_jac = np.tile(np.zeros_like(self.B), (m,1,1))
 
-'''
+        state_jac[:,:n,:self.state_system.obs_dim] = jac[:, :, :-l] 
+        ctrl_jac[:,:n,:l] = jac[:, :, -l:] 
+        obs = state[:,:n]
+        state_jac += np.tile(self.A, (m,1,1))
+        ctrl_jac += np.tile(self.B, (m,1,1))
+        return self.update_state(state.T, ctrl.T, (obs+dy).T).T, state_jac, ctrl_jac
