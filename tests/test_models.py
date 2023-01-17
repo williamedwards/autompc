@@ -9,6 +9,8 @@ from abc import ABC, abstractmethod
 sys.path.insert(0, "..")
 import autompc as ampc
 from autompc.sysid import MLP, ARX, SINDy, ApproximateGPModel, Koopman
+# DEBUG
+from autompc.sysid.mlp import ARMLP
 from autompc.benchmarks import DoubleIntegratorBenchmark
 
 
@@ -133,6 +135,23 @@ class MLPTest(GenericModelTest, unittest.TestCase):
 
     def get_precomputed_prefix(self):
         return "precomputed/mlp"
+
+class ARMLPTest(GenericModelTest, unittest.TestCase):
+    def get_model(self, system):
+        return ARMLP(system)
+    
+    def get_configs_to_test(self):
+        relu_config = self.model.get_default_config()
+        relu_config["nonlintype"] = "relu"
+        tanh_config = self.model.get_default_config()
+        tanh_config["nonlintype"] = "tanh"
+        sigmoid_config = self.model.get_default_config()
+        sigmoid_config["nonlintype"] = "sigmoid"
+        return {"relu" : relu_config,
+                "tanh" : tanh_config,
+                "sigmoid" : sigmoid_config}
+    def get_precomputed_prefix(self):
+        return "precomputed/armlp"
 
 class ARXTest(GenericModelTest, unittest.TestCase):
     def get_model(self, system):
