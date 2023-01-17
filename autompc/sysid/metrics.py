@@ -51,7 +51,7 @@ def get_model_rmse(model : Model, trajs : List[Trajectory], horizon:int=1, mask=
         sqerrs = (obs_traj[:,mask] - actual[:,mask]) ** 2
         sqerrss.append(sqerrs)
     sqerrs = np.concatenate(sqerrss)
-    rmse = np.sqrt(np.mean(sqerrs, axis=None)*trajs[0].system.obs_dim)
+    rmse = np.sqrt(np.mean(sqerrs, axis=None))#*trajs[0].system.obs_dim)
     return rmse
 
 def get_model_abs_error(model : Model, trajs : List[Trajectory], horizon : int=1) -> float:

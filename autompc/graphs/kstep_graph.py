@@ -81,7 +81,7 @@ class KstepPredAccGraph:
         for model, label, kwargs in zip(self.models, self.labels, self.plot_kwargs):
             rmses = [self.metric(model, self.trajs, horizon, mask=mask) 
                         for horizon in range(1, self.kmax)] 
-            ax.plot(rmses, label=label, **kwargs)
+            ax.plot(list(range(1, self.kmax)), rmses, label=label, **kwargs)
 
         ax.set_xlabel("Prediction Horizon")
         ax.set_ylabel("Prediction Error")

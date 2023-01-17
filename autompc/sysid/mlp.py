@@ -366,7 +366,7 @@ class ARMLP(MLP):
         return self._get_fvec_size() - self.system.ctrl_dim
     """
     Augmenting state space from 
-    [x[t], u[t]] to [x[t],x[t-1],u[t-1],...,x[t-k+1],u[t-k+1]]
+    [x[t], u[t]] to [x[t],x[t-1],u[t-1],...,x[t-k+1],u[t-k+1], u[t]]
     """
     @property
     def state_system(self):
@@ -453,7 +453,6 @@ class ARMLP(MLP):
         return newstate
     
     def traj_to_state(self, traj):
-        print('SHOULD BE CALLED', traj)
         return self._get_feature_vector(traj)[:-self.system.ctrl_dim]
 
     def init_state(self, obs : np.ndarray) -> np.ndarray:
