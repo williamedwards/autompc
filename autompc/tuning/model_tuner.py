@@ -21,7 +21,11 @@ from ..sysid.autoselect import AutoSelectModel
 
 from pdb import set_trace
 
-ModelTunerResult = namedtuple("ModelTuneResult", ["inc_cfg", "cfgs", 
+ModelTunerResult = namedtuple("ModelTunerResult", ["inc_cfg", "cfgs", 
+    "inc_cfgs", "costs", "inc_costs"])
+
+# Alias for backwards compatibility
+ModelTuneResult = namedtuple("ModelTuneResult", ["inc_cfg", "cfgs", 
     "inc_cfgs", "costs", "inc_costs"])
 """
 The ModelTuneResult contains information about a tuning process.
@@ -58,8 +62,10 @@ class ModelTuner:
     def __init__(self, system : System, trajs : List[Trajectory], model : Optional[Model] = None,
                 eval_holdout=0.25, eval_folds=3, eval_metric="rmse", eval_horizon=1, eval_quantile=None,
                 evaluator : Optional[ModelEvaluator] = None,
-                multi_fidelity=False, verbose=0):
+                multi_fidelity=False, parallel_backend=None, verbose=0):
         """
+        TODO Update docstring
+
         Parameters
         ----------
         system : System
@@ -100,7 +106,7 @@ class ModelTuner:
             else:
                 print("Foo")
                 evaluator = CrossValidationModelEvaluator(trajs, eval_metric, horizon=eval_horizon, quantile=eval_quantile, num_folds=eval_folds,
-                    rng=np.random.default_rng(100))
+                    rng=np.random.default_rng(100), parallel_backend=parallel_backend)
         else:
             evaluator.trajs = trajs
         
@@ -183,19 +189,22 @@ class ModelTuner:
             Additional information from tuning process.  Can access
             tune_result.inc_cfg to reconsruct the model.
         """
-        if rng is None:
-            rng = np.random.default_rng()
-
-        self.evaluator.rng = rng # TODO Fix this
-        cfg_evaluator = ModelCfgEvaluator(self.model, self.evaluator)
-
-        cs = self.model.get_config_space()
-
         smac_runner = SMACRunner(
             output_dir=output_dir,
             restore_dir=restore_dir,
             use_default_initial_design=use_default_initial_design
         )
+        data_store = smac_runner.get_data_store()
+
+        if rng is None:
+            rng = np.random.default_rng()
+
+        self.evaluator.rng = rng # TODO Fix this
+        self.evaluator.set_data_store(data_store)
+        cfg_evaluator = ModelCfgEvaluator(self.model, self.evaluator)
+
+        cs = self.model.get_config_space()
+
 
         inc_cfg, run_history = smac_runner.run(cs, cfg_evaluator, n_iters=n_iters, rng=rng, eval_timeout=eval_timeout)
 
@@ -224,4 +233,4 @@ class ModelCfgEvaluator:
         value = self.evaluator(self.model)
         print("Model Score ", value)
 
-        return value
+        return value, dict()

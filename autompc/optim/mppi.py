@@ -14,11 +14,11 @@ from .optimizer import Optimizer
 
 class MultivariateNormal:
     def __init__(self, mu, cov):
-        self.scale = np.sqrt(cov)
+        self.mu = mu
+        self.cov = cov
 
     def sample(self, shape, rng):
-        new_shape = shape + (1,)
-        noise = rng.normal(scale=self.scale, size=new_shape)
+        noise = rng.multivariate_normal(mean=self.mu, cov=self.cov, size=shape)
         return noise
 
 class MPPI(Optimizer):
@@ -73,15 +73,15 @@ class MPPI(Optimizer):
 
     def set_ocp(self, ocp):
         super().set_ocp(ocp)
-        cost = ocp.get_cost()
-        def cost_eqn(path, actions):
-            costs = np.array([cost.incremental(path[i,:self.system.obs_dim],actions[i,:])*self.system.dt for i in range(path.shape[0])])
-            return costs
-        def terminal_cost(path):
-            term_costs = np.array([cost.terminal(path[i, :self.system.obs_dim]) for i in range(path.shape[0])])
-            return term_costs
-        self.cost_eqn = cost_eqn
-        self.terminal_cost = terminal_cost
+        self.cost = ocp.get_cost()
+
+    def cost_eqn(self, path, actions):
+        costs = np.array([self.cost.incremental(path[i,:self.system.obs_dim],actions[i,:])*self.system.dt for i in range(path.shape[0])])
+        return costs
+
+    def terminal_cost(self, path):
+        term_costs = np.array([self.cost.terminal(path[i, :self.system.obs_dim]) for i in range(path.shape[0])])
+        return term_costs
 
     def set_model(self, model):
         super().set_model(model)
@@ -92,11 +92,14 @@ class MPPI(Optimizer):
         self.rng = np.random.default_rng(seed)
         self.dim_state, self.dim_ctrl = self.model.state_dim, self.system.ctrl_dim
         self.act_sequence = np.zeros((H, self.dim_ctrl))  
-        self.noise_dist = MultivariateNormal(0, self.sigma)
+        self.noise_dist = MultivariateNormal(np.zeros(self.dim_ctrl), np.eye(self.dim_ctrl) * self.sigma)
         self.act_sequence = self.noise_dist.sample((H,), self.rng)
         self.umin = self.ocp.get_ctrl_bounds()[:,0]
         self.umax = self.ocp.get_ctrl_bounds()[:,1]
-        self.ctrl_scale = self.umax
+        if np.isfinite(self.umax).all():
+            self.ctrl_scale = self.umax
+        else:
+            self.ctrl_scale = 1.0
 
     def update(self, costs, eps):
         """Based on the collected trajectory, update the action sequence.
@@ -111,10 +114,9 @@ class MPPI(Optimizer):
     def do_rollouts(self, cur_state, seed=None):
         H = self.horizon
         # generate random noises
-        # eps = np.random.normal(scale=self.sigma, size=(H, self.num_path, self.dim_ctrl))  # horizon by num_path by ctrl_dim
         eps = self.noise_dist.sample((self.num_path, H), self.rng).transpose((1, 0, 2))
-        # path = np.zeros((H + 1, self.num_path, self.dim_state))  # horizon by num_path by state_dim
-        # path[0] = cur_state  # just copy the initial state in...
+        eps_bounded = np.copy(eps)
+
         path = np.zeros((self.num_path, self.dim_state))
         path[:] = cur_state
         costs = np.zeros(self.num_path)
@@ -125,11 +127,11 @@ class MPPI(Optimizer):
             if self.umin is not None and self.umax is not None:
                 actions = np.minimum(self.umax/self.ctrl_scale, 
                         np.maximum(self.umin/self.ctrl_scale, actions))
-                eps[i] = actions - self.act_sequence[i]
+                eps_bounded[i] = actions - self.act_sequence[i]
             # costs += self.cost_eqn(path[i], actions) + self.lmda / self.sigma * np.einsum('ij,ij->i', actions, eps[i])
             # path[i + 1] = self.dyn_eqn(path[i], actions)
             costs += self.cost_eqn(path, actions*self.ctrl_scale)
-            action_cost += self.lmda / self.sigma * np.einsum('ij,ij->i', actions, eps[i])
+            action_cost += self.lmda / self.sigma * np.einsum('ij,ij->i', actions, eps_bounded[i])
             path = self.dyn_eqn(path, actions*self.ctrl_scale)
         # the final cost
         if self.terminal_cost:

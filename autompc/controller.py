@@ -224,6 +224,8 @@ class Controller(TunablePipeline,Policy):
         self._forbid_incompatible_configurations()
     
     def _forbid_incompatible_configurations(self):
+        self._forbidden = set()
+
         for opt in self.optimizers:
             try:
                 reqs = opt.model_requirements()
@@ -429,6 +431,8 @@ class Controller(TunablePipeline,Policy):
         Builds the controller given its current configuration.  This includes
         training the model, constructing the OPC, and initializing the optimizer.
         """
+        if hasattr(trajs, "unwrap"):
+            trajs = trajs.unwrap()
         if not self.ocp:
             raise ControllerStateError("Must call set_ocp() before build()")
         if not self.model:

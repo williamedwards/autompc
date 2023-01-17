@@ -8,6 +8,12 @@ import numpy as np
 import ConfigSpace as CS
 import ConfigSpace.hyperparameters as CSH
 
+try:
+    import cyipopt
+except ImportError:
+    from ..utils.exceptions import OptionalDependencyException
+    raise OptionalDependencyException("cyipopt not present")
+
 # Internal library includes
 from .optimizer import Optimizer
 

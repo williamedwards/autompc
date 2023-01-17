@@ -14,6 +14,7 @@ from .. import System
 from ..task import Task
 from ..trajectory import Trajectory
 from ..costs import Cost, QuadCost
+from ..ocp import QuadCostTransformer
 
 def viz_halfcheetah_traj(env, traj, repeat):
     for _ in range(repeat):
@@ -45,10 +46,11 @@ def halfcheetah_dynamics(env, x, u, n_frames=5):
 
     return np.concatenate([new_qpos, new_qvel])
 
-class HalfcheetahCost(ControlCost):
-    def __init__(self, env):
-        Cost.__init__(self,None)
+class HalfcheetahCost(Cost):
+    def __init__(self, system, env):
+        Cost.__init__(self, system)
         self.env = env
+        self.goal = np.zeros(system.obs_dim)
 
     def __call__(self, traj):
         cum_reward = 0.0
@@ -84,7 +86,7 @@ def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
     return trajs
 
 
-class HalfcheetahBenchmark(Benchmark):
+class HalfcheetahBenchmark(ControlBenchmark):
     """
     This benchmark uses the OpenAI gym halfcheetah benchmark and is consistent with the
     experiments in the ICRA 2021 paper. The benchmark reuqires OpenAI gym and mujoco_py
@@ -93,28 +95,29 @@ class HalfcheetahBenchmark(Benchmark):
     """
     def __init__(self, data_gen_method="uniform_random"):
         name = "halfcheetah"
-        system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
 
         import gym, mujoco_py
         env = gym.make("HalfCheetah-v2")
         self.env = env
 
+        system = ampc.System([f"x{i}" for i in range(18)], [f"u{i}" for i in range(6)], env.dt)
+
         system.dt = env.dt
-        cost = HalfcheetahCost(env)
+        cost = HalfcheetahCost(system, env)
         task = Task(system,cost)
         task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
         init_obs = np.concatenate([env.init_qpos, env.init_qvel])
         task.set_init_obs(init_obs)
         task.set_num_steps(200)
 
-        factory = QuadCost(system, goal = np.zeros(system.obs_dim))
+        transformer = QuadCostTransformer(system)
         for obs in system.observations:
             if not obs in ["x1", "x6", "x7", "x8", "x9"]:
-                factory.fix_Q_value(obs, 0.0)
+                transformer.fix_Q_value(obs, 0.0)
             if not obs in ["x1", "x9"]:
-                factory.fix_F_value(obs, 0.0)
-        factory.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
-        self.cost_factory = factory
+                transformer.fix_F_value(obs, 0.0)
+        transformer.set_tunable_goal("x9", lower_bound=0.0, upper_bound=5.0, default=1.0)
+        self.ocp_transformer = transformer
 
 
         super().__init__(name, system, task, data_gen_method)

@@ -219,13 +219,13 @@ class SINDy(FullyObservableModel):
                     val = ctrls[:,idx-self.state_dim]
                 vals.append(val)
             grads = basis.grad_func(*vals)
-            grads = np.array(grads)
+            grad_arr = np.array(grads, ndmin=1)
             for j in range(idxs.shape[0]):
                 idx = idxs[j,i]
                 if idx < self.state_dim:
-                    state_jac[:,idx] += coeff[coeff_idx] * grads[j]
+                    state_jac[:,idx] += coeff[coeff_idx] * grad_arr[j]
                 else:
-                    ctrl_jac[:,idx-self.state_dim] += coeff[coeff_idx] * grads[j]
+                    ctrl_jac[:,idx-self.state_dim] += coeff[coeff_idx] * grad_arr[j]
         return state_jac, ctrl_jac
 
     def pred_diff_batch(self, states, ctrls):
