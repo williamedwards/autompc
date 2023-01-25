@@ -320,4 +320,72 @@ class LinearizedDynamics(Dynamics):
     def pred_diff_batch(self, states, ctrls):
         xpreds = states @ self.A.T + ctrls @ self.B.T + self.c
         N = len(self.states)
-        return xpreds,np.stack([self.A]*N).np.stack([self.B]*N)
+        return xpreds,np.stack([self.A]*N),np.stack([self.B]*N)
+
+class FiniteDifferenceDynamics(Dynamics):
+    """ A helper class that use finite differencing to provide gradients for
+    non-differentiable dynamics. """
+    def __init__(self, nondifferentiable_model: Dynamics, eps=1e-6):
+        super().__init__(nondifferentiable_model.system)
+        self._model = nondifferentiable_model
+        self._eps = eps
+
+    @property
+    def state_dim(self):
+        return self._model.state_dim
+
+    @property
+    def state_system(self):
+        return self._model.state_system
+
+    def get_obs(self, state):
+        return self._model.get_obs(state)
+
+    def traj_to_state(self, traj):
+        return self._model.traj_to_state(traj)
+
+    def update_state(self, state, new_ctrl, new_obs):
+        return self._model.update_state(state,new_ctrl,new_obs)
+
+    def pred(self, state, obs):
+        return self._model.pred(state, obs)
+
+    def pred_batch(self, states, ctrls):
+        return self._model.pred_batch(states, ctrls)
+
+    def pred_diff(self, state, ctrl):
+        states = np.expand_dims(state, axis=0)
+        ctrls = np.expand_dims(ctrl, axis=0)
+        preds, state_jacs, ctrl_jacs = self.pred_diff_batch(states, ctrls)
+        return preds[0, ...], state_jacs[0, ...], ctrl_jacs[0, ...]
+
+    def pred_diff_batch(self, states, ctrls):
+        nx, nu = states.shape[-1], ctrls.shape[-1]
+        preds = self.pred_batch(states, ctrls)
+
+        # Compute state jacobians
+        states_perturbed = states[:, np.newaxis, :].repeat(nx, axis=1)
+        ctrls_base = ctrls[:, np.newaxis, :].repeat(nx, axis=1)
+        preds_state_base = preds[:, np.newaxis, :].repeat(nx, axis=1)
+        for i in range(nx):
+            states_perturbed[:, i, i] += self._eps
+        states_perturbed_ravel = states_perturbed.reshape((-1, nx))
+        ctrls_base_ravel = ctrls_base.reshape((-1, nu))
+        preds_state_perturbed_ravel = self.pred_batch(states_perturbed_ravel, ctrls_base_ravel)
+        preds_state_perturbed = preds_state_perturbed_ravel.reshape((-1, nx, nx))
+        state_jacs = ((preds_state_perturbed - preds_state_base) / self._eps).swapaxes(1, 2)
+
+        # Compute control jacobians
+        ctrls_perturbed = ctrls[:, np.newaxis, :].repeat(nu, axis=1)
+        states_base = states[:, np.newaxis, :].repeat(nu, axis=1)
+        preds_ctrl_base = preds[:, np.newaxis, :].repeat(nu, axis=1)
+        for i in range(nu):
+            ctrls_perturbed[:, i, i] += self._eps
+        ctrls_perturbed_ravel = ctrls_perturbed.reshape((-1, nu))
+        states_base_ravel = states_base.reshape((-1, nx))
+        preds_ctrl_perturbed_ravel = self.pred_batch(states_base_ravel, ctrls_perturbed_ravel)
+        preds_ctrl_perturbed = preds_ctrl_perturbed_ravel.reshape((-1, nu, nx))
+        ctrl_jacs = ((preds_ctrl_perturbed - preds_ctrl_base) / self._eps).swapaxes(1, 2)
+
+        return preds, state_jacs, ctrl_jacs 
+
