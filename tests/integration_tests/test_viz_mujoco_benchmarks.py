@@ -47,3 +47,7 @@ class HumanoidVisualizationTest(GenericMujocoBenchmarkVisualizationTest, unittes
 class ReacherVisualizationTest(GenericMujocoBenchmarkVisualizationTest, unittest.TestCase):
     def get_benchmark(self):
         return GymMujocoBenchmark(name="Reacher-v2")
+
+class IDPVisualizationTest(GenericMujocoBenchmarkVisualizationTest, unittest.TestCase):
+    def get_benchmark(self):
+        return GymMujocoBenchmark(name="InvertedDoublePendulum-v2")
