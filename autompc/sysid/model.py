@@ -3,7 +3,7 @@
 # Standard library includes
 from abc import abstractmethod
 import copy
-from ConfigSpace import Configuration
+from ConfigSpace import Configuration, ConfigurationSpace
 
 # External library includes
 import numpy as np
@@ -138,3 +138,60 @@ class FullyObservableModel(Model):
 
     def get_obs(self, state):
         return state
+
+class FixedModel(Model):
+    """ A model which uses fixed dynamics and is not trainable or tunable. """
+    def __init__(self, dynamics, name):
+        super().__init__(dynamics.system, name)
+        self._dynamics = dynamics
+        self.is_trained = True
+
+    def get_default_config_space(self):
+        return ConfigurationSpace()
+
+    @property
+    def state_dim(self):
+        return self._dynamics.state_dim
+
+    @property
+    def state_system(self):
+        return self._dynamics.state_system
+
+    def traj_to_state(self, traj):
+        return self._dynamics.traj_to_state(traj)
+    
+    def init_state(self, obs):
+        return self._dynamics.init_state(obs)
+
+    def update_state(self, state, ctrl, new_obs):
+        return self._dynamics.update_state(state, ctrl, new_obs)
+
+    def get_obs(self, state):
+        return self._dynamics.get_obs(state)
+
+    def pred(state, ctrl):
+        return self._dynamics.pred(self, state, ctrl)
+
+    def pred_batch(self, states, ctrls):
+        return self.pred_batch(states, ctrls)
+
+    def pred_diff(self, state, ctrl):
+        return self._dynamics.pred_diff(state, ctrl)
+
+    def pred_diff_batch(self, states, ctrls):
+        return self._dynamics.pred_diff_batch(states, ctrls)
+
+    def clear(self):
+        pass
+
+    def to_linear(self):
+        return self._dynamics.to_linear()
+
+    def train(self, trajs):
+        pass
+
+    def get_parameters(self):
+        return dict()
+
+    def set_parameters(self, params):
+        pass
