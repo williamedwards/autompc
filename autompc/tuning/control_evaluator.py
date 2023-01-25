@@ -101,7 +101,7 @@ class ControlEvaluator(ABC):
             t1 = time.time()
             truedyn_traj = None
             return ControlEvaluationTrial(policy=policy,task=task,dynamics=dynamics,weight=1.0,
-                cost = truedyn_cost, traj=truedyn_traj, term_cond='LinAlgError', eval_time = t1-t0)
+                cost = truedyn_cost, traj=None, term_cond='LinAlgError', eval_time = t1-t0)
 
 
 
