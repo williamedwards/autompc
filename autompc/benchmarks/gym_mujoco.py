@@ -2,6 +2,7 @@
 from os import stat
 import sys, time
 from pathlib import Path
+import subprocess
 
 # External library includes
 import numpy as np
@@ -31,25 +32,34 @@ def viz_gym_traj(env, traj, repeat, file_path=None):
     #     env = wrappers.Monitor(env, file_path, force=True)
     if file_path:
         file_path = Path(file_path)
-        file_path.mkdir(exist_ok=True, parents=True)
+        frame_path = file_path / "frames"
+        frame_path.mkdir(exist_ok=True, parents=True)
 
-    for _ in range(repeat):
-        env.reset()
-        for i in range(len(traj)):
-            qpos = traj[i].obs[:len(old_qpos)]
-            qvel = traj[i].obs[len(old_qpos):len(old_qpos)+len(old_qvel)]
-            # new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel, old_state.act, old_state.udd_state)
-            # env.sim.set_state(new_state)
-            # env.step(traj[i].ctrl)
-            env.set_state(qpos, qvel)
-            img_array = env.render(mode="rgb_array")
-            img = Image.fromarray(img_array)
-            img.save(file_path / f"{i}.png")
-            print(f"Rendered frame {i}")
-            if not file_path:
-                time.sleep(0.05)
-        time.sleep(1)
-        env.close()
+    env.reset()
+    for i in range(len(traj)):
+        qpos = traj[i].obs[:len(old_qpos)]
+        qvel = traj[i].obs[len(old_qpos):len(old_qpos)+len(old_qvel)]
+        # new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel, old_state.act, old_state.udd_state)
+        # env.sim.set_state(new_state)
+        # env.step(traj[i].ctrl)
+        env.set_state(qpos, qvel)
+        img_array = env.render(mode="rgb_array")
+        img = Image.fromarray(img_array)
+        img.save(frame_path / f"{i}.png")
+        print(f"Rendered frame {i}")
+        if not file_path:
+            time.sleep(0.05)
+
+
+    # Run ffmpeg to generate video
+    frame_rate = env.metadata["video.frames_per_second"]
+    mp4_path = file_path / "video.mp4"
+    subprocess.call(["ffmpeg", "-r", f"{frame_rate}", "-f", "image2", "-s", "1920x1080", 
+      "-stream_loop", f"{repeat}", "-i", f"{frame_path.resolve()}/%d.png", "-vcodec", "libx264", 
+      "-pix_fmt", "yuv420p",
+      f"{mp4_path.resolve()}"])
+
+    env.close()
 
 def gym_dynamics(env, x, u, n_frames=5):
     old_state = env.sim.get_state()
@@ -95,8 +105,8 @@ def gym_reward(env, x, u, n_frames=5):
     return total_reward
 
 class GymRewardCost(Cost):
-    def __init__(self, env, cost_offset=200, plausible_threshold=-1000):
-        Cost.__init__(self,None)
+    def __init__(self, system, env, cost_offset=200, plausible_threshold=-1000):
+        Cost.__init__(self,system)
         self.env = env
         self._cost_offset = cost_offset
         self.plausible_threshold = plausible_threshold
@@ -123,32 +133,6 @@ def _get_init_obs(env):
     qvel = env.sim.data.qvel
     return np.concatenate([qpos, qvel])
 
-def gen_trajs(env, system, num_trajs=1000, traj_len=1000, seed=42):
-    rng = np.random.default_rng(seed)
-    trajs = []
-    env.seed(int(rng.integers(1 << 30)))
-    env.action_space.seed(int(rng.integers(1 << 30)))
-    
-    for i in range(num_trajs):
-        init_obs = _get_init_obs(env)
-        state = env.sim.get_state()
-        qpos, qvel = state[1], state[2]
-        traj = Trajectory.zeros(system, traj_len)
-        
-        if len(init_obs) < len(qpos) + len(qvel):
-            add_zeros = np.zeros(len(qpos) + len(qvel) - len(init_obs))
-            traj[0].obs[:] = np.concatenate([add_zeros, init_obs])
-        else:
-            traj[0].obs[:] = np.concatenate([qpos, qvel])
-                  
-        for j in range(1, traj_len):
-            action = env.action_space.sample()
-            traj[j-1].ctrl[:] = action
-            obs = gym_dynamics(env, traj[j-1].obs[:], action, n_frames=env.frame_skip)
-            traj[j].obs[:] = obs
-        trajs.append(traj)
-    return trajs
-
 
 class GymMujocoBenchmark(ControlBenchmark):
     """
@@ -164,28 +148,56 @@ class GymMujocoBenchmark(ControlBenchmark):
         env.seed(0)
         self.env = env
         self.env_name = name
-        state = env.sim.get_state()
-        qpos = state[1]
-        qvel = state[2]
+        system = self._get_system()
 
-        x_num = len(qpos) + len(qvel)
-        u_num = env.action_space.shape[0]
-        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], env.dt)
-
-        system.dt = env.dt
         task = Task(system)
-        task.set_cost(GymRewardCost(env))
-        task.set_init_obs(_get_init_obs(env))
+        task.set_init_obs(self._get_init_obs())
+        task.set_cost(self._get_cost(system))
         task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
         task.set_num_steps(200)
 
         super().__init__(name, system, task, data_gen_method)
 
+    def _get_system(self):
+        state = self.env.sim.get_state()
+        qpos = state[1]
+        qvel = state[2]
+
+        x_num = len(qpos) + len(qvel)
+        u_num = self.env.action_space.shape[0]
+        system = ampc.System([f"x{i}" for i in range(x_num)], [f"u{i}" for i in range(u_num)], self.env.dt)
+
+        return system
+
+    def _get_init_obs(self):
+        return _get_init_obs(self.env)
+
+    def _get_cost(self, system):
+        return GymRewardCost(system, self.env)
+
     def dynamics(self, x, u):
         return gym_dynamics(self.env,x,u,n_frames=self.env.frame_skip)
 
     def gen_trajs(self, seed, n_trajs, traj_len=200):
-        return gen_trajs(self.env, self.system, n_trajs, traj_len, seed)
+        rng = np.random.default_rng(seed)
+        trajs = []
+        self.env.seed(int(rng.integers(1 << 30)))
+        self.env.action_space.seed(int(rng.integers(1 << 30)))
+        
+        for i in range(n_trajs):
+            init_obs = self._get_init_obs()
+            state = self.env.sim.get_state()
+            traj = Trajectory.zeros(self.system, traj_len)
+            traj[0].obs[:] = init_obs
+                    
+            for j in range(1, traj_len):
+                action = self.env.action_space.sample()
+                traj[j-1].ctrl[:] = action
+                obs = self.dynamics(traj[j-1].obs[:], action)
+                traj[j].obs[:] = obs
+            trajs.append(traj)
+
+        return trajs
 
     def visualize(self, traj, repeat, file_path=None):
         """
