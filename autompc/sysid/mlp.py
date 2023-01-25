@@ -176,9 +176,11 @@ class MLP(FullyObservableModel):
     def _prepare_data(self):
         self.xu_means = np.mean(self.XU, axis=0)
         self.xu_std = np.std(self.XU, axis=0)
+        self.xu_std[self.xu_std == 0.0] = 1.0 # Avoid division by zero
         XUt = transform_input(self.xu_means, self.xu_std, self.XU)
         self.dy_means = np.mean(self.dY, axis=0)
         self.dy_std = np.std(self.dY, axis=0)
+        self.dy_std[self.dy_std == 0.0] = 1.0 # Avoid division by zero
         dYt = transform_input(self.dy_means, self.dy_std, self.dY)
         feedX = XUt
         predY = dYt
