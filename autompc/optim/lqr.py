@@ -79,6 +79,7 @@ class LQR(Optimizer):
         self.Q,self.R,self.F=None,None,None
         self.K = None
         self.state0 = None
+        self.x0 = None
 
     def get_default_config_space(self):
         cs = ConfigurationSpace()
@@ -124,7 +125,10 @@ class LQR(Optimizer):
             self.K = _finite_horz_dt_lqr(A, B, Qp, R, N, Fp, self.horizon)
         else:
             self.K = _inf_horz_dt_lqr(A, B, Qp, R, N)
-        
+        self.state0 = np.zeros(self.model.state_dim)
+        if self.x0 is not None:
+            self.state0[:len(self.x0)] = self.x0
+
     def set_ocp(self, ocp) -> None:
         super().set_ocp(ocp)
         Q, R, F = self.ocp.get_cost().get_cost_matrices()
@@ -133,10 +137,7 @@ class LQR(Optimizer):
             self.Q,self.R,self.F = Q,R,F
         self.umin = self.ocp.get_ctrl_bounds()[:,0]
         self.umax = self.ocp.get_ctrl_bounds()[:,1]
-        x0 = self.ocp.get_cost().goal
-        self.state0 = np.zeros(self.model.state_dim)
-        if x0 is not None:
-            self.state0[:len(x0)] = x0
+        self.x0 = self.ocp.get_cost().goal
 
     def step(self, state):
         if self.K is None:
