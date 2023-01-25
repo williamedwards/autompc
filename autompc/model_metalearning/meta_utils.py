@@ -77,3 +77,9 @@ def load_matrix(path):
     with open(input_file_name, 'rb') as fh:
         matrix = pickle.load(fh)
     return matrix
+
+def load_portfolio(path):
+    input_file_name = os.path.join(path, 'portfolio.pkl')
+    with open(input_file_name, 'rb') as fh:
+        portfolio = pickle.load(fh)
+    return portfolio

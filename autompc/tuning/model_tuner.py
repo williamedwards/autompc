@@ -6,6 +6,8 @@ from typing import Tuple,List,Union,Optional
 import numpy as np
 import time
 from dataclasses import dataclass
+import os 
+import pickle
 
 from smac.scenario.scenario import Scenario
 from smac.facade.smac_hpo_facade import SMAC4HPO
@@ -19,6 +21,8 @@ from ..system import System
 from ..trajectory import Trajectory
 from ..sysid.model import Model
 from ..sysid.autoselect import AutoSelectModel
+
+from autompc.model_metalearning.meta_utils import load_portfolio
 
 from pdb import set_trace
 
@@ -63,7 +67,7 @@ class ModelTuner:
     def __init__(self, system : System, trajs : List[Trajectory], model : Optional[Model] = None,
                 eval_holdout=0.25, eval_folds=3, eval_metric="rmse", eval_horizon=1, eval_quantile=None,
                 evaluator : Optional[ModelEvaluator] = None,
-                multi_fidelity=False, verbose=0):
+                multi_fidelity=False, verbose=0, meta_learning = False):
         """
         Parameters
         ----------
@@ -114,6 +118,13 @@ class ModelTuner:
         self.evaluator = evaluator   # type: ModelEvaluator
         self.multi_fidelity = multi_fidelity
         self.verbose = verbose
+        self.meta_learning = meta_learning
+        self.portfolio = None 
+        
+        if self.meta_learning:
+            portfolio_file = '/home/baoyu/baoyul2/autompc/autompc/model_metalearning/meta_portfolio'
+            portfolio = load_portfolio(portfolio_file)
+            self.portfolio = portfolio
 
     def _evaluate(self, cfg, seed=None, budget=None):
         if self.verbose:
@@ -202,7 +213,8 @@ class ModelTuner:
         smac_runner = SMACRunner(
             output_dir=output_dir,
             restore_dir=restore_dir,
-            use_default_initial_design=use_default_initial_design
+            use_default_initial_design=use_default_initial_design,
+            portforlio=self.portfolio
         )
 
         inc_cfg, run_history = smac_runner.run(cs, cfg_evaluator, n_iters=n_iters, rng=rng, eval_timeout=eval_timeout)

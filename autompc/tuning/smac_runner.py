@@ -21,10 +21,11 @@ import sys
 CfgEvaluator = Callable[[Configuration], Tuple[float, Dict[str, Any]]]
 
 class SMACRunner:
-    def __init__(self, output_dir: Optional[str] = None, restore_dir: Optional[str] = None, use_default_initial_design: bool = True):
+    def __init__(self, output_dir: Optional[str] = None, restore_dir: Optional[str] = None, use_default_initial_design: bool = True, portforlio: Optional[list] = None):
         self.output_dir = output_dir
         self.restore_dir = restore_dir
         self.use_default_initial_design = use_default_initial_design
+        self.portforlio = portforlio
 
     @property
     def restore(self):
@@ -119,6 +120,7 @@ class SMACRunner:
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
                     initial_design=initial_design,
                     tae_runner=cfg_runner,
+                    initial_configurations=self.portforlio,
                     run_id = 1
                     )
         else:
@@ -127,6 +129,7 @@ class SMACRunner:
             smac = SMAC4HPO(scenario=scenario, rng=smac_rng,
                     initial_design=initial_design,
                     tae_runner=eval_cfg,
+                    initial_configurations=self.portforlio,
                     run_id = 1,
                     runhistory=runhistory,
                     stats=stats,

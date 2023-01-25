@@ -6,6 +6,7 @@ import pandas as pd
 from autompc.sysid.autoselect import AutoSelectModel
 from autompc.tuning.model_evaluator import CrossValidationModelEvaluator, HoldoutModelEvaluator, ModelEvaluator
 from autompc.model_metalearning.meta_utils import load_data, load_cfg
+from autompc.model_metalearning.meta_utils import meta_data
 
 data_path = '/home/baoyu/baoyul2/autompc/autompc/model_metalearning/meta_data'
 cfg_path = '/home/baoyu/baoyul2/autompc/autompc/model_metalearning/meta_cfg'
@@ -36,7 +37,7 @@ def create_matrix(names, data_path=data_path, cfg_path=cfg_path, matrix_path=mat
     matrix = matrix.transpose()
     
     # save matrix
-    output_file_name = os.path.join(matrix_path, 'matrix.pkl')
+    output_file_name = os.path.join(matrix_path, 'matrix_big.pkl')
     print("Dumping to ", output_file_name)
     with open(output_file_name, 'wb') as fh:
         pickle.dump(matrix, fh)

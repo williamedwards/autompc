@@ -4,6 +4,8 @@ autompc-output*
 meta_fig
 meta_cfg
 meta_data
+figs
+examples
 
 .vscode/
 .venv/
