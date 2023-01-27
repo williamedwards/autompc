@@ -213,10 +213,10 @@ class Controller(TunablePipeline,Policy):
                 regularizers.append(transformer)
             elif transformer.name != 'Identity':
                 cost_transformers.append(transformer)
-        cost_transformers.append(dummy)
+        # cost_transformers.append(dummy)
         
-        if len(cost_transformers) > 1:
-            self.set_component("cost_transformer", cost_transformers)
+        # if len(cost_transformers) > 1:
+        self.set_component("cost_transformer", cost_transformers)
         self.set_component("constraint_transformer", constraint_transformers)
         if len(regularizers) > 1:
             self.set_component("regularizer", regularizers)
@@ -429,6 +429,8 @@ class Controller(TunablePipeline,Policy):
         Builds the controller given its current configuration.  This includes
         training the model, constructing the OPC, and initializing the optimizer.
         """
+        if hasattr(trajs, "unwrap"):
+            trajs = trajs.unwrap()
         if not self.ocp:
             raise ControllerStateError("Must call set_ocp() before build()")
         if not self.model:

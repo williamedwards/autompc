@@ -31,7 +31,7 @@ class PolyBasisFunction:
         return x**self.degree
 
     def grad_func(self, x):
-        self.degree * x**(self.degree-1)
+        return self.degree * x**(self.degree-1)
 
     def name_func(self, x):
         return "{}**{}".format(x,self.degree)

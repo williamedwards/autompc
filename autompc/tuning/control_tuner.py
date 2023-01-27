@@ -24,6 +24,8 @@ from .control_evaluator import ControlEvaluator, StandardEvaluator, ControlEvalu
 from .control_performance_metric import ControlPerformanceMetric,ConfidenceBoundPerformanceMetric
 from .bootstrap_evaluator import BootstrapSurrogateEvaluator
 from .smac_runner import SMACRunner
+from .data_store import DataStore
+from .parallel_evaluator import ParallelEvaluator
 
 # External library includes
 import numpy as np
@@ -155,7 +157,7 @@ class ControlTuner:
             surrogate_evaluator : Optional[ModelEvaluator]=None,
             control_tune_bootstraps=1, max_trials_per_evaluation=None, control_evaluator : Optional[ControlEvaluator]=None,
             performance_quantile=0.5, performance_eval_time_weight=0.0, performance_infeasible_cost=100.0,
-            performance_metric : Optional[ControlPerformanceMetric]=None): 
+            performance_metric : Optional[ControlPerformanceMetric]=None, parallel_backend=None): 
         """
         Parameters
         ----------
@@ -208,6 +210,7 @@ class ControlTuner:
         performance_metric : ControlPerformanceMetric
             Overrides the default ConfidenceBoundPerformanceMetric and ignores the
             prior settings.
+        parallel_backend : TODO
         """
         self.tuning_mode = tuning_mode
         self.surrogate = surrogate
@@ -222,12 +225,13 @@ class ControlTuner:
         self.max_trials_per_evaluation = max_trials_per_evaluation
         self.control_evaluator = control_evaluator
         if performance_metric is None:
-            # performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
-            performance_metric = ControlPerformanceMetric()
+            performance_metric = ConfidenceBoundPerformanceMetric(quantile=performance_quantile,eval_time_weight=performance_eval_time_weight,infeasible_cost=performance_infeasible_cost)
+            # performance_metric = ControlPerformanceMetric()
         self.performance_metric = performance_metric
+        self.parallel_backend = parallel_backend
 
     def _get_cfg_evaluator(self, controller : Controller, task : List[Task], trajs : List[Trajectory],
-                            truedyn : Optional[Dynamics], rng, surrogate_tune_iters : int):
+                            truedyn : Optional[Dynamics], rng, surrogate_tune_iters : int, data_store: DataStore):
         surrogate = self.surrogate
         if surrogate is None:
             surrogate = AutoSelectModel(controller.system)
@@ -253,7 +257,7 @@ class ControlTuner:
             print("Skipping surrogate tuning, surrogate is a trained model")
             print("------------------------------------------------------------------")
             if control_evaluator is None:
-                control_evaluator = StandardEvaluator(controller.system, task, surrogate, 'surr_')
+                control_evaluator = StandardEvaluator(controller.system, task, surrogate, 'surr_', data_store=data_store)
             else:
                 assert not isinstance(control_evaluator,BootstrapSurrogateEvaluator),'Need an evaluator that does not train'
         else:
@@ -278,10 +282,12 @@ class ControlTuner:
         
             if control_evaluator is None:
                 if self.control_tune_bootstraps > 1:
-                    control_evaluator = BootstrapSurrogateEvaluator(controller.system, task, surrogate, surr_trajs, self.control_tune_bootstraps, rng=rng)
+                    control_evaluator = BootstrapSurrogateEvaluator(
+                        controller.system, task, surrogate, surr_trajs, self.control_tune_bootstraps, rng=rng, backend=self.parallel_backend, data_store=data_store
+                    )
                 else:
                     surrogate.train(surr_trajs)
-                    control_evaluator = StandardEvaluator(controller.system, task, surrogate, prefix='surr_')
+                    control_evaluator = StandardEvaluator(controller.system, task, surrogate, prefix='surr_', data_store=data_store)
             else:
                 if isinstance(control_evaluator,StandardEvaluator):
                     surrogate.train(surr_trajs)
@@ -290,7 +296,12 @@ class ControlTuner:
                     raise NotImplementedError("Not sure what to do when control_evaluator != None and surrogate is tuned?")
 
         if truedyn is not None:
-            truedyn_evaluator = StandardEvaluator(controller.system, task, dynamics = truedyn, prefix='truedyn_')
+            truedyn_standard_evaluator = StandardEvaluator(controller.system, task, dynamics = truedyn, prefix='truedyn_')
+            truedyn_evaluator = ParallelEvaluator(evaluator=truedyn_standard_evaluator,
+                dynamics = truedyn,
+                backend=self.parallel_backend,
+                data_store=data_store
+            )
         else:
             truedyn_evaluator = None
         
@@ -321,7 +332,9 @@ class ControlTuner:
             performance_metric=self.performance_metric,
             sysid_trajs=sysid_trajs,
             control_evaluator=control_evaluator,
-            truedyn_evaluator=truedyn_evaluator)
+            truedyn_evaluator=truedyn_evaluator,
+            data_store=data_store,
+        )
 
         return cfg_evaluator
 
@@ -423,6 +436,7 @@ class ControlTuner:
         """
         # TODO handle save_all_controllers
         smac_runner = SMACRunner(output_dir, restore_dir, use_default_initial_design)
+        data_store = smac_runner.get_data_store()
         
         if isinstance(tasks, Task):
             tasks = [tasks]
@@ -430,7 +444,7 @@ class ControlTuner:
         if not smac_runner.restore:
             controller = controller.clone()
             controller.set_ocp(tasks[0].get_ocp())
-            cfg_evaluator = self._get_cfg_evaluator(controller, tasks, trajs, truedyn, rng, surrogate_tune_iters)
+            cfg_evaluator = self._get_cfg_evaluator(controller, tasks, trajs, truedyn, rng, surrogate_tune_iters, data_store)
         else:
             cfg_evaluator = smac_runner.restore_cfg_evaluator()
 
@@ -456,6 +470,11 @@ class ControlCfgEvaluator:
     control_evaluator: ControlEvaluator
     truedyn_evaluator: ControlEvaluator
     surr_tune_result: Optional[ModelTunerResult] = None
+    data_store: Optional[data_store] = None
+
+    def __post_init__(self):
+        if self.data_store:
+            self.sysid_trajs = self.data_store.wrap(self.sysid_trajs)
 
     def __call__(self, cfg):
         print("\n>>> ", datetime.datetime.now(), "> Evaluating Cfg: \n", cfg)
@@ -464,15 +483,21 @@ class ControlCfgEvaluator:
         info = dict()
         controller.set_config(cfg)
         controller.build(self.sysid_trajs)
+        if self.data_store:
+            controller = self.data_store.wrap(controller)
+        print("Run Controller Evaluation...")
         trials = self.control_evaluator(controller)
         performance = self.performance_metric(trials)
         info["surr_cost"] = performance
         info["surr_info"] = list(map(trial_to_json, trials))
         if not self.truedyn_evaluator is None:
-            trajs = self.truedyn_evaluator(controller)
-            performance = self.performance_metric(trajs)
+            truedyn_trials = self.truedyn_evaluator(controller)
+            performance = self.performance_metric(truedyn_trials)
             info["truedyn_cost"] = performance
-            info["truedyn_info"] = list(map(trial_to_json, trials))
+            info["truedyn_info"] = list(map(trial_to_json, truedyn_trials))
+
+        if hasattr(controller, "cleanup"):
+            controller.cleanup()
         
         # if self.controller_save_dir:
         #     controller_save_fn = os.path.join(self.controller_save_dir, "controller_{}.pkl".format(self.eval_number))

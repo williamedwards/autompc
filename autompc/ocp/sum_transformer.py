@@ -81,6 +81,13 @@ class SumTransformer(OCPTransformer):
     def trainable(self) -> bool:
         return any(transformer.trainable for transformer in self._transformers)
 
+    def train(self, trajs):
+        for transformer in self._transformers:
+            if transformer.trainable:
+                transformer.train(trajs)
+
+        self.is_trained = True
+
     def __add__(self, other):
         if isinstance(other, SumTransformer):
             return SumTransformer(self.system, [*self._transformers, *other._transformers])

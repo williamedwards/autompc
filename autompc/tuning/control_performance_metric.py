@@ -8,7 +8,12 @@ class ControlPerformanceMetric:
     for tuning.  Default implementation just averages the cost.
     """
     def __call__(self,trials : List[ControlEvaluationTrial]) -> float:
-        return np.mean([t.cost for t in trials])
+        trial_costs = []
+        for t in trials:
+            if hasattr(t, "unwrap"):
+                t = t.unwrap()
+            trial_costs.append([t.cost])
+        return np.mean(trial_costs)
 
 
 class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
@@ -28,7 +33,8 @@ class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
     """
     def __init__(self,quantile=0.5,eval_time_weight=0.0,infeasible_cost=100.0,aggregator=None):
         if aggregator is None:
-            aggregator = NormalDistribution
+            #aggregator = NormalDistribution
+            aggregator = EmpiricalDistribution
         self.aggregator = aggregator
         self.quantile = quantile
         self.eval_time_weight = eval_time_weight
@@ -37,6 +43,8 @@ class ConfidenceBoundPerformanceMetric(ControlPerformanceMetric):
     def __call__(self,trials : List[ControlEvaluationTrial]) -> float:
         costs = []
         for t in trials:
+            if hasattr(t, "unwrap"):
+                t = t.unwrap()
             c = t.cost + self.eval_time_weight*t.eval_time/len(t.traj)
             if t.term_cond.endswith('infeasible'):
                 c += self.infeasible_cost
@@ -78,3 +86,15 @@ class HistogramDistribution:
     def __str__(self):
         return "<Histogram Distribution, mean={}, std={}>".format(
                 self.dist.mean(), self.dist.std())
+
+class EmpiricalDistribution:
+    def __init__(self, values):
+        self.values = values 
+
+    def __call__(self, quantile):
+        return np.quantile(self.values, quantile)
+
+    def __str__(self):
+        return "<Empirical Distribution, mean={}, std={}>".format(
+                np.mean(self.values), np.std(self.values))
+

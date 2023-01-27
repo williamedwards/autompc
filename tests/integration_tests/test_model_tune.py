@@ -36,7 +36,8 @@ class ModelTuningIntegrationTest(unittest.TestCase):
         tuned_model, tune_result = tuner.run(
             rng=np.random.default_rng(0),
             n_iters=5,
-            output_dir=self.autompc_dir
+            output_dir=self.autompc_dir,
+            eval_timeout=100
         )
 
         self.assertIsInstance(tuned_model, MLP)

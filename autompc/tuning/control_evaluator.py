@@ -15,6 +15,8 @@ ControlEvaluationTrial = namedtuple("ControlEvaluationTrial", ["policy","task","
     "cost","traj","term_cond","eval_time"])
 
 def trial_to_json(trial : ControlEvaluationTrial):
+    if hasattr(trial, "unwrap"):
+        trial = trial.unwrap()
     res = trial._asdict()
     res['policy'] = str(trial.policy)
     res['task'] = str(trial.task)
@@ -51,6 +53,8 @@ class ControlEvaluator(ABC):
             
         results = []
         for i, task in enumerate(self.tasks):
+            if hasattr(policy,"unwrap"):
+                policy = policy.unwrap()
             if hasattr(policy,'set_ocp'):  #it's a Controller
                 policy.set_ocp(self.tasks[i])
             policy.reset()
@@ -95,6 +99,7 @@ class ControlEvaluator(ABC):
         except np.linalg.LinAlgError:
             truedyn_cost = np.inf
             t1 = time.time()
+            truedyn_traj = None
             return ControlEvaluationTrial(policy=policy,task=task,dynamics=dynamics,weight=1.0,
                 cost = truedyn_cost, traj=None, term_cond='LinAlgError', eval_time = t1-t0)
 
@@ -109,13 +114,24 @@ class StandardEvaluator(ControlEvaluator):
         tasks: the task or set of tasks to evaluate on.
         dynamics (Dynamics): the assumed dynamics for simulation.
     """
-    def __init__(self, system, tasks, dynamics, prefix=''):
+    def __init__(self, system, tasks, dynamics, prefix='', data_store=None):
         super().__init__(system, tasks)
-        self.dynamics = dynamics
         self.prefix = prefix
+        self.data_store = data_store
+        if data_store:
+            self.dynamics = data_store.wrap(dynamics)
+        else:
+            self.dynamics = dynamics
 
     def evaluate_for_task(self, controller : Policy, task : Task):
         print("Simulating Trajectory...",end='')
-        res = self.evaluate_for_task_dynamics(controller,task,self.dynamics)
+        dynamics = self.dynamics
+        if hasattr(dynamics, "unwrap"):
+            dynamics = dynamics.unwrap()
+        if hasattr(controller, "unwrap"):
+            controller = controller.unwrap()
+        res = self.evaluate_for_task_dynamics(controller,task,dynamics)
         print("Resulting cost",res.cost)
+        if self.data_store:
+            res = self.data_store.wrap(res)
         return res
