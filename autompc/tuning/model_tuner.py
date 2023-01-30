@@ -233,4 +233,4 @@ class ModelCfgEvaluator:
         value = self.evaluator(self.model)
         print("Model Score ", value)
 
-        return value
+        return value, dict()

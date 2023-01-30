@@ -177,6 +177,7 @@ class GymMujocoBenchmark(ControlBenchmark):
         task.set_cost(GymRewardCost(env))
         task.set_init_obs(_get_init_obs(env))
         task.set_ctrl_bounds(env.action_space.low, env.action_space.high)
+        task.set_num_steps(200)
 
         super().__init__(name, system, task, data_gen_method)
 
