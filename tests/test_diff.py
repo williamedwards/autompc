@@ -57,11 +57,10 @@ class GenericDiffTest(ABC):
         input_controls = controls[selected_idxs, :]
 
         # Generate random unit direction vectors to take finite difference in
-        dir_states = np.random.rand(*input_states.shape)
+        dir_states = rng.random(size=input_states.shape)
         dir_states /= np.linalg.norm(dir_states, axis=-1)[:,np.newaxis]
-        dir_controls = np.random.rand(*input_controls.shape)
+        dir_controls = rng.random(size=input_controls.shape)
         dir_controls /= np.linalg.norm(dir_controls, axis=-1)[:,np.newaxis]
-        
         return input_states, input_controls, dir_states, dir_controls
 
     def get_precomputed(self, label):
@@ -86,7 +85,6 @@ class GenericDiffTest(ABC):
             diff_states /= 2*eps
             diff_controls = model.pred_batch(input_states, input_controls+eps*dir_controls) - model.pred_batch(input_states, input_controls-eps*dir_controls)
             diff_controls /= 2*eps
-
             fn = f"{self.get_precomputed_prefix()}_{label}_diff_states.npy"
             np.save(fn, np.array(diff_states))
             fn = f"{self.get_precomputed_prefix()}_{label}_diff_controls.npy"
@@ -126,28 +124,13 @@ class GenericDiffTest(ABC):
             # Compare to pre-computed state_jacs and control_jacs
             precomp_diff_states, precomp_diff_controls = self.get_precomputed(label)
 
-            print(input_states.shape, input_controls.shape, dir_states.shape, dir_controls.shape)
-            print(state_jacs1.shape, ctrl_jacs1.shape)
-            print(precomp_diff_states.shape, precomp_diff_controls.shape)
-            
-
             for i, (dir_state, state_jac1) in enumerate(zip(dir_states, state_jacs1)):
-                print((dir_state[np.newaxis,:]@state_jac1).squeeze())
-                print(precomp_diff_states[i])
-                self.assertTrue(np.allclose((dir_state[np.newaxis,:]@state_jac1.T).squeeze(), precomp_diff_states[i]))
+                self.assertTrue(np.allclose((dir_state@state_jac1.T), precomp_diff_states[i]))
 
             for i, (dir_control, control_jac1) in enumerate(zip(dir_controls, ctrl_jacs1)):
-                self.assertTrue(np.allclose((dir_control[np.newaxis,:]@control_jac1.T).squeeze(), precomp_diff_controls[i]))
+                self.assertTrue(np.allclose((dir_control@control_jac1.T), precomp_diff_controls[i]))
                 
-
-
-            # if not np.allclose(dir_states[:,np.newaxis,:]@state_jacs1, precomp_diff_states):
-            #     breakpoint()
-            # self.assertTrue(np.allclose(np.outer(dir_states, state_jacs1), precomp_diff_states))
-            # if not np.allclose(np.outer(dir_controls, ctrl_jacs1), precomp_diff_controls):
-            #     breakpoint()
-            # self.assertTrue(np.allclose(np.outer(dir_controls, ctrl_jacs1), precomp_diff_controls))
-
+        print('All tests successfully completed')
 
 class MLPTest(GenericDiffTest, unittest.TestCase):
     def get_model(self, system):
@@ -278,9 +261,11 @@ class KoopmanTest(GenericDiffTest, unittest.TestCase):
         return "precomputed/koopman_diff"
 
 if __name__ == "__main__":
-    if sys.argv[1] == "precompute":
+    if sys.argv[1] == "precompute" or sys.argv[1] == "test":
         if sys.argv[2] == "mlp":
             test = MLPTest()
+        elif sys.argv[2] == "armlp":
+            test= ARMLPTest()
         elif sys.argv[2] == "arx":
             test = ARXTest()
         elif sys.argv[2] == "sindy":
@@ -292,7 +277,9 @@ if __name__ == "__main__":
         else:
             raise ValueError("Unknown model")
         test.setUp()
-        test.generate_precomputed()
+        if sys.argv[1] == "precompute":
+            test.generate_precomputed()
         test.test_model_train_predict()
+
     else:
         raise ValueError("Unknown command")
