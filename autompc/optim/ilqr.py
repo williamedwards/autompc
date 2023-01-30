@@ -81,8 +81,8 @@ class IterativeLQR(Optimizer):
         def eval_obj(xs, us):
             obj = 0
             for i in range(H):
-                obj += dt * cost.incremental(xs[i, :self.system.obs_dim],us[i])
-            obj += cost.terminal(xs[-1, :self.system.obs_dim])
+                obj += dt * cost.incremental(xs[i, :self.system.obs_dim],us[i], i)
+            obj += cost.terminal(xs[-1, :self.system.obs_dim], H-1)
             return obj
 
         dimx, dimu = self.model.state_dim, self.system.ctrl_dim
@@ -113,7 +113,7 @@ class IterativeLQR(Optimizer):
             if self.verbose:
                 print('At iteration %d' % itr)
             # compute at the last step, Vn and vn, just hessian and gradient at the last state
-            _, cost_jac, cost_hess = cost.terminal_hess(states[H, :obsdim])
+            _, cost_jac, cost_hess = cost.terminal_hess(states[H, :obsdim], H - 1)
             Vn = np.zeros((dimx, dimx))
             vn = np.zeros(dimx)
             Vn[:obsdim, :obsdim] = cost_hess
@@ -123,7 +123,7 @@ class IterativeLQR(Optimizer):
                 # first assemble Ct and ct, they are linearized at current state
                 Q  = np.zeros((dimx, dimx))
                 Qx = np.zeros(dimx)
-                _, Qx[:obsdim], Ru, Q[:obsdim, :obsdim], _, R = cost.incremental_hess(states[t - 1, :obsdim],ctrls[t - 1])
+                _, Qx[:obsdim], Ru, Q[:obsdim, :obsdim], _, R = cost.incremental_hess(states[t - 1, :obsdim],ctrls[t - 1], t - 1)
                 Ct[:dimx, :dimx] = Q * dt
                 Ct[dimx:, dimx:] = R * dt
                 ct[:dimx] = Qx * dt
