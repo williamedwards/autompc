@@ -157,7 +157,8 @@ class ARX(Model):
 
         # Add new control
         B[0 : n, :] = coeffs[:, -l:]
-        B[2*n : 2*n + l, :] = np.eye(l)
+        if k > 1:
+            B[2*n : 2*n + l, :] = np.eye(l)
 
         self.A, self.B = A, B
         self.is_trained = True
