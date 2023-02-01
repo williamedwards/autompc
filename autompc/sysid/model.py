@@ -173,7 +173,7 @@ class FixedModel(Model):
         return self._dynamics.pred(self, state, ctrl)
 
     def pred_batch(self, states, ctrls):
-        return self.pred_batch(states, ctrls)
+        return self._dynamics.pred_batch(states, ctrls)
 
     def pred_diff(self, state, ctrl):
         return self._dynamics.pred_diff(state, ctrl)
