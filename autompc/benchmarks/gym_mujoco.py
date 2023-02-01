@@ -104,6 +104,22 @@ def gym_reward(env, x, u, n_frames=5):
 
     return total_reward
 
+def check_terminated(env, x, u):
+    old_state = env.sim.get_state()
+    old_qpos = old_state[1]
+    old_qvel = old_state[2]
+
+    qpos = x[:len(old_qpos)]
+    qvel = x[len(old_qpos):len(old_qpos)+len(old_qvel)]
+
+    # Represents a snapshot of the simulator's state.
+    new_state = mujoco_py.MjSimState(old_state.time, qpos, qvel, old_state.act, old_state.udd_state)
+    env.sim.set_state(new_state)
+
+    _, _, terminated, _  = env.step(u)
+    
+    return terminated
+
 class GymRewardCost(Cost):
     def __init__(self, system, env, cost_offset=200, plausible_threshold=-1000):
         Cost.__init__(self,system)
@@ -178,7 +194,7 @@ class GymMujocoBenchmark(ControlBenchmark):
     def dynamics(self, x, u):
         return gym_dynamics(self.env,x,u,n_frames=self.env.frame_skip)
 
-    def gen_trajs(self, seed, n_trajs, traj_len=200):
+    def gen_trajs(self, seed, n_trajs, traj_len=200, end_on_terminate=False):
         rng = np.random.default_rng(seed)
         trajs = []
         self.env.seed(int(rng.integers(1 << 30)))
@@ -195,6 +211,11 @@ class GymMujocoBenchmark(ControlBenchmark):
                 traj[j-1].ctrl[:] = action
                 obs = self.dynamics(traj[j-1].obs[:], action)
                 traj[j].obs[:] = obs
+
+                if end_on_terminate:
+                    if check_terminated(self.env, traj[j-1].obs, traj[j-1].ctrl):
+                        traj = traj[:j]
+                        break
             trajs.append(traj)
 
         return trajs
