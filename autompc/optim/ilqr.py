@@ -27,9 +27,10 @@ class IterativeLQR(Optimizer):
 
     - **horizon** *(Type: int, Low: 5, Upper: 25, Default: 20)*: MPC Optimization Horizon.
     """
-    def __init__(self, system, verbose=False):
+    def __init__(self, system, verbose=False, n_random_restarts=0):
         super().__init__(system, "IterativeLQR")
         self.verbose = verbose
+        self.n_random_restarts = n_random_restarts
 
     def get_default_config_space(self):
         cs = ConfigurationSpace()
@@ -41,9 +42,10 @@ class IterativeLQR(Optimizer):
     def set_config(self, config):
         self.horizon = config["horizon"]
 
-    def reset(self):
+    def reset(self, seed=100):
         self._guess = None
         self._traj = None
+        self.rng = np.random.default_rng(seed)
 
     def set_ocp(self, ocp):
         super().set_ocp(ocp)
@@ -218,13 +220,27 @@ class IterativeLQR(Optimizer):
         if not converged and not silent:
             print('ilqr fails to converge, try a new guess? Last u update is %f ks norm is %f' % (du_norm, ks_norm))
             print('ilqr is not converging...')
-        return converged, states, ctrls, Ks, ks
+        return converged, states, ctrls, best_obj, Ks, ks
 
     def step(self, obs, silent=True):
         if self._guess is None:
             self._guess = np.zeros((self.horizon, self.system.ctrl_dim))
-        converged, states, ctrls, Ks, ks = self.compute_ilqr(obs, self._guess,
+        converged, states, ctrls, obj, Ks, ks = self.compute_ilqr(obs, self._guess,
                 silent=silent)
+
+        # Random restarts        
+        for i in range(self.n_random_restarts):
+            random_guess = self.rng.uniform(
+                low=self.ubounds[0], 
+                high=self.ubounds[1], 
+                size=(self.horizon, self.system.ctrl_dim))
+            _, rstates, rctrls, robj, _, _ = self.compute_ilqr(obs, random_guess, silent=silent)
+            if robj < obj:
+                obj = robj
+                states = rstates
+                rctrls = rctrls
+                self._guess = random_guess
+
         self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
         obs = states[:, :self.system.obs_dim]
         self._traj = Trajectory(self.system, obs, 
