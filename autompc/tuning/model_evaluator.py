@@ -9,7 +9,7 @@ from ConfigSpace import Configuration
 from ..sysid.metrics import get_model_rmse,get_model_rmsmens
 from ..trajectory import Trajectory
 from ..sysid.model import Model
-
+from .parallel_utils import SerialBackend
 
 class ModelEvaluator(ABC):
     """
@@ -169,24 +169,27 @@ class CrossValidationModelEvaluator(ModelEvaluator):
             test = shuffled_trajs[splits[f]:splits[f+1]]
             self.folds.append(([self.trajs[i] for i in train],[self.trajs[i] for i in test]))
 
+        if parallel_backend is None:
+            parallel_backend = SerialBackend()
+        self.parallel_backend = parallel_backend
+
     def set_data_store(self, data_store):
         super().set_data_store(data_store)
         self.folds = [data_store.wrap(fold) for fold in self.folds]
 
+    def _run_fold(self, model, fold):
+        if hasattr(fold, "unwrap"):
+            fold = fold.unwrap()
+        if hasattr(model, "unwrap"):
+            model = model.unwrap()
+        train, test = fold
+        m = model.clone()
+        m.train(train)
+        metric_value = self.metric(m, test)
+        return metric_value
+
     def __call__(self, model):
-        values = []
-        for fold in self.folds:
-            if hasattr(fold, "unwrap"):
-                fold = fold.unwrap()
-            train, test = fold
-            m = model.clone()
-            m.train(train)
-            metric_value = self.metric(m, test)
-            if np.isinf(metric_value):
-                if self.verbose:
-                    print("Cross-validation got an infinite value, returning")
-                return np.inf
-            values.append(metric_value)
+        values = self.parallel_backend.map(partial(self._run_fold, model), self.folds)
         if self.verbose:
             print("Cross-validation values:",values)
         return np.mean(values)
