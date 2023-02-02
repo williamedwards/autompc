@@ -60,7 +60,7 @@ class CartpoleSwingupV2Benchmark(ControlBenchmark):
     def dynamics(self,x,u):
         return dt_cartpole_dynamics(x,u,self.system.dt,g=9.8,m=1,L=1,b=1.0)
 
-    def visualize(self, fig, ax, traj, margin=5.0):
+    def visualize(self, fig, ax, traj, ref_traj=None, margin=5.0):
         """
         Visualize the cartpole trajectory.
 
@@ -87,6 +87,7 @@ class CartpoleSwingupV2Benchmark(ControlBenchmark):
         dt = self.system.dt
 
         line, = ax.plot([0.0, 0.0], [0.0, -1.0], 'o-', lw=2)
+        ref_line, = ax.plot([0.0, 0.0], [0.0, -1.0], 'r.', lw=2)
         time_text = ax.text(0.02, 0.85, '', transform=ax.transAxes)
         ctrl_text = ax.text(0.7, 0.85, '', transform=ax.transAxes)
 
@@ -104,6 +105,9 @@ class CartpoleSwingupV2Benchmark(ControlBenchmark):
             #i = min(i, ts.shape[0])
             line.set_data([traj[i,"x"], traj[i,"x"]+np.sin(traj[i,"theta"]+np.pi)], 
                     [0, -np.cos(traj[i,"theta"] + np.pi)])
+            if ref_traj is not None:
+                ref_line.set_data([ref_traj[i,"x"], ref_traj[i,"x"]+np.sin(ref_traj[i,"theta"]+np.pi)], 
+                        [0, -np.cos(ref_traj[i,"theta"] + np.pi)])        
             time_text.set_text('t={:.2f}'.format(dt*i))
             ctrl_text.set_text("u={:.2f}".format(traj[i,"u"]))
             xmin, xmax = ax.get_xlim()
@@ -111,7 +115,7 @@ class CartpoleSwingupV2Benchmark(ControlBenchmark):
                 ax.set_xlim([traj[i,"x"] - margin, traj[i,"x"] + 20.0 - margin])
             if traj[i, "x"] > xmax:
                 ax.set_xlim([traj[i,"x"] - 20.0 + margin, traj[i,"x"] + margin])
-            return line, time_text
+            return line, ref_line,  time_text
 
         anim = animation.FuncAnimation(fig, animate, frames=nframes, interval=dt*1000.0,
                 blit=False, init_func=init)
