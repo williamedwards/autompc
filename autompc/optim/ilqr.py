@@ -6,11 +6,13 @@ import copy
 import numpy as np
 import numpy.linalg as la
 from ConfigSpace import ConfigurationSpace
-from ConfigSpace.hyperparameters import UniformIntegerHyperparameter
+from ConfigSpace.hyperparameters import UniformIntegerHyperparameter, CategoricalHyperparameter
+from ConfigSpace.conditions import InCondition
 
 # Internal libary includes
 from .optimizer import Optimizer
 from ..trajectory import Trajectory
+from ..utils.cs_utils import get_hyper_bool, get_hyper_int
 
 class IterativeLQR(Optimizer):
     """
@@ -27,24 +29,44 @@ class IterativeLQR(Optimizer):
 
     - **horizon** *(Type: int, Low: 5, Upper: 25, Default: 20)*: MPC Optimization Horizon.
     """
-    def __init__(self, system, verbose=False, n_random_restarts=0):
-        super().__init__(system, "IterativeLQR")
+    def __init__(self, system, verbose=False, enable_random_restarts=True):
         self.verbose = verbose
-        self.n_random_restarts = n_random_restarts
+        self.enable_random_restarts = enable_random_restarts
+        super().__init__(system, "IterativeLQR")
 
     def get_default_config_space(self):
         cs = ConfigurationSpace()
         horizon = UniformIntegerHyperparameter(name="horizon",
                 lower=5, upper=25, default_value=20)
         cs.add_hyperparameter(horizon)
+
+        if self.enable_random_restarts:
+            random_restarts = CategoricalHyperparameter(
+                name="random_restarts",
+                choices=["true", "false"],
+                default_value="false")
+            random_restart_frequency = UniformIntegerHyperparameter(
+                name="random_restart_frequency",
+                lower=1, upper=10, default_value=3)
+            use_random_restarts = InCondition(
+                child=random_restart_frequency,
+                parent=random_restarts,
+                values=["true"])
+            cs.add_hyperparameters([random_restarts, random_restart_frequency])
+            cs.add_condition(use_random_restarts)
+
         return cs
 
     def set_config(self, config):
-        self.horizon = config["horizon"]
+        self.horizon = get_hyper_int(config, "horizon")
+        if self.enable_random_restarts:
+            self.random_restarts = get_hyper_bool(config, "random_restarts")
+            self.random_restart_frequency = get_hyper_int(config, "random_restart_frequency")
 
     def reset(self, seed=100):
         self._guess = None
         self._traj = None
+        self._steps_since_random_restart = 0
         self.rng = np.random.default_rng(seed)
 
     def set_ocp(self, ocp):
@@ -229,17 +251,20 @@ class IterativeLQR(Optimizer):
                 silent=silent)
 
         # Random restarts        
-        for i in range(self.n_random_restarts):
-            random_guess = self.rng.uniform(
-                low=self.ubounds[0], 
-                high=self.ubounds[1], 
-                size=(self.horizon, self.system.ctrl_dim))
-            _, rstates, rctrls, robj, _, _ = self.compute_ilqr(obs, random_guess, silent=silent)
-            if robj < obj:
-                obj = robj
-                states = rstates
-                rctrls = rctrls
-                self._guess = random_guess
+        if self.enable_random_restarts and self.random_restarts:
+            self._steps_since_random_restart += 1
+            if self._steps_since_random_restart >= self.random_restart_frequency:
+                random_guess = self.rng.uniform(
+                    low=self.ubounds[0], 
+                    high=self.ubounds[1], 
+                    size=(self.horizon, self.system.ctrl_dim))
+                _, rstates, rctrls, robj, _, _ = self.compute_ilqr(obs, random_guess, silent=silent)
+                if robj < obj:
+                    obj = robj
+                    states = rstates
+                    rctrls = rctrls
+                    self._guess = random_guess
+                self._steps_since_random_restart = 0
 
         self._guess = np.concatenate((ctrls[1:], np.zeros((1, self.system.ctrl_dim))), axis=0)
         obs = states[:, :self.system.obs_dim]
