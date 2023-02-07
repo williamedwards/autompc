@@ -54,7 +54,7 @@ class Cost(ABC):
         cost += self.terminal(traj[-1].obs)
         return cost
 
-    def incremental(self, obs, control) -> float:
+    def incremental(self, obs, control, t=None) -> float:
         """
         Evaluates incremental cost at a particular time step.
         Raises exception if not implemented.
@@ -72,7 +72,7 @@ class Cost(ABC):
         """
         raise NotImplementedError
 
-    def incremental_diff(self, obs, ctrl) -> Tuple[float,np.ndarray,np.ndarray]:
+    def incremental_diff(self, obs, ctrl, t=None) -> Tuple[float,np.ndarray,np.ndarray]:
         """
         Evaluates the incremental cost at a particular time
         step and computes Jacobians. Raises exception if not
@@ -83,7 +83,7 @@ class Cost(ABC):
         """
         raise NotImplementedError
 
-    def incremental_hess(self, obs, ctrl) -> Tuple[float,np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray]:
+    def incremental_hess(self, obs, ctrl, t=None) -> Tuple[float,np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray]:
         """
         Evaluates the incremental cost at a particular time
         step and computes Jacobians and Hessians. Raises exception if not
@@ -100,7 +100,7 @@ class Cost(ABC):
         """
         raise NotImplementedError
 
-    def terminal(self, obs) -> float:
+    def terminal(self, obs, t=None) -> float:
         """
         Evaluates terminal observation cost.
         Raises exception if not implemented.
@@ -115,7 +115,7 @@ class Cost(ABC):
         """
         raise NotImplementedError
 
-    def terminal_diff(self, obs) -> Tuple[float,np.ndarray]:
+    def terminal_diff(self, obs, t=None) -> Tuple[float,np.ndarray]:
         """
         Evaluates the terminal observation cost
         and computes Jacobian. Raises exception if not
@@ -126,7 +126,7 @@ class Cost(ABC):
         """
         raise NotImplementedError
 
-    def terminal_hess(self, obs) -> Tuple[float,np.ndarray,np.ndarray]:
+    def terminal_hess(self, obs, t=None) -> Tuple[float,np.ndarray,np.ndarray]:
         """
         Evaluates the terminal observation cost
         and computes Jacobian and Hessian. Raises exception if not
@@ -260,23 +260,23 @@ class SumCost(Cost):
         else:
             return sum(results)
 
-    def incremental(self, obs, ctrl):
-        return self._sum_results((obs,ctrl), "incremental")
+    def incremental(self, obs, ctrl, t=None):
+        return self._sum_results((obs,ctrl, t), "incremental")
 
-    def incremental_diff(self, obs, ctrl):
-        return self._sum_results((obs,ctrl), "incremental_diff")
+    def incremental_diff(self, obs, ctrl, t=None):
+        return self._sum_results((obs,ctrl, t), "incremental_diff")
 
-    def incremental_hess(self, obs, ctrl):
-        return self._sum_results((obs, ctrl), "incremental_hess")
+    def incremental_hess(self, obs, ctrl, t=None):
+        return self._sum_results((obs, ctrl, t), "incremental_hess")
 
-    def terminal(self, obs):
-        return self._sum_results((obs,), "terminal")
+    def terminal(self, obs, t=None):
+        return self._sum_results((obs, t), "terminal")
 
-    def terminal_diff(self, obs):
-        return self._sum_results((obs,), "terminal_diff")
+    def terminal_diff(self, obs, t=None):
+        return self._sum_results((obs, t), "terminal_diff")
 
-    def terminal_hess(self, obs):
-        return self._sum_results((obs,), "terminal_hess")
+    def terminal_hess(self, obs, t=None):
+        return self._sum_results((obs, t), "terminal_hess")
 
     def set_goal(self,goal):
         super().set_goal(goal)
@@ -329,23 +329,23 @@ class MulCost(Cost):
         else:
             return results*self._scale
 
-    def incremental(self, obs, ctrl):
-        return self._mul_results((obs,ctrl), "incremental")
+    def incremental(self, obs, ctrl, t=None):
+        return self._mul_results((obs,ctrl,t), "incremental")
 
-    def incremental_diff(self, obs, ctrl):
-        return self._mul_results((obs,ctrl), "incremental_diff")
+    def incremental_diff(self, obs, ctrl, t=None):
+        return self._mul_results((obs,ctrl,t), "incremental_diff")
 
-    def incremental_hess(self, obs, ctrl):
-        return self._mul_results((obs, ctrl), "incremental_hess")
+    def incremental_hess(self, obs, ctrl, t=None):
+        return self._mul_results((obs, ctrl, t), "incremental_hess")
 
-    def terminal(self, obs):
-        return self._mul_results((obs,), "terminal")
+    def terminal(self, obs, t=None):
+        return self._mul_results((obs, t), "terminal")
 
-    def terminal_diff(self, obs):
-        return self._mul_results((obs,), "terminal_diff")
+    def terminal_diff(self, obs, t=None):
+        return self._mul_results((obs, t), "terminal_diff")
 
-    def terminal_hess(self, obs):
-        return self._mul_results((obs,), "terminal_hess")
+    def terminal_hess(self, obs, t=None):
+        return self._mul_results((obs, t), "terminal_hess")
 
 
     @property

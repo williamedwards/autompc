@@ -315,9 +315,9 @@ class DynamicTrajectory(Trajectory):
     def append(self, obs, ctrl):
         """Extends the current trajectory, in place."""
         if len(obs) != self.system.obs_dim:
-            raise ValueError("obs has wrong length {}, should be {}".format(len(obs,self.system.obs_dim)))
+            raise ValueError("obs has wrong length {}, should be {}".format(len(obs),self.system.obs_dim))
         if len(ctrl) != self.system.ctrl_dim:
-            raise ValueError("ctrl has wrong length {}, should be {}".format(len(ctrl,self.system.ctrl_dim)))
+            raise ValueError("ctrl has wrong length {}, should be {}".format(len(ctrl),self.system.ctrl_dim))
         self._obs.append(obs[:])
         self._ctrls.append(ctrl[:])
 

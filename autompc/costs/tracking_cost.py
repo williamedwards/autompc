@@ -1,6 +1,6 @@
 import numpy as np
 
-from .costs import Cost
+from .cost import Cost
 
 class TrackingCost(Cost):
     """
@@ -14,6 +14,8 @@ class TrackingCost(Cost):
         ----------
         system : System
             Robot system for which cost will be evaluated
+        cost : Cost
+            Cost that will be evaluated for every time step
         properties : Dict
             a dictionary of properties that may be present in a cost and
             relevant to the selection of optimizers. Common values include:
@@ -28,32 +30,40 @@ class TrackingCost(Cost):
         self.properties = {}
 
     def update_goal(self, obs):
-        self._cost.goal[:-1] = self._cost.goal[1:] 
-        self._cost.goal[-1] = obs
+        self.goal[:-1] = self.goal[1:] 
+        self.goal[-1] = obs
 
-    def __call__(self, traj):
-        raise NotImplementedError
+    def __call__(self, traj, ref_traj):
+        cost = 0.0
+        for i in range(len(traj)):
+            self.goal = ref_traj.obs[i:]
+            cost += self.incremental(traj[i].obs,traj[i].ctrl, 0)*self.system.dt
+        cost += self.terminal(traj[-1].obs, 0)
+        return cost
 
     def incremental(self, obs, control, t):
         self._cost.set_goal(self.goal[t])
-        return self._cost.incremental(obs, control)
+        return self._cost.incremental(obs, control, t)
 
     def incremental_diff(self, obs, control, t):
         self._cost.set_goal(self.goal[t])
-        return self._cost.incremental_diff(obs, control) 
+        return self._cost.incremental_diff(obs, control, t) 
 
     def incremental_hess(self, obs, control, t):
         self._cost.set_goal(self.goal[t])
-        return self._cost.incremental_diff(obs, control)
+        return self._cost.incremental_hess(obs, control, t)
 
-    def terminal(self, obs):
-        raise NotImplementedError
+    def terminal(self, obs, t):
+        self._cost.set_goal(self.goal[t])
+        return self._cost.terminal(obs, t)
 
-    def terminal_diff(self, obs):
-        raise NotImplementedError
+    def terminal_diff(self, obs, t):
+        self._cost.set_goal(self.goal[t])
+        return self._cost.terminal_diff(obs, t)
 
-    def terminal_hess(self, obs):
-        raise NotImplementedError
+    def terminal_hess(self, obs, t):
+        self._cost.set_goal(self.goal[t])
+        return self._cost.terminal_hess(obs, t)
 
     @property
     def is_quad(self):
@@ -88,7 +98,7 @@ class TrackingCost(Cost):
         """
         True if cost has goal
         """
-        return 'goal' in self._cost.properties and self._cost.properties['goal'] is not None
+        return True
     
     def __add__(self, rhs):
         if isinstance(rhs,TrackingCost):

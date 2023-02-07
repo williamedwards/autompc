@@ -49,14 +49,14 @@ class ThresholdCost(Cost):
             goal = full_goal
         self.goal = goal
 
-    def incremental(self, obs, ctrl):
+    def incremental(self, obs, ctrl, t=None):
         max_dist_to_goal = la.norm(obs[self._obs_idxs] - self.goal[self._obs_idxs], np.inf)
         if (max_dist_to_goal > self._threshold or np.isnan(max_dist_to_goal)):
             return 1.0
         else:
             return 0.0
 
-    def terminal(self, obs):
+    def terminal(self, obs, t=None):
         return 0.0
 
 
@@ -85,11 +85,11 @@ class BoxThresholdCost(Cost):
         if goal is not None:
             self.properties['goal'] = np.copy(goal)
 
-    def incremental(self, obs, ctrl):
+    def incremental(self, obs, ctrl, t=None):
         if (obs < self._limits[:,0]).any() or (obs > self._limits[:,1]).any():
             return 1.0
         else:
             return 0.0
 
-    def terminal(self, obs):
+    def terminal(self, obs, t=None):
         return 0.0

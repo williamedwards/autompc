@@ -6,10 +6,10 @@ from typing import Tuple,Union
 import numpy as np
 from .system import System
 from .ocp import OCP
-from .costs import Cost
+from .costs import Cost, TrackingCost
 from .dynamics import Dynamics
 from .policy import Policy
-from .trajectory import Trajectory
+from .trajectory import Trajectory, DynamicTrajectory
 
 
 class NumStepsTermCond:
@@ -60,7 +60,7 @@ class Task(OCP):
     Defines a finite-horizon control task for the tuner.  This generalizes
     an OCP in that 1) it specifies a start state, 2) a trial is terminated
     at a fixed horizon or when a termination criterion is reached.
-    A Task is something evaluatable, whereas an OCP simply specifies the
+    A Task is something evaluable, whereas an OCP simply specifies the
     constraints and preferences for the system behavior.
     """
     def __init__(self, system : System, cost : Cost = None):
@@ -159,6 +159,14 @@ class Task(OCP):
         """
         return self.get_cost().goal
 
+    def set_planner(self, planner : callable) -> None:
+        self.planner = planner
+
+    def get_planner(self) :
+        if hasattr(self, 'planner'):
+            return self.planner
+        else:
+            return None
     def set_goal_term(self, radius_or_thresholds : Union[float,np.ndarray]) -> None:
         """Tells the task to terminate when the state reaches a certain
         radius of the goal state, or thresholds.
@@ -233,12 +241,19 @@ class Task(OCP):
         from .utils.simulation import simulate
         if self.has_num_steps():
             traj = simulate(policy, self.get_init_obs(),
-                dynamics, self.term_cond, 
+                dynamics, self.get_planner(), self.term_cond, 
                 max_steps=self.get_num_steps())
         else:
             traj = simulate(policy, self.get_init_obs(),
-                dynamics, term_cond=self.term_cond)
+                dynamics, self.get_planner(), term_cond=self.term_cond)
         cost = self.get_ocp().get_cost()
-        rollout_cost = cost(traj)
+        if isinstance(cost, TrackingCost):
+            ref_traj = DynamicTrajectory(policy.system)
+            for i in range(len(traj)):
+                ref_obs = self.get_planner()(traj.obs[i], i)[0]
+                ref_traj.append(ref_obs, np.zeros(policy.system.ctrl_dim)) # control doesn't matter
+            rollout_cost = cost(traj, ref_traj)
+        else:
+            rollout_cost = cost(traj)
         return traj,rollout_cost,self.term_cond(traj)
 
