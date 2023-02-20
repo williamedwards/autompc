@@ -55,7 +55,7 @@ class GaussRegTransformer(OCPTransformer):
         self._cov = np.cov(X, rowvar=0)
         self.is_trained = True
 
-    def __call__(self, ocp):
+    def __call__(self, ocp, t=None, horizon=None):
         if self._mean is None or self._cov is None:
             raise RuntimeError("GaussRegTransformer must be trained before calling.")
 

@@ -52,9 +52,9 @@ class SumTransformer(OCPTransformer):
             prototypes.append(transformer.get_prototype(transformer_config, ocp))
         return SumPrototypeOCP(prototypes)
 
-    def __call__(self, ocp):
+    def __call__(self, ocp, t=None, horizon=None):
         # Run all transformers
-        transformed_ocps = [transformer(ocp) for transformer in self._transformers]
+        transformed_ocps = [transformer(ocp, ts) for transformer in self._transformers]
 
         # Check consistency of system, control/observation bounds
         system = transformed_ocps[0].system

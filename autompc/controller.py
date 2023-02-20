@@ -48,6 +48,7 @@ class Controller(TunablePipeline,Policy):
         self.optimizer = None            #type: Optimizer
         self.ocp_transformer = None      #type: OCPTransformer
         self.ocp = None                  #type: OCP
+        self.t = 0
 
         self.add_component("model",[])
         self.add_component("constraint_transformer",[])
@@ -481,6 +482,7 @@ class Controller(TunablePipeline,Policy):
         """
         Resets the the optimizer state and model history.
         """
+        self.t = 0
         self.reset_optimizer()
         self.reset_history()
 
@@ -503,7 +505,7 @@ class Controller(TunablePipeline,Policy):
         if self.optimizer is None:
             raise ControllerStateError("Need to build OCP before resetting optimizer")
         if self.ocp_transformer:
-            self.transformed_ocp = self.ocp_transformer(self.ocp)
+            self.transformed_ocp = self.ocp_transformer(self.ocp, self.t, self.optimizer.horizon)
         else:
             self.transformed_ocp = self.ocp
         self.optimizer.set_model(self.model)
@@ -543,9 +545,13 @@ class Controller(TunablePipeline,Policy):
             self.model_state = self.model.update_state(self.model_state, 
                     self.last_control, obs)
         
+        if self.ocp_transformer:
+            self.transformed_ocp = self.ocp_transformer(self.ocp, self.t, self.optimizer.horizon)   
+            self.optimizer.set_ocp(self.transformed_ocp)
+
         control = self.optimizer.step(self.model_state)
         self.last_control = control
-
+        self.t+=1
         return control
 
     def get_state(self) -> dict:

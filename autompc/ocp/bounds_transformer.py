@@ -26,7 +26,7 @@ class DeleteBoundsTransformer(OCPTransformer):
     def ocp_requirements(self) -> dict:
         return {'are_obs_bounded':True}
 
-    def __call__(self, ocp : OCP) -> OCP:
+    def __call__(self, ocp : OCP, t=None, horizon=None) -> OCP:
         res = copy.deepcopy(ocp)
         res.set_obs_bounds(np.full(self.system.obs_dim,-np.inf),np.full(self.system.obs_dim,np.inf))
         res.set_ctrl_bounds(np.full(self.system.ctrl_dim,-np.inf),np.full(self.system.ctrl_dim,np.inf))
@@ -56,7 +56,7 @@ class KeepBoundsTransformer(OCPTransformer):
     def ocp_requirements(self) -> dict:
         return {'are_obs_bounded':True}
 
-    def __call__(self, ocp : OCP) -> OCP:
+    def __call__(self, ocp : OCP, t=None, horizon=None) -> OCP:
         res = copy.deepcopy(ocp)
         res.set_cost(ZeroCost(self.system))
         return res

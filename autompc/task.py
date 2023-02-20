@@ -159,14 +159,6 @@ class Task(OCP):
         """
         return self.get_cost().goal
 
-    def set_planner(self, planner : callable) -> None:
-        self.planner = planner
-
-    def get_planner(self) :
-        if hasattr(self, 'planner'):
-            return self.planner
-        else:
-            return None
     def set_goal_term(self, radius_or_thresholds : Union[float,np.ndarray]) -> None:
         """Tells the task to terminate when the state reaches a certain
         radius of the goal state, or thresholds.
@@ -241,19 +233,12 @@ class Task(OCP):
         from .utils.simulation import simulate
         if self.has_num_steps():
             traj = simulate(policy, self.get_init_obs(),
-                dynamics, self.get_planner(), self.term_cond, 
+                dynamics, self.term_cond, 
                 max_steps=self.get_num_steps())
         else:
             traj = simulate(policy, self.get_init_obs(),
-                dynamics, self.get_planner(), term_cond=self.term_cond)
+                dynamics, term_cond=self.term_cond)
         cost = self.get_ocp().get_cost()
-        if isinstance(cost, TrackingCost):
-            ref_traj = DynamicTrajectory(policy.system)
-            for i in range(len(traj)):
-                ref_obs = self.get_planner()(traj.obs[i], i)[0]
-                ref_traj.append(ref_obs, np.zeros(policy.system.ctrl_dim)) # control doesn't matter
-            rollout_cost = cost(traj, ref_traj)
-        else:
-            rollout_cost = cost(traj)
+        rollout_cost = cost(traj)
         return traj,rollout_cost,self.term_cond(traj)
 

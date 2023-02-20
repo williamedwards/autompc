@@ -57,7 +57,7 @@ def rollout(dynamics : Dynamics, traj : Trajectory, start : int = 0, horizon : i
     return Trajectory(traj.system,np.concatenate((traj.obs[:start+1],new_obs[:-1]),0),traj.ctrls[:start+horizon+1])
 
 
-def simulate(policy : Policy, init_obs, dynamics : Dynamics, planner=None, term_cond=None, max_steps=10000, silent=False) -> Trajectory:
+def simulate(policy : Policy, init_obs, dynamics : Dynamics, term_cond=None, max_steps=10000, silent=False) -> Trajectory:
     """
     Simulate a policy with respect to a dynamics function.
 
@@ -98,10 +98,6 @@ def simulate(policy : Policy, init_obs, dynamics : Dynamics, planner=None, term_
     else:
         itr = tqdm(range(max_steps), file=sys.stdout)
     for t  in itr:
-        if planner is not None:
-            goal = planner(x, t)
-            policy.ocp.cost.goal = goal
-            policy.optimizer.ocp.cost.goal = goal
         u = policy.step(x)
         traj.append(x,u)
         if term_cond is not None and term_cond(traj):

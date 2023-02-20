@@ -212,7 +212,7 @@ class QuadCostTransformer(OCPTransformer):
         return goal
         
 
-    def __call__(self, ocp):
+    def __call__(self, ocp, t=None, horizon=None):
         Q, R, F = self._get_cost_matrices()
         goal = self._get_goal(ocp)
 

@@ -43,7 +43,7 @@ class OCPTransformer(Tunable):
         raise NotImplementedError
 
     @abstractmethod
-    def __call__(self, ocp : OCP) -> OCP:
+    def __call__(self, ocp : OCP, t : int=None, horizon : int=None) -> OCP:
         raise NotImplementedError
 
     def ocp_requirements(self) -> dict:
@@ -122,5 +122,5 @@ class IdentityTransformer(OCPTransformer):
     def get_prototype(self, config, ocp):
         return PrototypeOCP(ocp)
 
-    def __call__(self, ocp):
+    def __call__(self, ocp, t=None, horizon=None):
         return copy.deepcopy(ocp)

@@ -19,7 +19,7 @@ class SequenceTransformer(OCPTransformer):
     def get_default_config_space(self):
         cs = CS.ConfigurationSpace()
         for i, transformer in enumerate(self._transformers):
-            _fact_cs = transformer.get_config_space()
+            _fact_cs = transformer.get_default_config_space()
             add_configuration_space(cs,f"_seq_{i}", _fact_cs)
         return cs
 
@@ -46,10 +46,10 @@ class SequenceTransformer(OCPTransformer):
             ocp = transformer.get_prototype(transformer_config, ocp)
         return ocp
 
-    def __call__(self, ocp):
+    def __call__(self, ocp, t=None, horizon=None):
         # Run all transformers in reverse order
         for i, transformer in reversed(list(enumerate(self._transformers))):
-            ocp = transformer(ocp)
+            ocp = transformer(ocp, ts)
         return ocp
 
     @property

@@ -50,8 +50,8 @@ class Cost(ABC):
         """
         cost = 0.0
         for i in range(len(traj)):
-            cost += self.incremental(traj[i].obs,traj[i].ctrl)*self.system.dt
-        cost += self.terminal(traj[-1].obs)
+            cost += self.incremental(traj[i].obs,traj[i].ctrl, i)*self.system.dt
+        cost += self.terminal(traj[-1].obs, len(traj)-1)
         return cost
 
     def incremental(self, obs, control, t=None) -> float:
