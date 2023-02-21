@@ -37,8 +37,8 @@ class TrackingCostTransformer(OCPTransformer):
 
     def __call__(self, ocp, t=0, horizon=50):
         full_len = len(ocp.get_cost().goal)
-        new_goal = ocp.get_cost().goal[t:np.clip(t+horizon, t, full_len-1)]
-        new_goal = np.pad(new_goal, pad_width=(0, horizon-len(new_goal)))
+        new_goal = ocp.get_cost().goal[t:np.clip(t+horizon, t, full_len)]
+        new_goal = np.pad(new_goal, pad_width=((0, horizon-len(new_goal)),(0,0)), mode='edge')
         new_cost = TrackingCost(ocp.system, self.cost_transformer(ocp, t, horizon).get_cost(), new_goal)
         new_ocp = copy.deepcopy(ocp)
         new_ocp.set_cost(new_cost)
