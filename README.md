@@ -1,3 +1,10 @@
+## Important Notice
+
+### Active development of AutoMPC has been moved to [https://github.com/uiuc-iml/autompc](https://github.com/uiuc-iml/autompc).  Please follow and update references to the new repository for the latest changes!
+
+---
+---
+
 Welcome to AutoMPC, a library for automating system identification and model predictive control.
 AutoMPC can
  * Build SystemID models and Controllers
