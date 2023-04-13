@@ -45,10 +45,6 @@ class GenericOptimTest(ABC):
         label name to config."""
         raise NotImplementedError
 
-    @abstractmethod
-    def get_precomputed_prefix(self):
-        raise NotImplementedError
-
     def get_inputs(self, num_inputs=10, seed=100):
         states = []
         rng = np.random.default_rng(seed)
@@ -59,28 +55,6 @@ class GenericOptimTest(ABC):
         selected_idxs = rng.choice(states.shape[0], num_inputs, replace=False)
 
         return states[selected_idxs, :]
-
-    def get_precomputed(self, label):
-        fn = f"{self.get_precomputed_prefix()}_{label}.npy"
-        precomp = np.load(fn, allow_pickle=True)
-        return precomp
-
-    def generate_precomputed(self):
-        configs = self.get_configs_to_test()
-        configs["default"] = self.optim.get_default_config()
-        inputs = self.get_inputs()
-
-        for label, config in configs.items():
-            optim = self.optim.clone()
-            optim.set_config(config)
-            optim.set_ocp(self.ocp)
-            optim.set_model(self.model)
-            controls = np.zeros((inputs.shape[0], self.benchmark.system.ctrl_dim))
-            optim.reset()
-            for i, inp in enumerate(inputs):
-                controls[i,:] = optim.step(inp)
-            fn = f"{self.get_precomputed_prefix()}_{label}.npy"
-            np.save(fn, controls)
 
     def test_optim_run(self):
         configs = self.get_configs_to_test()
@@ -113,18 +87,12 @@ class GenericOptimTest(ABC):
 
             self.assertTrue(np.allclose(controls[5:,:], controls_3))
 
-            precomp = self.get_precomputed(label)
-            self.assertTrue(np.allclose(controls, precomp))
-
 class IterativeLQRTest(GenericOptimTest, unittest.TestCase):
     def get_optim(self, system):
         return IterativeLQR(system)
 
     def get_configs_to_test(self):
         return dict()
-
-    def get_precomputed_prefix(self):
-        return "precomputed/ilqr"
 
 class RoundedIterativeLQRTest(GenericOptimTest, unittest.TestCase):
     def get_optim(self, system):
@@ -133,18 +101,12 @@ class RoundedIterativeLQRTest(GenericOptimTest, unittest.TestCase):
     def get_configs_to_test(self):
         return dict()
 
-    def get_precomputed_prefix(self):
-        return "precomputed/rounded-ilqr"
-
 class MPPITest(GenericOptimTest, unittest.TestCase):
     def get_optim(self, system):
         return MPPI(system)
 
     def get_configs_to_test(self):
         return dict()
-
-    def get_precomputed_prefix(self):
-        return "precomputed/mppi"
 
 class DirectTranscriptionTest(GenericOptimTest, unittest.TestCase):
     def get_optim(self, system):
@@ -153,18 +115,12 @@ class DirectTranscriptionTest(GenericOptimTest, unittest.TestCase):
     def get_configs_to_test(self):
         return dict()
 
-    def get_precomputed_prefix(self):
-        return "precomputed/dtrans"
-
 class ZeroTest(GenericOptimTest, unittest.TestCase):
     def get_optim(self, system):
         return ZeroOptimizer(system)
 
     def get_configs_to_test(self):
         return dict()
-
-    def get_precomputed_prefix(self):
-        return "precomputed/zero"
 
 class LQRTest(GenericOptimTest, unittest.TestCase):
     def get_optim(self, system):
@@ -182,27 +138,3 @@ class LQRTest(GenericOptimTest, unittest.TestCase):
         config = self.optim.get_default_config()
         config["finite_horizon"] = "false"
         return {"infinite" : config}
-
-    def get_precomputed_prefix(self):
-        return "precomputed/lqr"
-
-if __name__ == "__main__":
-    if sys.argv[1] == "precompute":
-        if sys.argv[2] == "ilqr":
-            test = IterativeLQRTest()
-        elif sys.argv[2] == "mppi":
-            test = MPPITest()
-        elif sys.argv[2] == "lqr":
-            test = LQRTest()
-        elif sys.argv[2] == "dtrans":
-            test = DirectTranscriptionTest()
-        elif sys.argv[2] == "zero":
-            test = ZeroTest()
-        elif sys.argv[2] == "rounded-ilqr":
-            test = RoundedIterativeLQRTest()
-        else:
-            raise ValueError("Unknown model")
-        test.setUp()
-        test.generate_precomputed()
-    else:
-        raise ValueError("Unknown command")

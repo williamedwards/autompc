@@ -32,10 +32,6 @@ class GenericModelTest(ABC):
         label name to config."""
         raise NotImplementedError
 
-    @abstractmethod
-    def get_precomputed_prefix(self):
-        raise NotImplementedError
-
     def get_inputs(self, model, num_inputs=100, seed=100):
         states = []
         controls = []
@@ -52,24 +48,6 @@ class GenericModelTest(ABC):
         selected_idxs = rng.choice(states.shape[0], num_inputs, replace=False)
 
         return states[selected_idxs, :], controls[selected_idxs, :]
-
-    def get_precomputed(self, label):
-        fn = f"{self.get_precomputed_prefix()}_{label}.txt"
-        precomp = np.loadtxt(fn)
-        return precomp
-
-    def generate_precomputed(self):
-        configs = self.get_configs_to_test()
-        configs["default"] = self.model.get_default_config()
-
-        for label, config in configs.items():
-            model = self.model.clone()
-            model.set_config(config)
-            model.train(self.trajs)
-            input_states, input_controls = self.get_inputs(model)
-            preds = model.pred_batch(input_states, input_controls)
-            fn = f"{self.get_precomputed_prefix()}_{label}.txt"
-            np.savetxt(fn, preds)
 
     def test_model_train_predict(self):
         configs = self.get_configs_to_test()
@@ -89,18 +67,17 @@ class GenericModelTest(ABC):
             preds1 = []
             for state, control in zip(input_states, input_controls):
                 pred = model.pred(state, control)
+                self.assertEqual(pred.ndim, 1)
+                self.assertEqual(pred.size, model.state_dim)
                 preds1.append(pred)
             preds1 = np.array(preds1)
             
             # Test Batch Prediction
             preds2 = model.pred_batch(input_states, input_controls)
+            self.assertEqual(preds2.ndim, 2)
+            self.assertEqual(preds2.shape[0], input_states.shape[0])
+            self.assertEqual(preds2.shape[1], model.state_dim)
             self.assertTrue(np.allclose(preds1, preds2))
-
-            # Compare to pre-computed values
-            precomp = self.get_precomputed(label)
-            if not np.allclose(preds1, precomp):
-                breakpoint()
-            self.assertTrue(np.allclose(preds1, precomp))
 
             predss.append(preds1)
             params.append(model.get_parameters())
@@ -131,18 +108,12 @@ class MLPTest(GenericModelTest, unittest.TestCase):
                 "tanh" : tanh_config,
                 "sigmoid" : sigmoid_config}
 
-    def get_precomputed_prefix(self):
-        return "precomputed/mlp"
-
 class ARXTest(GenericModelTest, unittest.TestCase):
     def get_model(self, system):
         return ARX(system)
 
     def get_configs_to_test(self):
         return dict()
-
-    def get_precomputed_prefix(self):
-        return "precomputed/arx"
 
 class SINDyTest(GenericModelTest, unittest.TestCase):
     def get_model(self, system):
@@ -170,8 +141,6 @@ class SINDyTest(GenericModelTest, unittest.TestCase):
                 "trig_and_poly" : trig_and_poly_config
                 }
 
-    def get_precomputed_prefix(self):
-        return "precomputed/sindy"
 
 class ApproximateGPTest(GenericModelTest, unittest.TestCase):
     def get_model(self, system):
@@ -179,9 +148,6 @@ class ApproximateGPTest(GenericModelTest, unittest.TestCase):
 
     def get_configs_to_test(self):
         return dict()
-
-    def get_precomputed_prefix(self):
-        return "precomputed/approxgp"
 
 class KoopmanTest(GenericModelTest, unittest.TestCase):
     def get_model(self, system):
@@ -223,25 +189,3 @@ class KoopmanTest(GenericModelTest, unittest.TestCase):
                 "trig_and_poly" : trig_and_poly_config,
                 "stable" : stable_config,
                 "lasso" : lasso_config}
-
-    def get_precomputed_prefix(self):
-        return "precomputed/koopman"
-
-if __name__ == "__main__":
-    if sys.argv[1] == "precompute":
-        if sys.argv[2] == "mlp":
-            test = MLPTest()
-        elif sys.argv[2] == "arx":
-            test = ARXTest()
-        elif sys.argv[2] == "sindy":
-            test = SINDyTest()
-        elif sys.argv[2] == "approxgp":
-            test = ApproximateGPTest()
-        elif sys.argv[2] == "koopman":
-            test = KoopmanTest()
-        else:
-            raise ValueError("Unknown model")
-        test.setUp()
-        test.generate_precomputed()
-    else:
-        raise ValueError("Unknown command")

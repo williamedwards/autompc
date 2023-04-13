@@ -83,15 +83,12 @@ class QuadCostTransformerTest(unittest.TestCase):
         cs = transformer.get_config_space()
 
         self.assertIsInstance(cs, CS.ConfigurationSpace)
-        self.assertEqual(cs["x_Q"].lower, 0.0)
-        self.assertEqual(cs["x_Q"].default_value, 0.0)
-        self.assertEqual(cs["x_Q"].upper, 0.0)
-        self.assertEqual(cs["y_F"].lower, 1.5)
-        self.assertEqual(cs["y_F"].default_value, 1.5)
-        self.assertEqual(cs["y_F"].upper, 1.5)
-        self.assertEqual(cs["u_R"].lower, 2.0)
-        self.assertEqual(cs["u_R"].default_value, 2.0)
-        self.assertEqual(cs["u_R"].upper, 2.0)
+        self.assertIsInstance(cs["x_Q"], CS.Constant)
+        self.assertIsInstance(cs["y_F"], CS.Constant)
+        self.assertIsInstance(cs["u_R"], CS.Constant)
+        self.assertEqual(cs["x_Q"].value, 0.0)
+        self.assertEqual(cs["y_F"].value, 1.5)
+        self.assertEqual(cs["u_R"].value, 2.0)
 
         cfg = cs.get_default_configuration()
 

@@ -1,6 +1,5 @@
 
 # Standard library includes
-from collections import Iterable
 import copy
 
 # External library includes

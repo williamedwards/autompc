@@ -97,7 +97,7 @@ def gym_reward(env, x, u, n_frames=5):
 
     total_reward = 0
     # env.sim.data.ctrl[:] = u
-    _, total_reward, _, _  = env.step(u)
+    _, total_reward, _, _, _  = env.step(u)
     # for _ in range(n_frames):
     #     _, reward, _, _, _ = env.sim.step()
     #     total_reward += reward
@@ -161,7 +161,7 @@ class GymMujocoBenchmark(ControlBenchmark):
         import gym, mujoco_py
 
         env = gym.make(name)
-        env.seed(0)
+        env.reset(seed=0)
         self.env = env
         self.env_name = name
         system = self._get_system()
@@ -197,7 +197,7 @@ class GymMujocoBenchmark(ControlBenchmark):
     def gen_trajs(self, seed, n_trajs, traj_len=200, end_on_terminate=False):
         rng = np.random.default_rng(seed)
         trajs = []
-        self.env.seed(int(rng.integers(1 << 30)))
+        self.env.reset(seed=int(rng.integers(1 << 30)))
         self.env.action_space.seed(int(rng.integers(1 << 30)))
         
         for i in range(n_trajs):

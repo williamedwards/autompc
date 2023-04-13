@@ -169,8 +169,8 @@ class FixedModel(Model):
     def get_obs(self, state):
         return self._dynamics.get_obs(state)
 
-    def pred(state, ctrl):
-        return self._dynamics.pred(self, state, ctrl)
+    def pred(self, state, ctrl):
+        return self._dynamics.pred(state, ctrl)
 
     def pred_batch(self, states, ctrls):
         return self._dynamics.pred_batch(states, ctrls)

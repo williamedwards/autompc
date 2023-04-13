@@ -1,0 +1,38 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ 0.2-dev ]
+  pull_request:
+    branches: [ 0.2-dev ]
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v3
+
+    - name: Build Docker image
+      run: |
+        docker build -t autompc .
+
+    - name: Run tests
+      run: |
+        docker run -t -d --name autompc-container autompc
+        docker exec autompc-container coverage run -m unittest discover
+
+    - name: Generate coverage report
+      run: |
+        docker exec autompc-container coverage report
+        docker exec autompc-container coverage html -d /coverage/html
+        docker cp autompc-container:/coverage "$(pwd)/coverage"
+        docker rm -f autompc-container
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: coverage/html

@@ -10,6 +10,7 @@ import numpy as np
 # Internal library includes
 from autompc.benchmarks import CartpoleSwingupBenchmark, ControlBenchmark 
 from autompc.benchmarks.gym_mujoco import GymMujocoBenchmark
+from autompc.benchmarks.gym_reacher import GymReacherBenchmark
 from autompc.trajectory import Trajectory
 from autompc.system import System
 from autompc.task import Task
@@ -65,4 +66,4 @@ class HumanoidBenchmark(GenericBenchmarkTest, unittest.TestCase):
 
 class ReacherBenchmark(GenericBenchmarkTest, unittest.TestCase):
     def get_benchmark(self):
-        return GymMujocoBenchmark(name="Humanoid-v2")
+        return GymReacherBenchmark()

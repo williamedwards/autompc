@@ -1,5 +1,7 @@
 ![AutoMPC logo](docs/_static/autompc-logo.svg)
 
+[![Build](https://github.com/uiuc-iml/autompc/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/uiuc-iml/autompc/actions/workflows/unit-tests.yml)
+
 Welcome to AutoMPC, a library for automating system identification and model predictive control.
 AutoMPC can
  * Build SystemID models and Controllers
